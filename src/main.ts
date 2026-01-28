@@ -3,9 +3,9 @@ import { GameEngine, GameSettings } from './engine';
 import { Renderer } from './renderer';
 import { StorageManager } from './storage';
 import { UIManager } from './ui';
-import { MAP_SIZES, MapSize, setMapSize, getCanvasSize, getTileSize } from './constants';
+import { MAP_SIZES, MapSize, setMapSize, getCanvasSize, getTileSize, GAME_VERSION } from './constants';
 
-console.log('🎮 Easy Cities 2D - Initializing...');
+console.log(`🎮 Easy Cities 2D (ver.${GAME_VERSION}) - Initializing...`);
 
 const canvas = document.getElementById('gameCanvas') as HTMLCanvasElement;
 if (!canvas) {
@@ -23,7 +23,7 @@ function showInitialSettings(): Promise<GameSettings> {
     modal.style.zIndex = '10000';
     modal.innerHTML = `
       <div class="modal-content" style="min-width: 450px;">
-        <h2>🎮 Easy Cities 2D</h2>
+        <h2>🎮 Easy Cities 2D (ver.${GAME_VERSION})</h2>
         <p>ゲーム設定を選択してください</p>
         
         <div style="margin: 20px 0;">

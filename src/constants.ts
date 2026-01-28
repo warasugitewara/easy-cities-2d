@@ -1,4 +1,6 @@
 // ゲーム定数
+export const GAME_VERSION = '0.6.0';
+
 export type MapSize = 'small' | 'medium' | 'large';
 
 export const MAP_SIZES: Record<MapSize, { gridSize: number; canvasSize: number; label: string }> = {

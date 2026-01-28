@@ -1,6 +1,6 @@
 import { GameEngine, GameSettings } from './engine';
 import { StorageManager } from './storage';
-import { BUILDING_TOOLS, BuildingCategory, INFRASTRUCTURE_COLORS, LANDMARK_COLORS } from './constants';
+import { BUILDING_TOOLS, BuildingCategory, INFRASTRUCTURE_COLORS, LANDMARK_COLORS, GAME_VERSION } from './constants';
 
 export class UIManager {
   private engine: GameEngine;
