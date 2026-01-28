@@ -469,17 +469,19 @@ export class GameEngine {
   }
 
   private updateFires(): void {
-    // 新しい火災をランダムに発生させる
-    const fireChance = 0.02 * this.state.gameSpeed; // ゲーム速度に応じてスケール
-    for (let y = 0; y < this.gridSize; y++) {
-      for (let x = 0; x < this.gridSize; x++) {
+    // 新しい火災をランダムに発生させる（サンプリングで高速化）
+    const fireChance = 0.02 * this.state.gameSpeed;
+    const sampleRate = Math.max(1, Math.floor(this.gridSize / 64)); // 大きいマップは間引き
+    
+    for (let y = 0; y < this.gridSize; y += sampleRate) {
+      for (let x = 0; x < this.gridSize; x += sampleRate) {
         if (this.state.map[y][x] !== TileType.EMPTY && Math.random() < fireChance) {
           this.state.fireMap[y][x] = Math.min(10, this.state.fireMap[y][x] + 5);
         }
       }
     }
 
-    // 火災の波及
+    // 火災の波及（アクティブな火災のみ処理）
     const newFireMap = this.state.fireMap.map(row => [...row]);
     for (let y = 0; y < this.gridSize; y++) {
       for (let x = 0; x < this.gridSize; x++) {
@@ -496,15 +498,17 @@ export class GameEngine {
             }
           });
 
-          // 消防署による消火
+          // 消防署による消火（近い消防署だけチェック）
           let fireExtinguished = false;
           for (let yy = -10; yy <= 10; yy++) {
+            if (fireExtinguished) break;
             for (let xx = -10; xx <= 10; xx++) {
               const nx = x + xx;
               const ny = y + yy;
               if (nx >= 0 && ny >= 0 && nx < this.gridSize && ny < this.gridSize) {
                 if (this.state.map[ny][nx] === TileType.FIRE_STATION) {
                   if (Math.random() < 0.5) fireExtinguished = true;
+                  break;
                 }
               }
             }
@@ -519,7 +523,7 @@ export class GameEngine {
           // 火災が蔓延したら建物を破壊
           if (newFireMap[y][x] >= 10) {
             this.state.map[y][x] = TileType.EMPTY;
-            this.state.money -= 1000; // 被害
+            this.state.money -= 1000;
           }
         }
       }
@@ -528,9 +532,11 @@ export class GameEngine {
   }
 
   private updateDiseases(): void {
-    // 新しい病気をランダムに発生させる（特に密集地）
-    for (let y = 0; y < this.gridSize; y++) {
-      for (let x = 0; x < this.gridSize; x++) {
+    // 新しい病気をランダムに発生させる（密集地優先、サンプリングで高速化）
+    const sampleRate = Math.max(1, Math.floor(this.gridSize / 64));
+    
+    for (let y = 0; y < this.gridSize; y += sampleRate) {
+      for (let x = 0; x < this.gridSize; x += sampleRate) {
         const density = this.getLocalDensity(x, y);
         const diseaseChance = 0.01 * (1 + density / 10) * this.state.gameSpeed;
         if (this.state.map[y][x] !== TileType.EMPTY && Math.random() < diseaseChance) {
@@ -539,7 +545,7 @@ export class GameEngine {
       }
     }
 
-    // 病気の波及
+    // 病気の波及（アクティブな病気のみ処理）
     const newDiseaseMap = this.state.diseaseMap.map(row => [...row]);
     for (let y = 0; y < this.gridSize; y++) {
       for (let x = 0; x < this.gridSize; x++) {
@@ -557,15 +563,17 @@ export class GameEngine {
             }
           }
 
-          // 病院による治癒
+          // 病院による治癒（近い病院だけチェック）
           let diseaseHealed = false;
           for (let yy = -10; yy <= 10; yy++) {
+            if (diseaseHealed) break;
             for (let xx = -10; xx <= 10; xx++) {
               const nx = x + xx;
               const ny = y + yy;
               if (nx >= 0 && ny >= 0 && nx < this.gridSize && ny < this.gridSize) {
                 if (this.state.map[ny][nx] === TileType.HOSPITAL) {
                   if (Math.random() < 0.7) diseaseHealed = true;
+                  break;
                 }
               }
             }
@@ -581,7 +589,7 @@ export class GameEngine {
           if (newDiseaseMap[y][x] >= 10) {
             const popLoss = POPULATION_TABLE[this.state.map[y][x]] || 0;
             this.state.population = Math.max(0, this.state.population - popLoss);
-            this.state.money -= 500; // 医療費
+            this.state.money -= 500;
           }
         }
       }

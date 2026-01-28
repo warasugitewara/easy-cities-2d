@@ -23,6 +23,8 @@ export class Renderer {
 
   draw(): void {
     const map = this.engine.state.map;
+    const fireMap = this.engine.state.fireMap;
+    const diseaseMap = this.engine.state.diseaseMap;
     const gridSize = this.engine.state.gridSize;
 
     // カメラトランスフォーム適用
@@ -37,6 +39,20 @@ export class Renderer {
 
         this.ctx.fillStyle = color;
         this.ctx.fillRect(x * this.tileSize, y * this.tileSize, this.tileSize, this.tileSize);
+
+        // 火災のビジュアル表示（赤でハイライト）
+        if (fireMap[y][x] > 0) {
+          const intensity = Math.min(1, fireMap[y][x] / 10);
+          this.ctx.fillStyle = `rgba(255, 50, 50, ${0.3 + intensity * 0.5})`;
+          this.ctx.fillRect(x * this.tileSize, y * this.tileSize, this.tileSize, this.tileSize);
+        }
+
+        // 病気のビジュアル表示（黄でハイライト）
+        if (diseaseMap[y][x] > 0) {
+          const intensity = Math.min(1, diseaseMap[y][x] / 10);
+          this.ctx.fillStyle = `rgba(255, 255, 50, ${0.2 + intensity * 0.4})`;
+          this.ctx.fillRect(x * this.tileSize, y * this.tileSize, this.tileSize, this.tileSize);
+        }
 
         // グリッド線
         this.ctx.strokeStyle = '#1a1a1a';

@@ -177,9 +177,11 @@ async function initializeGame(): Promise<void> {
         // スクリーン座標をワールド座標に変換
         const worldCoords = renderer.screenToWorld(screenX, screenY);
         const tileSize = getTileSize();
-        const x = Math.floor(worldCoords.x / tileSize);
-        const y = Math.floor(worldCoords.y / tileSize);
+        // 0.5タイル分のオフセットを加えて中心ベースで計算
+        const x = Math.floor((worldCoords.x + tileSize * 0.5) / tileSize);
+        const y = Math.floor((worldCoords.y + tileSize * 0.5) / tileSize);
 
+        console.log('🎯 World coords:', worldCoords.x.toFixed(1), worldCoords.y.toFixed(1));
         console.log('🎯 Tile:', x, y, 'gridSize:', engine.state.gridSize);
 
         const gridSize = engine.state.gridSize;
