@@ -1189,3 +1189,122 @@ body {
   background: linear-gradient(135deg, #2a5a5a, #1a3a3a);
   box-shadow: 0 0 10px rgba(0, 191, 255, 0.5);
 }
+
+/* デマンドメーター（デスクトップ） */
+.demand-meter-container {
+  position: absolute;
+  top: 140px;
+  left: 20px;
+  background: rgba(0, 0, 0, 0.8);
+  border: 2px solid #ff9800;
+  border-radius: 8px;
+  padding: 12px;
+  pointer-events: auto;
+  box-shadow: 0 0 15px rgba(255, 152, 0, 0.3);
+  z-index: 101;
+  min-width: 200px;
+}
+
+.demand-meter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.demand-meter:last-child {
+  margin-bottom: 0;
+}
+
+.demand-label {
+  font-size: 18px;
+  min-width: 25px;
+}
+
+.demand-bar {
+  flex: 1;
+  height: 20px;
+  background: rgba(255, 152, 0, 0.2);
+  border: 1px solid #ff9800;
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+}
+
+.demand-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #ff9800, #ffb74d);
+  transition: width 0.3s ease;
+}
+
+.demand-value {
+  min-width: 35px;
+  text-align: right;
+  color: #ffb74d;
+  font-weight: bold;
+  font-size: 12px;
+}
+
+.btn-toggle-demand {
+  position: absolute;
+  bottom: 30px;
+  right: 50%;
+  transform: translateX(70px);
+  padding: 12px 16px;
+  background: linear-gradient(135deg, #ff9800, #ff7043);
+  color: #000;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: bold;
+  box-shadow: 0 0 15px rgba(255, 152, 0, 0.5);
+  transition: all 0.2s;
+  pointer-events: auto;
+}
+
+.btn-toggle-demand:hover {
+  transform: translateX(70px) scale(1.05);
+  box-shadow: 0 0 25px rgba(255, 152, 0, 0.8);
+}
+
+/* デマンドメーター（モバイル） */
+.demand-meter-container-mobile {
+  background: rgba(255, 152, 0, 0.1);
+  border-top: 2px solid #ff9800;
+  padding: 8px;
+  margin-top: 8px;
+}
+
+.demand-meter-mobile {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 0;
+  font-size: 12px;
+  color: #ffb74d;
+}
+
+.demand-meter-mobile span {
+  display: flex;
+  gap: 8px;
+}
+
+.btn-toggle-demand-mobile {
+  width: 100%;
+  padding: 10px;
+  background: linear-gradient(135deg, #ff9800, #ff7043);
+  color: #000;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: bold;
+  margin-top: 8px;
+  transition: all 0.2s;
+}
+
+.btn-toggle-demand-mobile:active {
+  transform: scale(0.95);
+  box-shadow: 0 0 10px rgba(255, 152, 0, 0.5);
+}
