@@ -73,6 +73,38 @@ export class UIManager {
           <span class="stat-label">📅</span>
           <span class="stat-value" id="stat-month">0</span>
         </div>
+        <div class="stat-item-compact">
+          <span class="stat-label">🔒</span>
+          <span class="stat-value" id="stat-security">50</span>
+        </div>
+        <div class="stat-item-compact">
+          <span class="stat-label">🛡️</span>
+          <span class="stat-value" id="stat-safety">50</span>
+        </div>
+        <div class="stat-item-compact">
+          <span class="stat-label">📚</span>
+          <span class="stat-value" id="stat-education">50</span>
+        </div>
+        <div class="stat-item-compact">
+          <span class="stat-label">⚕️</span>
+          <span class="stat-value" id="stat-medical">50</span>
+        </div>
+        <div class="stat-item-compact">
+          <span class="stat-label">🎭</span>
+          <span class="stat-value" id="stat-tourism">0</span>
+        </div>
+        <div class="stat-item-compact">
+          <span class="stat-label">✈️</span>
+          <span class="stat-value" id="stat-international">0</span>
+        </div>
+        <div class="stat-item-compact">
+          <span class="stat-label">📡</span>
+          <span class="stat-value" id="stat-power">0%</span>
+        </div>
+        <div class="stat-item-compact">
+          <span class="stat-label">💧</span>
+          <span class="stat-value" id="stat-water">0%</span>
+        </div>
       </div>
     `;
     uiContainer.appendChild(dashboard);
@@ -309,6 +341,16 @@ export class UIManager {
     document.getElementById('stat-money')!.textContent = `¥${(money / 1000).toFixed(0)}K`;
     document.getElementById('stat-comfort')!.textContent = Math.round(this.engine.state.comfort).toString();
     document.getElementById('stat-month')!.textContent = this.engine.state.month.toString();
+    
+    // 新パラメータ表示
+    document.getElementById('stat-security')!.textContent = Math.round(this.engine.state.securityLevel).toString();
+    document.getElementById('stat-safety')!.textContent = Math.round(this.engine.state.safetyLevel).toString();
+    document.getElementById('stat-education')!.textContent = Math.round(this.engine.state.educationLevel).toString();
+    document.getElementById('stat-medical')!.textContent = Math.round(this.engine.state.medicalLevel).toString();
+    document.getElementById('stat-tourism')!.textContent = Math.round(this.engine.state.tourismLevel).toString();
+    document.getElementById('stat-international')!.textContent = Math.round(this.engine.state.internationalLevel).toString();
+    document.getElementById('stat-power')!.textContent = Math.round(this.engine.state.powerSupplyRate).toString() + '%';
+    document.getElementById('stat-water')!.textContent = Math.round(this.engine.state.waterSupplyRate).toString() + '%';
   }
 
   private attachEventListeners(): void {
@@ -338,6 +380,7 @@ export class UIManager {
 
   private setGameSpeed(speed: number): void {
     this.engine.state.gameSpeed = speed;
+    this.engine.state.paused = (speed === 0); // ポーズボタンで一時停止
     
     // ボタンのアクティブ状態を更新
     document.querySelectorAll('.time-btn').forEach((btn) => {

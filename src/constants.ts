@@ -1,5 +1,5 @@
 // ゲーム定数
-export const GAME_VERSION = '0.6.0';
+export const GAME_VERSION = '0.7.0';
 
 export type MapSize = 'small' | 'medium' | 'large';
 
@@ -210,4 +210,94 @@ export const TAX_REVENUE: Record<number, number> = {
   [TileType.INDUSTRIAL_L4]: 350,
   [TileType.LANDMARK_STADIUM]: 5000,
   [TileType.LANDMARK_AIRPORT]: 10000,
+};
+
+// ==================== インフラ効果定数 ====================
+
+// インフラの効果範囲（タイル単位）
+export const INFRASTRUCTURE_EFFECTS = {
+  police: {
+    rangeRadius: 30,          // 効果範囲半径
+    securityBoost: 5,         // 年間治安度向上
+    growthPenalty: 0.5,       // 治安度低い時の成長ペナルティ（0.5 = 50%低下）
+  },
+  fire_station: {
+    rangeRadius: 30,
+    safetyBoost: 5,           // 年間安全度向上
+    fireSuppressionRate: 0.75, // 火災発生確率低下率（75%低下）
+  },
+  school: {
+    rangeRadius: 25,
+    educationBoost: 3,         // 年間教育度向上
+    taxBonusThreshold: 60,     // 教育度がこれ以上で税収+15%
+  },
+  hospital: {
+    rangeRadius: 25,
+    medicalBoost: 4,           // 年間医療度向上
+    diseaseReductionRate: 0.6, // 病気発生確率低下率（60%低下）
+  },
+  power_plant: {
+    rangeRadius: 20,
+    growthPenalty: 0.4,        // 電力供給なし時の成長ペナルティ（40%低下）
+  },
+  water_treatment: {
+    rangeRadius: 15,
+    growthPenalty: 0.7,        // 給水なし時の成長ペナルティ（70%低下）
+    diseaseMultiplier: 3,      // 給水なし時の病気発生倍率
+  },
+  station: {
+    rangeRadius: 20,
+    growthBoost: 1.5,          // 周辺成長速度倍率
+  },
+  park: {
+    rangeRadius: 15,
+    comfortBoost: 2,           // 快適度向上値
+  },
+};
+
+// ランドマーク効果
+export const LANDMARK_EFFECTS = {
+  stadium: {
+    rangeRadius: 40,
+    tourismBoost: 5,           // 年間観光度向上
+    commercialBonusMin: 500,   // L1商業地観光収入
+    commercialBonusMax: 3000,  // L4商業地観光収入
+  },
+  airport: {
+    rangeRadius: 50,
+    tourismBoost: 3,           // 年間観光度向上（スタジアムより少ない）
+    internationalBoost: 5,     // 年間国際化度向上
+    commercialBonusMin: 1000,  // L1商業地国際取引収入
+    commercialBonusMax: 5000,  // L4商業地国際取引収入
+  },
+};
+
+// シナジー効果
+export const SYNERGY_EFFECTS = {
+  police_school: {
+    distanceThreshold: 15,     // 15マス以内でシナジー発生
+    securityBoost: 10,
+    educationBoost: 10,
+  },
+  school_hospital: {
+    distanceThreshold: 15,
+    educationBoost: 5,
+    medicalBoost: 5,
+  },
+  station_school_police: {
+    distanceThreshold: 20,
+    commercialGrowthBonus: 0.2, // 商業成長+20%
+  },
+};
+
+// パラメータの初期値
+export const INITIAL_PARAMETERS = {
+  securityLevel: 50,
+  safetyLevel: 50,
+  educationLevel: 50,
+  medicalLevel: 50,
+  tourismLevel: 0,
+  internationalLevel: 0,
+  powerSupplyRate: 0,
+  waterSupplyRate: 0,
 };

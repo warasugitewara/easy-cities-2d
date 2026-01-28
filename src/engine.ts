@@ -1,4 +1,4 @@
-import { MapSize, MAP_SIZES, TileType, POPULATION_TABLE, TAX_REVENUE, MAINTENANCE_COSTS, BUILD_COSTS, BuildingCategory, getGridSize, BUILDING_SIZES } from './constants';
+import { MapSize, MAP_SIZES, TileType, POPULATION_TABLE, TAX_REVENUE, MAINTENANCE_COSTS, BUILD_COSTS, BuildingCategory, getGridSize, BUILDING_SIZES, INITIAL_PARAMETERS } from './constants';
 
 // ゲーム設定インターフェース
 export interface GameSettings {
@@ -28,6 +28,15 @@ export interface GameState {
   fireMap: number[][];     // 火災レベル（0=なし、1-10=火の強さ）
   diseaseMap: number[][];  // 病気レベル（0=なし、1-10=病気の強さ）
   crimeMap: number[][];    // 犯罪率（0-100）
+  // 詳細パラメータ
+  securityLevel: number;   // 治安度（0-100）
+  safetyLevel: number;     // 安全度（0-100）
+  educationLevel: number;  // 教育度（0-100）
+  medicalLevel: number;    // 医療度（0-100）
+  tourismLevel: number;    // 観光度（0-100）
+  internationalLevel: number; // 国際化度（0-100）
+  powerSupplyRate: number; // 電力供給率（％）
+  waterSupplyRate: number; // 給水率（％）
 }
 
 export class GameEngine {
@@ -56,6 +65,14 @@ export class GameEngine {
       fireMap: Array.from({ length: this.gridSize }, () => Array(this.gridSize).fill(0)),
       diseaseMap: Array.from({ length: this.gridSize }, () => Array(this.gridSize).fill(0)),
       crimeMap: Array.from({ length: this.gridSize }, () => Array(this.gridSize).fill(0)),
+      securityLevel: INITIAL_PARAMETERS.securityLevel,
+      safetyLevel: INITIAL_PARAMETERS.safetyLevel,
+      educationLevel: INITIAL_PARAMETERS.educationLevel,
+      medicalLevel: INITIAL_PARAMETERS.medicalLevel,
+      tourismLevel: INITIAL_PARAMETERS.tourismLevel,
+      internationalLevel: INITIAL_PARAMETERS.internationalLevel,
+      powerSupplyRate: INITIAL_PARAMETERS.powerSupplyRate,
+      waterSupplyRate: INITIAL_PARAMETERS.waterSupplyRate,
       settings: settings || {
         difficulty: 'normal',
         mapSize: 'medium',
@@ -351,6 +368,9 @@ export class GameEngine {
     // 災害処理
     this.updateDisasters();
 
+    // インフラ効果計算（詳細パラメータ更新）
+    this.updateInfrastructureEffects();
+
     let revenue = 0;
     let maintenance = 0;
 
@@ -370,6 +390,120 @@ export class GameEngine {
       alert('資金がなくなりました！ゲームオーバーです');
       this.reset();
     }
+  }
+
+  // インフラ効果の計算・反映
+  private updateInfrastructureEffects(): void {
+    // 各パラメータを少し減衰させてからリセット（前月の記憶を保つ）
+    this.state.securityLevel = Math.max(40, this.state.securityLevel * 0.9);
+    this.state.safetyLevel = Math.max(40, this.state.safetyLevel * 0.9);
+    this.state.educationLevel = Math.max(40, this.state.educationLevel * 0.9);
+    this.state.medicalLevel = Math.max(40, this.state.medicalLevel * 0.9);
+    this.state.tourismLevel = Math.max(0, this.state.tourismLevel * 0.95);
+    this.state.internationalLevel = Math.max(0, this.state.internationalLevel * 0.95);
+
+    // 供給率計算
+    this.calculateSupplyRates();
+
+    // 施設の影響を集計
+    for (let y = 0; y < this.gridSize; y++) {
+      for (let x = 0; x < this.gridSize; x++) {
+        const tile = this.state.map[y][x];
+        
+        // 警察署の効果
+        if (tile === TileType.POLICE) {
+          this.applyEffectRadius(x, y, 30, 'security', 5);
+        }
+        // 消防署の効果
+        if (tile === TileType.FIRE_STATION) {
+          this.applyEffectRadius(x, y, 30, 'safety', 5);
+        }
+        // 学校の効果
+        if (tile === TileType.SCHOOL) {
+          this.applyEffectRadius(x, y, 25, 'education', 3);
+        }
+        // 病院の効果
+        if (tile === TileType.HOSPITAL) {
+          this.applyEffectRadius(x, y, 25, 'medical', 4);
+        }
+        // スタジアムの効果
+        if (tile === TileType.LANDMARK_STADIUM) {
+          this.applyEffectRadius(x, y, 40, 'tourism', 5);
+        }
+        // 空港の効果
+        if (tile === TileType.LANDMARK_AIRPORT) {
+          this.applyEffectRadius(x, y, 50, 'tourism', 3);
+          this.applyEffectRadius(x, y, 50, 'international', 5);
+        }
+      }
+    }
+
+    // パラメータを100で上限
+    this.state.securityLevel = Math.min(100, this.state.securityLevel);
+    this.state.safetyLevel = Math.min(100, this.state.safetyLevel);
+    this.state.educationLevel = Math.min(100, this.state.educationLevel);
+    this.state.medicalLevel = Math.min(100, this.state.medicalLevel);
+    this.state.tourismLevel = Math.min(100, this.state.tourismLevel);
+    this.state.internationalLevel = Math.min(100, this.state.internationalLevel);
+  }
+
+  // 半径内に効果を適用
+  private applyEffectRadius(centerX: number, centerY: number, radius: number, effectType: string, value: number): void {
+    for (let y = Math.max(0, centerY - radius); y < Math.min(this.gridSize, centerY + radius); y++) {
+      for (let x = Math.max(0, centerX - radius); x < Math.min(this.gridSize, centerX + radius); x++) {
+        const dist = Math.abs(x - centerX) + Math.abs(y - centerY); // マンハッタン距離
+        if (dist <= radius) {
+          const factor = 1 - (dist / radius) * 0.3; // 距離に応じて効果を減衰
+          switch (effectType) {
+            case 'security':
+              this.state.securityLevel += value * factor;
+              break;
+            case 'safety':
+              this.state.safetyLevel += value * factor;
+              break;
+            case 'education':
+              this.state.educationLevel += value * factor;
+              break;
+            case 'medical':
+              this.state.medicalLevel += value * factor;
+              break;
+            case 'tourism':
+              this.state.tourismLevel += value * factor;
+              break;
+            case 'international':
+              this.state.internationalLevel += value * factor;
+              break;
+          }
+        }
+      }
+    }
+  }
+
+  // 供給率計算
+  private calculateSupplyRates(): void {
+    let powerSupplied = 0;
+    let waterSupplied = 0;
+    let totalBuildings = 0;
+
+    for (let y = 0; y < this.gridSize; y++) {
+      for (let x = 0; x < this.gridSize; x++) {
+        const tile = this.state.map[y][x];
+        
+        // インフラ以外の建物をカウント
+        if (tile !== TileType.EMPTY && tile < 0) continue;
+        if (tile > 0) {
+          totalBuildings++;
+          
+          // 電力供給チェック
+          if (this.state.powerGrid[y][x]) powerSupplied++;
+          // 給水チェック
+          if (this.state.waterGrid[y][x]) waterSupplied++;
+        }
+      }
+    }
+
+    this.state.powerSupplyRate = totalBuildings > 0 ? (powerSupplied / totalBuildings) * 100 : 0;
+    this.state.waterSupplyRate = totalBuildings > 0 ? (waterSupplied / totalBuildings) * 100 : 0;
   }
 
   // 人口計算
@@ -442,6 +576,14 @@ export class GameEngine {
       fireMap: Array.from({ length: this.gridSize }, () => Array(this.gridSize).fill(0)),
       diseaseMap: Array.from({ length: this.gridSize }, () => Array(this.gridSize).fill(0)),
       crimeMap: Array.from({ length: this.gridSize }, () => Array(this.gridSize).fill(0)),
+      securityLevel: INITIAL_PARAMETERS.securityLevel,
+      safetyLevel: INITIAL_PARAMETERS.safetyLevel,
+      educationLevel: INITIAL_PARAMETERS.educationLevel,
+      medicalLevel: INITIAL_PARAMETERS.medicalLevel,
+      tourismLevel: INITIAL_PARAMETERS.tourismLevel,
+      internationalLevel: INITIAL_PARAMETERS.internationalLevel,
+      powerSupplyRate: INITIAL_PARAMETERS.powerSupplyRate,
+      waterSupplyRate: INITIAL_PARAMETERS.waterSupplyRate,
       settings: this.state.settings,
     };
     const center = this.gridSize / 2;

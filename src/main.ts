@@ -133,15 +133,21 @@ async function initializeGame(): Promise<void> {
     // ゲームループ
     function gameLoop(): void {
       try {
-        // 成長処理（毎フレーム）
-        engine.grow();
+        // ポーズ状態でない場合のみ成長処理
+        if (!engine.state.paused && engine.state.gameSpeed > 0) {
+          // 成長処理（毎フレーム）
+          engine.grow();
 
-        // 月次更新（20フレームごと）
-        monthCounter++;
-        if (monthCounter >= 20) {
-          engine.monthlyUpdate();
-          monthCounter = 0;
+          // 月次更新（ゲーム速度に応じたフレームカウント）
+          // gameSpeed: 0.5 = 遅い（40フレーム）、1 = 通常（20フレーム）、2 = 高速（10フレーム）
+          const updateInterval = Math.max(1, Math.round(20 / engine.state.gameSpeed));
+          monthCounter++;
+          if (monthCounter >= updateInterval) {
+            engine.monthlyUpdate();
+            monthCounter = 0;
+          }
         }
+        // ポーズ中はカウンターはそのまま保持
 
         // 描画
         renderer.draw();
