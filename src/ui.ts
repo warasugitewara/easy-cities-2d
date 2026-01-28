@@ -14,6 +14,13 @@ export class UIManager {
   private draggingPanel: HTMLElement | null = null;
   private dragOffsetX: number = 0;
   private dragOffsetY: number = 0;
+  
+  private resizingPanel: HTMLElement | null = null;
+  private resizeDir: string = '';
+  private resizeStartX: number = 0;
+  private resizeStartY: number = 0;
+  private resizeStartWidth: number = 0;
+  private resizeStartHeight: number = 0;
 
   constructor(engine: GameEngine, storage: StorageManager) {
     this.engine = engine;
@@ -25,6 +32,23 @@ export class UIManager {
   private setupGlobalDragHandlers(): void {
     // グローバルなマウスムーブイベント
     document.addEventListener('mousemove', (e: MouseEvent) => {
+      // リサイズ中はドラッグ処理をスキップ
+      if (this.resizingPanel) {
+        const deltaX = e.clientX - this.resizeStartX;
+        const deltaY = e.clientY - this.resizeStartY;
+
+        if (this.resizeDir.includes('right') || this.resizeDir.includes('corner')) {
+          const newWidth = Math.max(150, this.resizeStartWidth + deltaX);
+          this.resizingPanel.style.width = newWidth + 'px';
+        }
+        if (this.resizeDir.includes('bottom') || this.resizeDir.includes('corner')) {
+          const newHeight = Math.max(100, this.resizeStartHeight + deltaY);
+          this.resizingPanel.style.height = newHeight + 'px';
+        }
+        return;
+      }
+
+      // ドラッグ中のみ位置を更新
       if (this.draggingPanel) {
         let newX = e.clientX - this.dragOffsetX;
         let newY = e.clientY - this.dragOffsetY;
@@ -45,6 +69,10 @@ export class UIManager {
 
     // グローバルなマウスアップイベント
     document.addEventListener('mouseup', () => {
+      if (this.resizingPanel) {
+        this.resizingPanel = null;
+        document.body.style.cursor = 'default';
+      }
       if (this.draggingPanel) {
         this.draggingPanel.style.cursor = 'default';
         this.draggingPanel = null;
@@ -808,73 +836,52 @@ export class UIManager {
     resizeHandles.forEach((handle) => {
       (handle as HTMLElement).addEventListener('mousedown', (e: MouseEvent) => {
         e.preventDefault();
-        isResizing = true;
-        resizeDir = (handle as HTMLElement).className;
-        startX = e.clientX;
-        startY = e.clientY;
-        startWidth = panel.offsetWidth;
-        startHeight = panel.offsetHeight;
-        document.body.style.cursor = resizeDir.includes('corner') ? 'nwse-resize' : resizeDir.includes('right') ? 'ew-resize' : 'ns-resize';
+        e.stopPropagation();
+        
+        // ドラッグ中ならリサイズ開始しない
+        if (this.draggingPanel) return;
+        
+        this.resizingPanel = panel;
+        this.resizeDir = (handle as HTMLElement).className;
+        this.resizeStartX = e.clientX;
+        this.resizeStartY = e.clientY;
+        this.resizeStartWidth = panel.offsetWidth;
+        this.resizeStartHeight = panel.offsetHeight;
+        
+        const cursorMap: { [key: string]: string } = {
+          'resize-right': 'ew-resize',
+          'resize-bottom': 'ns-resize',
+          'resize-corner': 'nwse-resize'
+        };
+        document.body.style.cursor = cursorMap[this.resizeDir] || 'default';
       });
     });
 
-    // マウスムーブ時のリサイズ処理（グローバル）
-    const handleMouseMove = (e: MouseEvent) => {
-      if (isResizing) {
-        const deltaX = e.clientX - startX;
-        const deltaY = e.clientY - startY;
-
-        if (resizeDir.includes('right') || resizeDir.includes('corner')) {
-          const newWidth = Math.max(150, startWidth + deltaX); // 最小幅 150px
-          panel.style.width = newWidth + 'px';
-        }
-        if (resizeDir.includes('bottom') || resizeDir.includes('corner')) {
-          const newHeight = Math.max(100, startHeight + deltaY); // 最小高さ 100px
-          panel.style.height = newHeight + 'px';
-        }
-      }
-    };
-
-    const handleMouseUp = () => {
-      if (isResizing) {
-        isResizing = false;
-        document.body.style.cursor = 'default';
-      }
-    };
-
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
+    // マウスムーブ時のリサイズ処理（グローバルハンドラーで処理）
+    // マウスアップ時のリサイズ終了（グローバルハンドラーで処理）
 
     // ドラッグ処理（ヘッダー部分をドラッグ）
     // ドラッグ対象を特定（パネルのタイトル/ヘッダー部分）
     const dragHeader = panel.querySelector('.controls-header') || 
                        panel.querySelector('.demand-meter-header') || 
-                       panel.querySelector('.tab-container-overlay') ||
-                       panel.querySelector('.build-content-overlay')?.parentElement;
+                       panel.querySelector('.tab-container-overlay');
     
     if (dragHeader) {
       (dragHeader as HTMLElement).addEventListener('mousedown', (e: MouseEvent) => {
+        // リサイズ中ならドラッグ開始しない
+        if (this.resizingPanel) return;
+        
+        // リサイズハンドル上ではドラッグ無効
+        if ((e.target as HTMLElement).className.includes('resize-')) return;
+        
         // ボタンやインタラクティブ要素でのドラッグを無効化
         if ((e.target as HTMLElement).tagName === 'BUTTON' || 
             (e.target as HTMLElement).tagName === 'INPUT') {
           return;
         }
 
-        this.draggingPanel = panel;
-        this.dragOffsetX = e.clientX - panel.offsetLeft;
-        this.dragOffsetY = e.clientY - panel.offsetTop;
-        panel.style.cursor = 'grabbing';
-      });
-    } else {
-      // ヘッダーがない場合、パネル全体でドラッグ可能にする
-      panel.addEventListener('mousedown', (e: MouseEvent) => {
-        // リサイズハンドル上ではドラッグ無効
-        if ((e.target as HTMLElement).className.includes('resize-')) return;
-        
-        if ((e.target as HTMLElement).tagName === 'BUTTON' || 
-            (e.target as HTMLElement).tagName === 'INPUT') {
-          return;
-        }
+        e.preventDefault();
+        e.stopPropagation();
 
         this.draggingPanel = panel;
         this.dragOffsetX = e.clientX - panel.offsetLeft;
