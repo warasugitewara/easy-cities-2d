@@ -253,8 +253,8 @@ export class GameEngine {
     let revenue = 0;
     let maintenance = 0;
 
-    for (let y = 0; y < GRID_SIZE; y++) {
-      for (let x = 0; x < GRID_SIZE; x++) {
+    for (let y = 0; y < this.gridSize; y++) {
+      for (let x = 0; x < this.gridSize; x++) {
         const tile = this.state.map[y][x];
         revenue += TAX_REVENUE[tile] || 0;
         maintenance += MAINTENANCE_COSTS[tile] || 0;
