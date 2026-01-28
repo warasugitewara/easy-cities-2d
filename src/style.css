@@ -596,6 +596,8 @@ body {
   overflow-y: auto;
   box-shadow: 0 0 20px rgba(0, 191, 255, 0.4);
   z-index: 102;
+  cursor: grab;
+  user-select: none;
 }
 
 .build-menu-overlay.hidden {
@@ -671,6 +673,8 @@ body {
   min-width: 150px;
   box-shadow: 0 0 20px rgba(0, 191, 255, 0.4);
   z-index: 102;
+  cursor: grab;
+  user-select: none;
 }
 
 .controls-panel-overlay.hidden {

@@ -10,11 +10,36 @@ export class UIManager {
   private guiVisible: boolean = false;
   private selectedInfrastructure: string = 'station';
   private selectedLandmark: string = 'stadium';
+  
+  private draggingPanel: HTMLElement | null = null;
+  private dragOffsetX: number = 0;
+  private dragOffsetY: number = 0;
 
   constructor(engine: GameEngine, storage: StorageManager) {
     this.engine = engine;
     this.storage = storage;
     this.setupUI();
+    this.setupGlobalDragHandlers();
+  }
+
+  private setupGlobalDragHandlers(): void {
+    // グローバルなマウスムーブイベント
+    document.addEventListener('mousemove', (e: MouseEvent) => {
+      if (this.draggingPanel) {
+        const newX = e.clientX - this.dragOffsetX;
+        const newY = e.clientY - this.dragOffsetY;
+        this.draggingPanel.style.left = newX + 'px';
+        this.draggingPanel.style.top = newY + 'px';
+      }
+    });
+
+    // グローバルなマウスアップイベント
+    document.addEventListener('mouseup', () => {
+      if (this.draggingPanel) {
+        this.draggingPanel.style.cursor = 'default';
+        this.draggingPanel = null;
+      }
+    });
   }
 
   private setupUI(): void {
@@ -261,6 +286,29 @@ export class UIManager {
     document.getElementById('btn-load')?.addEventListener('click', () => this.showLoadSlots());
     document.getElementById('btn-export')?.addEventListener('click', () => this.exportGame());
     document.getElementById('btn-import')?.addEventListener('click', () => this.importGame());
+
+    // UI パネルのドラッグ機能
+    this.makePanelDraggable('build-menu');
+    this.makePanelDraggable('controls-panel');
+  }
+
+  private makePanelDraggable(panelId: string): void {
+    const panel = document.getElementById(panelId);
+    if (!panel) return;
+
+    // マウスダウンでドラッグ開始
+    panel.addEventListener('mousedown', (e: MouseEvent) => {
+      // ボタンやインタラクティブ要素でのドラッグを無効化
+      if ((e.target as HTMLElement).tagName === 'BUTTON' || 
+          (e.target as HTMLElement).tagName === 'INPUT') {
+        return;
+      }
+
+      this.draggingPanel = panel;
+      this.dragOffsetX = e.clientX - panel.offsetLeft;
+      this.dragOffsetY = e.clientY - panel.offsetTop;
+      panel.style.cursor = 'grabbing';
+    });
   }
 
   private toggleGUI(): void {
