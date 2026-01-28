@@ -51,6 +51,264 @@ export class UIManager {
 
     console.log('✅ Setting up UI...');
 
+    // モバイル判定
+    const isMobile = window.innerWidth <= 1024;
+
+    if (isMobile) {
+      this.setupMobileUI(uiContainer);
+    } else {
+      this.setupDesktopUI(uiContainer);
+    }
+
+    this.attachEventListeners();
+  }
+
+  private setupMobileUI(container: HTMLElement): void {
+    // モバイル版：シンプルなタブベースUI
+    const mobilePanel = document.createElement('div');
+    mobilePanel.id = 'mobile-panel';
+    mobilePanel.className = 'mobile-panel';
+
+    // タブボタン
+    const tabBar = document.createElement('div');
+    tabBar.className = 'mobile-tab-bar';
+    tabBar.innerHTML = `
+      <button class="mobile-tab-btn active" data-tab="stats">📊 ステータス</button>
+      <button class="mobile-tab-btn" data-tab="build">🏗️ 建設</button>
+      <button class="mobile-tab-btn" data-tab="time">⏱️ 時間</button>
+      <button class="mobile-tab-btn" data-tab="menu">⚙️ メニュー</button>
+    `;
+    mobilePanel.appendChild(tabBar);
+
+    // タブコンテンツ
+    const tabContent = document.createElement('div');
+    tabContent.className = 'mobile-tab-content';
+    tabContent.id = 'mobile-tab-content';
+
+    // ステータスタブ
+    const statsTab = document.createElement('div');
+    statsTab.className = 'mobile-tab-pane active';
+    statsTab.dataset.tab = 'stats';
+    statsTab.innerHTML = `
+      <div class="mobile-stats-grid">
+        <div class="stat-compact">
+          <span class="stat-label">👥</span>
+          <span class="stat-value" id="stat-population">0</span>
+        </div>
+        <div class="stat-compact">
+          <span class="stat-label">💰</span>
+          <span class="stat-value" id="stat-money">¥250K</span>
+        </div>
+        <div class="stat-compact">
+          <span class="stat-label">😊</span>
+          <span class="stat-value" id="stat-comfort">50</span>
+        </div>
+        <div class="stat-compact">
+          <span class="stat-label">📅</span>
+          <span class="stat-value" id="stat-month">0</span>
+        </div>
+        <div class="stat-compact">
+          <span class="stat-label">🔒</span>
+          <span class="stat-value" id="stat-security">50</span>
+        </div>
+        <div class="stat-compact">
+          <span class="stat-label">🛡️</span>
+          <span class="stat-value" id="stat-safety">50</span>
+        </div>
+        <div class="stat-compact">
+          <span class="stat-label">📚</span>
+          <span class="stat-value" id="stat-education">50</span>
+        </div>
+        <div class="stat-compact">
+          <span class="stat-label">⚕️</span>
+          <span class="stat-value" id="stat-medical">50</span>
+        </div>
+        <div class="stat-compact">
+          <span class="stat-label">🎭</span>
+          <span class="stat-value" id="stat-tourism">0</span>
+        </div>
+        <div class="stat-compact">
+          <span class="stat-label">✈️</span>
+          <span class="stat-value" id="stat-international">0</span>
+        </div>
+        <div class="stat-compact">
+          <span class="stat-label">📡</span>
+          <span class="stat-value" id="stat-power">0%</span>
+        </div>
+        <div class="stat-compact">
+          <span class="stat-label">💧</span>
+          <span class="stat-value" id="stat-water">0%</span>
+        </div>
+      </div>
+    `;
+    tabContent.appendChild(statsTab);
+
+    // 建設タブ
+    const buildTab = document.createElement('div');
+    buildTab.className = 'mobile-tab-pane';
+    buildTab.dataset.tab = 'build';
+    buildTab.id = 'build-tab-content';
+    this.createMobileBuildMenu(buildTab);
+    tabContent.appendChild(buildTab);
+
+    // 時間制御タブ
+    const timeTab = document.createElement('div');
+    timeTab.className = 'mobile-tab-pane';
+    timeTab.dataset.tab = 'time';
+    timeTab.innerHTML = `
+      <div class="mobile-time-controls">
+        <button id="btn-pause" class="mobile-time-btn" title="ポーズ">⏸</button>
+        <button id="btn-slow" class="mobile-time-btn" title="遅い">⏪</button>
+        <button id="btn-normal" class="mobile-time-btn active" title="通常">▶</button>
+        <button id="btn-fast" class="mobile-time-btn" title="高速">⏩</button>
+      </div>
+    `;
+    tabContent.appendChild(timeTab);
+
+    // メニュータブ
+    const menuTab = document.createElement('div');
+    menuTab.className = 'mobile-tab-pane';
+    menuTab.dataset.tab = 'menu';
+    menuTab.innerHTML = `
+      <div class="mobile-menu-buttons">
+        <button id="btn-settings" class="mobile-menu-btn">⚙️ 設定</button>
+        <button id="btn-save" class="mobile-menu-btn">💾 セーブ</button>
+        <button id="btn-load" class="mobile-menu-btn">📂 ロード</button>
+        <button id="btn-export" class="mobile-menu-btn">📤 エクスポート</button>
+        <button id="btn-import" class="mobile-menu-btn">📥 インポート</button>
+      </div>
+    `;
+    tabContent.appendChild(menuTab);
+
+    mobilePanel.appendChild(tabContent);
+    container.appendChild(mobilePanel);
+
+    // タブ切り替えハンドラ
+    tabBar.querySelectorAll('.mobile-tab-btn').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        const tab = (e.target as HTMLElement).dataset.tab;
+        this.switchMobileTab(tab!);
+      });
+    });
+  }
+
+  private createMobileBuildMenu(container: HTMLElement): void {
+    // カテゴリセレクタ
+    const categorySelect = document.createElement('select');
+    categorySelect.id = 'mobile-category-select';
+    categorySelect.className = 'mobile-category-select';
+    categorySelect.innerHTML = `
+      <option value="road">🛣️ 道路</option>
+      <option value="residential">🏠 住宅</option>
+      <option value="commercial">🏢 商業</option>
+      <option value="industrial">🏭 工業</option>
+      <option value="infrastructure">🔧 インフラ</option>
+      <option value="landmark">🎪 ランドマーク</option>
+      <option value="demolish">💣 削除</option>
+    `;
+    container.appendChild(categorySelect);
+
+    // 説明
+    const description = document.createElement('div');
+    description.id = 'mobile-build-description';
+    description.className = 'mobile-build-description';
+    container.appendChild(description);
+
+    // オプション
+    const options = document.createElement('div');
+    options.id = 'mobile-build-options';
+    options.className = 'mobile-build-options';
+    container.appendChild(options);
+
+    categorySelect.addEventListener('change', (e) => {
+      const cat = (e.target as HTMLSelectElement).value as BuildingCategory;
+      this.switchTab(cat);
+      this.updateMobileBuildContent(cat);
+    });
+
+    // 初期表示
+    this.updateMobileBuildContent('road');
+  }
+
+  private updateMobileBuildContent(category: BuildingCategory): void {
+    const descDiv = document.getElementById('mobile-build-description');
+    const optionsDiv = document.getElementById('mobile-build-options');
+
+    if (!descDiv || !optionsDiv) return;
+
+    const tool = BUILDING_TOOLS[category];
+    descDiv.innerHTML = `<div class="mobile-build-info">${tool.icon} ${tool.label}<br><small>${this.getDescriptionForCategory(category)}</small></div>`;
+
+    optionsDiv.innerHTML = '';
+
+    if (category === 'infrastructure') {
+      this.createMobileInfrastructureOptions(optionsDiv);
+    } else if (category === 'landmark') {
+      this.createMobileLandmarkOptions(optionsDiv);
+    }
+  }
+
+  private createMobileInfrastructureOptions(container: HTMLElement): void {
+    const options = [
+      { type: 'station', name: '駅', icon: '🚉', cost: 5000 },
+      { type: 'park', name: '公園', icon: '🌳', cost: 1000 },
+      { type: 'police', name: '警察署', icon: '🚓', cost: 8000 },
+      { type: 'fire_station', name: '消防署', icon: '🚒', cost: 7000 },
+      { type: 'hospital', name: '病院', icon: '🏥', cost: 10000 },
+      { type: 'school', name: '学校', icon: '🏫', cost: 6000 },
+      { type: 'power_plant', name: '発電所', icon: '⚡', cost: 15000 },
+      { type: 'water_treatment', name: '水処理施設', icon: '💧', cost: 12000 },
+    ];
+
+    options.forEach(({ type, name, icon, cost }) => {
+      const btn = document.createElement('button');
+      btn.className = `mobile-infra-btn ${this.selectedInfrastructure === type ? 'active' : ''}`;
+      btn.innerHTML = `${icon} ${name}<br><small>¥${cost}</small>`;
+      btn.addEventListener('click', () => {
+        this.selectedInfrastructure = type;
+        this.engine.state.selectedInfrastructure = type;
+        container.querySelectorAll('.mobile-infra-btn').forEach((b) => b.classList.remove('active'));
+        btn.classList.add('active');
+      });
+      container.appendChild(btn);
+    });
+  }
+
+  private createMobileLandmarkOptions(container: HTMLElement): void {
+    const options = [
+      { type: 'stadium', name: 'スタジアム', icon: '⚽', cost: 50000 },
+      { type: 'airport', name: '空港', icon: '✈️', cost: 80000 },
+    ];
+
+    options.forEach(({ type, name, icon, cost }) => {
+      const btn = document.createElement('button');
+      btn.className = `mobile-landmark-btn ${this.selectedLandmark === type ? 'active' : ''}`;
+      btn.innerHTML = `${icon} ${name}<br><small>¥${cost}</small>`;
+      btn.addEventListener('click', () => {
+        this.selectedLandmark = type;
+        this.engine.state.selectedLandmark = type;
+        container.querySelectorAll('.mobile-landmark-btn').forEach((b) => b.classList.remove('active'));
+        btn.classList.add('active');
+      });
+      container.appendChild(btn);
+    });
+  }
+
+  private switchMobileTab(tab: string): void {
+    // タブボタン更新
+    document.querySelectorAll('.mobile-tab-btn').forEach((btn) => {
+      const element = btn as HTMLElement;
+      element.classList.toggle('active', element.dataset.tab === tab);
+    });
+
+    // コンテンツ更新
+    document.querySelectorAll('.mobile-tab-pane').forEach((pane) => {
+      const element = pane as HTMLElement;
+      element.classList.toggle('active', element.dataset.tab === tab);
+    });
+  }
+
+  private setupDesktopUI(container: HTMLElement): void {
     // ダッシュボード（画面左上に常時表示）
     const dashboard = document.createElement('div');
     dashboard.id = 'dashboard';
@@ -107,7 +365,7 @@ export class UIManager {
         </div>
       </div>
     `;
-    uiContainer.appendChild(dashboard);
+    container.appendChild(dashboard);
 
     // 時間制御パネル（画面上部中央に常時表示）
     const timePanel = document.createElement('div');
@@ -119,7 +377,7 @@ export class UIManager {
       <button id="btn-normal" class="time-btn active" title="通常">▶</button>
       <button id="btn-fast" class="time-btn" title="高速">⏩</button>
     `;
-    uiContainer.appendChild(timePanel);
+    container.appendChild(timePanel);
 
     // トグルボタン（画面下部中央に常時表示）
     const toggleContainer = document.createElement('div');
@@ -128,10 +386,10 @@ export class UIManager {
     toggleContainer.innerHTML = `
       <button id="btn-toggle-gui" class="btn-toggle-gui">🎛️</button>
     `;
-    uiContainer.appendChild(toggleContainer);
+    container.appendChild(toggleContainer);
 
     // ビルドメニュー（オーバーレイ、最初は非表示）
-    this.createBuildMenu(uiContainer);
+    this.createBuildMenu(container);
 
     // コントロールパネル（オーバーレイ、最初は非表示）
     const controls = document.createElement('div');
@@ -148,9 +406,7 @@ export class UIManager {
       <button id="btn-export" class="btn-control">📤 エクスポート</button>
       <button id="btn-import" class="btn-control">📥 インポート</button>
     `;
-    uiContainer.appendChild(controls);
-
-    this.attachEventListeners();
+    container.appendChild(controls);
   }
 
   private createBuildMenu(container: HTMLElement): void {

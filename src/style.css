@@ -454,436 +454,401 @@ body {
   margin: 15px 0;
 }
 
-/* ===== モバイル（スマホ・タブレット）レスポンシブ対応 ===== */
+/* ===== モバイル・タブレット専用 UI スタイル ===== */
 
-/* スマートフォン（〜600px）専用 */
-@media (max-width: 600px) {
+/* モバイルパネル（スマートフォン・タブレット） */
+.mobile-panel {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  width: 100%;
+  height: 50vh;
+  background: rgba(0, 0, 0, 0.95);
+  border-top: 2px solid #00bfff;
+  display: flex;
+  flex-direction: column;
+  z-index: 100;
+  box-shadow: 0 -5px 20px rgba(0, 0, 0, 0.8);
+  pointer-events: auto;
+}
+
+/* モバイルタブバー */
+.mobile-tab-bar {
+  display: flex;
+  gap: 2px;
+  padding: 8px;
+  background: rgba(0, 0, 0, 0.8);
+  border-bottom: 1px solid #333;
+  overflow-x: auto;
+  flex-shrink: 0;
+}
+
+.mobile-tab-btn {
+  flex: 1;
+  min-width: 80px;
+  padding: 10px 8px;
+  background: linear-gradient(135deg, #1a3a3a, #0a2a2a);
+  color: #e0e0e0;
+  border: 1px solid #333;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: bold;
+  white-space: nowrap;
+  transition: all 0.2s;
+}
+
+.mobile-tab-btn:hover {
+  background: linear-gradient(135deg, #2a5a5a, #1a3a3a);
+  box-shadow: 0 0 8px rgba(0, 191, 255, 0.3);
+}
+
+.mobile-tab-btn.active {
+  background: linear-gradient(135deg, #00bfff, #0099cc);
+  color: #000;
+  box-shadow: 0 0 12px rgba(0, 191, 255, 0.7);
+  border-color: #00bfff;
+}
+
+/* モバイルタブコンテンツ */
+.mobile-tab-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.mobile-tab-pane {
+  display: none;
+}
+
+.mobile-tab-pane.active {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* モバイルステータスグリッド */
+.mobile-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  width: 100%;
+}
+
+.stat-compact {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px;
+  background: rgba(0, 191, 255, 0.1);
+  border: 1px solid #00bfff;
+  border-radius: 4px;
+}
+
+.stat-compact .stat-label {
+  font-size: 16px;
+}
+
+.stat-compact .stat-value {
+  font-size: 13px;
+  color: #00ff7f;
+}
+
+/* モバイル時間制御 */
+.mobile-time-controls {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  width: 100%;
+}
+
+.mobile-time-btn {
+  padding: 12px 8px;
+  background: linear-gradient(135deg, #1a3a1a, #0a2a0a);
+  color: #e0e0e0;
+  border: 1px solid #00ff7f;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: bold;
+  transition: all 0.2s;
+}
+
+.mobile-time-btn:hover {
+  background: linear-gradient(135deg, #2a5a2a, #1a3a1a);
+  box-shadow: 0 0 8px rgba(0, 255, 127, 0.3);
+}
+
+.mobile-time-btn.active {
+  background: linear-gradient(135deg, #00ff7f, #00cc66);
+  color: #000;
+  box-shadow: 0 0 12px rgba(0, 255, 127, 0.7);
+}
+
+/* モバイルカテゴリセレクト */
+.mobile-category-select {
+  width: 100%;
+  padding: 10px;
+  background: rgba(0, 0, 0, 0.8);
+  color: #e0e0e0;
+  border: 1px solid #00bfff;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+.mobile-category-select:focus {
+  outline: none;
+  box-shadow: 0 0 10px rgba(0, 191, 255, 0.5);
+}
+
+/* モバイルビルド説明 */
+.mobile-build-description {
+  padding: 10px;
+  background: rgba(0, 191, 255, 0.1);
+  border: 1px solid #00bfff;
+  border-radius: 4px;
+}
+
+.mobile-build-info {
+  font-size: 13px;
+  color: #00bfff;
+  font-weight: bold;
+}
+
+.mobile-build-info small {
+  display: block;
+  font-size: 11px;
+  color: #b0b0b0;
+  margin-top: 4px;
+  line-height: 1.3;
+}
+
+/* モバイルビルドオプション */
+.mobile-build-options {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  width: 100%;
+}
+
+.mobile-infra-btn,
+.mobile-landmark-btn {
+  padding: 10px;
+  background: linear-gradient(135deg, #1a4a3a, #0a3a2a);
+  color: #e0e0e0;
+  border: 1px solid #00aa77;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: bold;
+  text-align: center;
+  transition: all 0.2s;
+}
+
+.mobile-infra-btn:hover,
+.mobile-landmark-btn:hover {
+  background: linear-gradient(135deg, #2a6a5a, #1a5a4a);
+  box-shadow: 0 0 10px rgba(0, 170, 119, 0.5);
+}
+
+.mobile-infra-btn.active,
+.mobile-landmark-btn.active {
+  background: linear-gradient(135deg, #00dd88, #00aa66);
+  color: #000;
+  box-shadow: 0 0 15px rgba(0, 221, 136, 0.7);
+}
+
+.mobile-infra-btn small,
+.mobile-landmark-btn small {
+  display: block;
+  font-size: 10px;
+  margin-top: 4px;
+}
+
+/* モバイルメニューボタン */
+.mobile-menu-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.mobile-menu-btn {
+  padding: 12px;
+  background: linear-gradient(135deg, #1a3a3a, #0a2a2a);
+  color: #e0e0e0;
+  border: 1px solid #00bfff;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: bold;
+  transition: all 0.2s;
+}
+
+.mobile-menu-btn:hover {
+  background: linear-gradient(135deg, #2a5a5a, #1a3a3a);
+  box-shadow: 0 0 10px rgba(0, 191, 255, 0.5);
+}
+
+/* ===== モバイル・タブレット専用 UI スタイル（1024px以下） ===== */
+@media (max-width: 1024px) {
   body {
-    overflow-y: auto;
-    height: auto;
+    overflow: hidden;
   }
 
   #app {
     flex-direction: column;
-    padding: 8px;
-    gap: 8px;
-    height: auto;
-    min-height: 100vh;
+    height: 100vh;
+    gap: 0;
+    padding: 0;
   }
 
   #gameContainer {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
     width: 100%;
-    margin: 0 auto;
+    overflow: hidden;
+  }
+
+  h1 {
+    font-size: 18px;
+    margin: 8px 0 4px 0;
+    text-align: center;
   }
 
   #gameCanvas {
     width: 100vw;
     height: 100vw;
-    max-width: 100vw;
-    max-height: 100vw;
+    max-width: calc(100vh - 50vh);
+    max-height: calc(100vh - 50vh);
     border: 2px solid #00bfff;
-  }
-
-  h1 {
-    font-size: 18px;
-    text-align: center;
-    margin-bottom: 8px;
+    display: block;
   }
 
   #ui-container {
-    position: relative;
     width: 100%;
-    height: auto;
-    pointer-events: auto;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
+    height: 50vh;
+    padding: 0;
   }
 
-  /* ダッシュボード（モバイル版：コンパクト） */
-  .dashboard-compact {
-    position: static;
-    top: auto;
-    left: auto;
-    width: 100%;
-    padding: 10px;
-    margin-bottom: 8px;
-    transform: none;
-    z-index: 50;
+  /* デスクトップ用UIを非表示 */
+  .dashboard-compact,
+  .time-panel,
+  .toggle-container,
+  #build-menu,
+  #controls-panel {
+    display: none !important;
+  }
+}
+
+/* スマートフォン（〜600px）さらなる最適化 */
+@media (max-width: 600px) {
+  #gameCanvas {
+    width: 100vw;
+    height: 100vw;
   }
 
-  .stat-panel-compact {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 6px;
+  .mobile-stats-grid {
+    grid-template-columns: repeat(3, 1fr);
   }
 
-  .stat-item-compact {
+  .stat-compact {
     padding: 6px;
   }
 
-  .stat-label {
-    font-size: 10px;
-  }
-
-  .stat-value {
-    font-size: 14px;
-  }
-
-  /* 時間制御パネル（モバイル版） */
-  .time-panel {
-    position: static;
-    transform: none;
-    width: 100%;
-    margin-bottom: 8px;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
-    justify-content: center;
-    z-index: 50;
-  }
-
-  .time-btn {
-    padding: 6px 10px;
-    font-size: 12px;
-    flex: 1;
-    min-width: 60px;
-  }
-
-  /* ビルドメニュー（モバイル版：画面下部） */
-  .build-menu-overlay {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    top: auto;
-    width: 100%;
-    max-width: none;
-    max-height: 50vh;
-    border-radius: 12px 12px 0 0;
-    border: 2px solid #00bfff;
-    padding: 12px;
-    transform: none;
-    z-index: 100;
-  }
-
-  .tab-container-overlay {
-    display: flex;
-    gap: 4px;
-    margin-bottom: 8px;
-    flex-wrap: wrap;
-    justify-content: flex-start;
-    overflow-x: auto;
-  }
-
-  .tab-button-overlay {
-    padding: 8px 10px;
-    font-size: 12px;
-    white-space: nowrap;
-  }
-
-  .build-content-overlay {
-    padding: 8px;
-  }
-
-  .info-title {
-    font-size: 12px;
-  }
-
-  .info-description {
-    font-size: 10px;
-  }
-
-  .infrastructure-options,
-  .landmark-options {
-    display: grid;
+  .mobile-build-options {
     grid-template-columns: 1fr;
-    gap: 4px;
   }
 
-  .infra-btn,
-  .landmark-btn {
-    padding: 8px;
+  .mobile-tab-btn {
     font-size: 11px;
-  }
-
-  /* コントロールパネル（モバイル版：非表示、切り替えボタンで表示） */
-  .controls-panel-overlay {
-    position: fixed;
-    bottom: 70px;
-    right: 10px;
-    left: auto;
-    width: auto;
-    min-width: 120px;
-    padding: 10px;
-    z-index: 100;
-  }
-
-  .btn-control {
-    padding: 8px 10px;
-    font-size: 11px;
-  }
-
-  /* トグルボタン（モバイル版） */
-  .btn-toggle-gui {
-    position: fixed;
-    bottom: 15px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 48px;
-    height: 48px;
-    font-size: 20px;
-    z-index: 99;
-  }
-
-  /* モーダルウィンドウ（モバイル版） */
-  .modal-content {
-    width: 95%;
-    max-height: 85vh;
-    padding: 16px;
-  }
-
-  .modal-content h2 {
-    font-size: 16px;
-    margin-bottom: 12px;
-  }
-
-  .settings-group {
-    gap: 8px;
-    margin: 10px 0;
-  }
-
-  .settings-group label {
-    font-size: 13px;
-  }
-
-  .modal-buttons {
-    flex-direction: column;
-    gap: 8px;
-    margin-top: 16px;
-  }
-
-  .btn-primary,
-  .btn-secondary {
-    padding: 10px;
-    font-size: 13px;
-  }
-
-  .slots {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 8px;
-    margin: 12px 0;
+    padding: 8px 6px;
   }
 }
 
-/* タブレット（601px〜1024px）専用 */
-@media (max-width: 1024px) and (min-width: 601px) {
+/* タブレット（601px〜1024px）最適化 */
+@media (min-width: 601px) and (max-width: 1024px) {
+  .mobile-stats-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+
+  .mobile-build-options {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .mobile-tab-btn {
+    font-size: 12px;
+    padding: 10px 8px;
+  }
+}
+
+/* ===== デスクトップ UI（1025px以上） ===== */
+@media (min-width: 1025px) {
+  /* モバイルUIを非表示 */
+  .mobile-panel {
+    display: none !important;
+  }
+
+  /* デスクトップUIのレイアウト */
   #app {
-    flex-direction: column;
-    padding: 12px;
-    gap: 12px;
-    height: auto;
-    min-height: 100vh;
+    display: flex;
+    flex-direction: row;
+    height: 100vh;
+    gap: 20px;
+    padding: 20px;
   }
 
   #gameContainer {
-    width: 100%;
-    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex: 1;
   }
 
   #gameCanvas {
-    width: 90vw;
-    height: 90vw;
-    max-width: 90vw;
-    max-height: 90vw;
-  }
-
-  h1 {
-    font-size: 20px;
-    margin-bottom: 10px;
+    border: 3px solid #00bfff;
+    max-width: 1024px;
+    max-height: 1024px;
   }
 
   #ui-container {
     position: relative;
+    pointer-events: none;
     width: 100%;
-    height: auto;
-    pointer-events: auto;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
+    height: 100%;
   }
 
-  /* ダッシュボード（タブレット版） */
-  .dashboard-compact {
-    position: static;
-    top: auto;
-    left: auto;
-    width: 100%;
-    padding: 12px;
-    margin-bottom: 10px;
-    transform: none;
-    z-index: 50;
-  }
-
-  .stat-panel-compact {
-    grid-template-columns: repeat(3, 1fr);
-    gap: 8px;
-  }
-
-  .stat-item-compact {
-    padding: 8px;
-  }
-
-  .stat-label {
-    font-size: 12px;
-  }
-
-  .stat-value {
-    font-size: 16px;
-  }
-
-  /* 時間制御パネル（タブレット版） */
-  .time-panel {
-    position: static;
-    transform: none;
-    width: 100%;
-    margin-bottom: 10px;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    justify-content: center;
-    z-index: 50;
-  }
-
-  .time-btn {
-    padding: 8px 12px;
-    font-size: 13px;
-    min-width: 70px;
-  }
-
-  /* ビルドメニュー（タブレット版） */
-  .build-menu-overlay {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    top: auto;
-    width: 100%;
-    max-width: none;
-    max-height: 45vh;
-    border-radius: 12px 12px 0 0;
-    border: 2px solid #00bfff;
-    padding: 15px;
-    transform: none;
-    z-index: 100;
-  }
-
-  .tab-container-overlay {
-    display: flex;
-    gap: 6px;
-    margin-bottom: 10px;
-    flex-wrap: wrap;
-    overflow-x: auto;
-  }
-
-  .tab-button-overlay {
-    padding: 10px 12px;
-    font-size: 13px;
-  }
-
-  .build-content-overlay {
-    padding: 10px;
-  }
-
-  .info-title {
-    font-size: 13px;
-  }
-
-  .info-description {
-    font-size: 11px;
-  }
-
-  .infrastructure-options,
-  .landmark-options {
-    grid-template-columns: 1fr;
-    gap: 6px;
-  }
-
-  .infra-btn,
-  .landmark-btn {
-    padding: 10px;
-    font-size: 12px;
-  }
-
-  /* コントロールパネル（タブレット版） */
-  .controls-panel-overlay {
-    position: fixed;
-    bottom: 80px;
-    right: 15px;
-    width: auto;
-    min-width: 140px;
-    padding: 12px;
-    z-index: 100;
-  }
-
-  .btn-control {
-    padding: 10px 12px;
-    font-size: 12px;
-  }
-
-  /* トグルボタン（タブレット版） */
-  .btn-toggle-gui {
-    position: fixed;
-    bottom: 20px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 52px;
-    height: 52px;
-    font-size: 22px;
-    z-index: 99;
-  }
-
-  .modal-content {
-    width: 90%;
-    max-height: 80vh;
-    padding: 20px;
-  }
-
-  .modal-content h2 {
-    font-size: 17px;
-    margin-bottom: 13px;
-  }
-
-  .settings-group {
-    gap: 9px;
-    margin: 12px 0;
-  }
-
-  .settings-group label {
-    font-size: 13px;
-  }
-
-  .modal-buttons {
-    flex-direction: row;
-    gap: 10px;
-    margin-top: 18px;
-  }
-
-  .btn-primary,
-  .btn-secondary {
-    padding: 11px;
-    font-size: 13px;
-  }
-
-  .slots {
-    grid-template-columns: repeat(3, 1fr);
-    gap: 10px;
-    margin: 13px 0;
+  .dashboard-compact,
+  .time-panel,
+  .toggle-container,
+  #build-menu,
+  #controls-panel {
+    display: block !important;
   }
 }
 
-/* デスクトップ（1024px以上）元のレイアウト保持 */
-@media (min-width: 1025px) {
-  /* 既存のデスクトップレイアウト */
+/* アニメーション */
+@keyframes glow {
+  0%, 100% {
+    box-shadow: 0 0 10px rgba(0, 191, 255, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(0, 191, 255, 0.6);
+  }
+}
+
+#gameCanvas {
+  animation: glow 2s ease-in-out infinite;
 }
 
 /* アニメーション */
