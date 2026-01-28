@@ -58,6 +58,36 @@ try {
     }
   }
 
+  // Bresenhamのラインアルゴリズム: 2点間の直線上のタイルを取得
+  function bresenhamLine(x0: number, y0: number, x1: number, y1: number): Array<{ x: number; y: number }> {
+    const points: Array<{ x: number; y: number }> = [];
+    const dx = Math.abs(x1 - x0);
+    const dy = Math.abs(y1 - y0);
+    const sx = x0 < x1 ? 1 : -1;
+    const sy = y0 < y1 ? 1 : -1;
+    let err = dx - dy;
+
+    let x = x0;
+    let y = y0;
+
+    while (true) {
+      points.push({ x, y });
+      if (x === x1 && y === y1) break;
+
+      const e2 = 2 * err;
+      if (e2 > -dy) {
+        err -= dy;
+        x += sx;
+      }
+      if (e2 < dx) {
+        err += dx;
+        y += sy;
+      }
+    }
+
+    return points;
+  }
+
   // 敷設処理（共通）
   function buildAtMouse(e: MouseEvent): void {
     try {
@@ -130,9 +160,35 @@ try {
       renderer.cameraOffsetY = Math.max(-maxOffsetY, Math.min(0, renderer.cameraOffsetY));
 
       e.preventDefault();
-    } else if (isMouseDown && continuousModeEnabled && engine.state.buildMode !== 'demolish') {
-      // 移動中敷設
-      buildAtMouse(e);
+    } else if (isMouseDown && (engine.state.buildMode !== 'demolish')) {
+      // 左ドラッグ敷設: マウス移動した経路上に敷設
+      // Bresenhamのラインアルゴリズムで経路上のタイルをすべて敷設
+      const rect = canvas.getBoundingClientRect();
+      const currentScreenX = e.clientX - rect.left;
+      const currentScreenY = e.clientY - rect.top;
+
+      const startWorldCoords = renderer.screenToWorld(dragStartX - rect.left, dragStartY - rect.top);
+      const currentWorldCoords = renderer.screenToWorld(currentScreenX, currentScreenY);
+
+      const startX = Math.floor(startWorldCoords.x / 8);
+      const startY = Math.floor(startWorldCoords.y / 8);
+      const endX = Math.floor(currentWorldCoords.x / 8);
+      const endY = Math.floor(currentWorldCoords.y / 8);
+
+      // ラインアルゴリズム: 開始から現在位置まで敷設
+      const tilesOnLine = bresenhamLine(startX, startY, endX, endY);
+      tilesOnLine.forEach(({ x, y }) => {
+        if (x >= 0 && x < 128 && y >= 0 && y < 128) {
+          if (engine.build(x, y)) {
+            // 成功
+          }
+        }
+      });
+
+      // 最後の位置を記憶（次のmoveイベント用）
+      dragStartX = e.clientX;
+      dragStartY = e.clientY;
+      uiManager.updateDisplay();
     }
   });
 
