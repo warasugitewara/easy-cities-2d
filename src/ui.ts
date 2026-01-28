@@ -1,6 +1,6 @@
 import { GameEngine, GameSettings } from './engine';
 import { StorageManager } from './storage';
-import { BUILDING_TOOLS, BuildingCategory } from './constants';
+import { BUILDING_TOOLS, BuildingCategory, INFRASTRUCTURE_COLORS, LANDMARK_COLORS } from './constants';
 
 export class UIManager {
   private engine: GameEngine;
@@ -229,7 +229,6 @@ export class UIManager {
       btn.className = 'infra-btn';
       
       // 色サンプルを取得
-      const { INFRASTRUCTURE_COLORS } = require('./constants');
       const color = INFRASTRUCTURE_COLORS[opt.type] || '#999';
       
       btn.innerHTML = `
@@ -272,7 +271,6 @@ export class UIManager {
       btn.className = 'landmark-btn';
       
       // 色サンプルを取得
-      const { LANDMARK_COLORS } = require('./constants');
       const color = LANDMARK_COLORS[opt.type] || '#999';
       
       btn.innerHTML = `
