@@ -168,6 +168,8 @@ async function initializeGame(): Promise<void> {
     // 敷設処理（共通）
     function buildAtMouse(clientX: number, clientY: number): void {
       try {
+        console.log('🎯 buildAtMouse called - buildMode:', engine.state.buildMode);
+        
         const rect = canvas.getBoundingClientRect();
         const screenX = clientX - rect.left;
         const screenY = clientY - rect.top;
@@ -178,14 +180,23 @@ async function initializeGame(): Promise<void> {
         const x = Math.floor(worldCoords.x / tileSize);
         const y = Math.floor(worldCoords.y / tileSize);
 
+        console.log('🎯 Tile:', x, y, 'gridSize:', engine.state.gridSize);
+
         const gridSize = engine.state.gridSize;
         if (x >= 0 && x < gridSize && y >= 0 && y < gridSize) {
+          console.log('🎯 Within bounds, attempting build...');
           if (engine.build(x, y)) {
+            console.log('✅ Build succeeded');
             uiManager.updateDisplay();
           } else if (engine.state.buildMode === 'demolish') {
+            console.log('🎯 Demolish mode');
             engine.build(x, y);
             uiManager.updateDisplay();
+          } else {
+            console.log('❌ Build failed');
           }
+        } else {
+          console.log('❌ Out of bounds');
         }
       } catch (e) {
         console.error('❌ Build error:', e);

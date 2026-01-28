@@ -63,7 +63,12 @@ export class GameEngine {
     if (x < 0 || y < 0 || x >= this.gridSize || y >= this.gridSize) return false;
 
     const cost = this.getCost(this.state.buildMode);
-    if (this.state.money < cost) return false;
+    console.log('💰 Cost for', this.state.buildMode, ':', cost, 'Money:', this.state.money);
+    
+    if (this.state.money < cost) {
+      console.log('❌ Not enough money');
+      return false;
+    }
 
     if (this.state.buildMode === 'demolish') {
       if (this.state.map[y][x] !== TileType.EMPTY) {
@@ -72,7 +77,10 @@ export class GameEngine {
       return true;
     }
 
-    if (this.state.map[y][x] !== TileType.EMPTY) return false;
+    if (this.state.map[y][x] !== TileType.EMPTY) {
+      console.log('❌ Tile not empty:', this.state.map[y][x]);
+      return false;
+    }
 
     let tileType: TileType | null = null;
 
@@ -136,11 +144,13 @@ export class GameEngine {
     }
 
     if (tileType !== null) {
+      console.log('✅ Building placed, tileType:', tileType);
       this.state.map[y][x] = tileType;
       this.state.money -= cost;
       return true;
     }
 
+    console.log('❌ tileType is null');
     return false;
   }
 
