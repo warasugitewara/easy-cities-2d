@@ -37,6 +37,9 @@ export interface GameState {
   internationalLevel: number; // 国際化度（0-100）
   powerSupplyRate: number; // 電力供給率（％）
   waterSupplyRate: number; // 給水率（％）
+  // ペナルティシステム
+  growthPenalty: number;   // 成長速度補正係数（1.0 = 通常、0.5 = 50%低下）
+  revenuePenalty: number;  // 税収補正係数（1.0 = 通常）
 }
 
 export class GameEngine {
@@ -73,6 +76,8 @@ export class GameEngine {
       internationalLevel: INITIAL_PARAMETERS.internationalLevel,
       powerSupplyRate: INITIAL_PARAMETERS.powerSupplyRate,
       waterSupplyRate: INITIAL_PARAMETERS.waterSupplyRate,
+      growthPenalty: 1.0,
+      revenuePenalty: 1.0,
       settings: settings || {
         difficulty: 'normal',
         mapSize: 'medium',
@@ -318,38 +323,43 @@ export class GameEngine {
       for (let y = 0; y < this.gridSize; y++) {
         for (let x = 0; x < this.gridSize; x++) {
           const bias = this.centerBias(x, y) * this.stationBoost(x, y);
+          
+          // ローカルペナルティを計算（電力・給水供給があるか）
+          let localPenalty = this.state.growthPenalty;
+          if (!this.state.powerGrid[y][x]) localPenalty *= 0.6; // 電力なし：60%に低下
+          if (!this.state.waterGrid[y][x]) localPenalty *= 0.3; // 給水なし：30%に低下
 
           // 新規建設（道路隣接）
           if (this.state.map[y][x] === TileType.EMPTY && this.hasAdjacent(x, y, (t) => t === TileType.ROAD)) {
-            if (Math.random() < this.growthRate * bias) {
+            if (Math.random() < this.growthRate * bias * localPenalty) {
               this.state.map[y][x] = TileType.RESIDENTIAL_L1;
             }
           }
 
           // 波及建設（0.2倍）- 他の建物に隣接していても成長
           if (this.state.map[y][x] === TileType.EMPTY && this.hasAdjacent(x, y, (t) => t >= 1 && t <= 24)) {
-            if (Math.random() < this.growthRate * 0.2 * bias) {
+            if (Math.random() < this.growthRate * 0.2 * bias * localPenalty) {
               this.state.map[y][x] = TileType.RESIDENTIAL_L1;
             }
           }
 
           // 高層化（最大Lv4）- 住宅のみ
           if (this.state.map[y][x] >= TileType.RESIDENTIAL_L1 && this.state.map[y][x] < TileType.RESIDENTIAL_L4) {
-            if (Math.random() < this.growthRate * 0.4 * bias) {
+            if (Math.random() < this.growthRate * 0.4 * bias * localPenalty) {
               this.state.map[y][x]++;
             }
           }
 
           // 商業地の高層化
           if (this.state.map[y][x] >= TileType.COMMERCIAL_L1 && this.state.map[y][x] < TileType.COMMERCIAL_L4) {
-            if (Math.random() < this.growthRate * 0.4 * bias) {
+            if (Math.random() < this.growthRate * 0.4 * bias * localPenalty) {
               this.state.map[y][x]++;
             }
           }
 
           // 工業地の高層化
           if (this.state.map[y][x] >= TileType.INDUSTRIAL_L1 && this.state.map[y][x] < TileType.INDUSTRIAL_L4) {
-            if (Math.random() < this.growthRate * 0.4 * bias) {
+            if (Math.random() < this.growthRate * 0.4 * bias * localPenalty) {
               this.state.map[y][x]++;
             }
           }
@@ -371,6 +381,9 @@ export class GameEngine {
     // インフラ効果計算（詳細パラメータ更新）
     this.updateInfrastructureEffects();
 
+    // インフラ不足ペナルティ計算
+    this.calculatePenalties();
+
     // 人口と快適度を計算
     this.calculatePopulation();
     this.calculateComfort();
@@ -385,6 +398,9 @@ export class GameEngine {
         maintenance += MAINTENANCE_COSTS[tile] || 0;
       }
     }
+
+    // ペナルティを税収に適用
+    revenue *= this.state.revenuePenalty;
 
     this.state.money += revenue - maintenance;
     this.state.month++;
@@ -510,6 +526,79 @@ export class GameEngine {
     this.state.waterSupplyRate = totalBuildings > 0 ? (waterSupplied / totalBuildings) * 100 : 0;
   }
 
+  // インフラ不足ペナルティ計算
+  private calculatePenalties(): void {
+    let growthPenalty = 1.0;
+    let revenuePenalty = 1.0;
+
+    // 電力供給不足ペナルティ
+    if (this.state.powerSupplyRate < 50) {
+      const shortage = (50 - this.state.powerSupplyRate) / 50; // 0～1
+      growthPenalty *= Math.max(0.6, 1 - shortage * 0.4); // 最大40%低下
+      revenuePenalty *= Math.max(0.8, 1 - shortage * 0.2); // 最大20%低下
+    }
+
+    // 給水不足ペナルティ
+    if (this.state.waterSupplyRate < 50) {
+      const shortage = (50 - this.state.waterSupplyRate) / 50;
+      growthPenalty *= Math.max(0.3, 1 - shortage * 0.7); // 最大70%低下
+      revenuePenalty *= Math.max(0.7, 1 - shortage * 0.3); // 最大30%低下
+      
+      // 給水不足で病気発生倍率が3倍
+      for (let y = 0; y < this.gridSize; y++) {
+        for (let x = 0; x < this.gridSize; x++) {
+          if (!this.state.waterGrid[y][x] && this.state.diseaseMap[y][x] > 0) {
+            this.state.diseaseMap[y][x] = Math.min(10, this.state.diseaseMap[y][x] * 1.2);
+          }
+        }
+      }
+    }
+
+    // 治安度不足ペナルティ（住宅成長）
+    if (this.state.securityLevel < 40) {
+      const deficit = (40 - this.state.securityLevel) / 40;
+      growthPenalty *= Math.max(0.5, 1 - deficit * 0.5); // 最大50%低下
+    }
+
+    // 安全度不足ペナルティ（火災増加）
+    if (this.state.safetyLevel < 40) {
+      const deficit = (40 - this.state.safetyLevel) / 40;
+      // 火災発生確率を2倍に
+      for (let y = 0; y < this.gridSize; y++) {
+        for (let x = 0; x < this.gridSize; x++) {
+          if (this.state.fireMap[y][x] > 0) {
+            this.state.fireMap[y][x] = Math.min(10, this.state.fireMap[y][x] * 1.2);
+          }
+        }
+      }
+    }
+
+    // 教育度不足ペナルティ（商業成長）
+    if (this.state.educationLevel < 40) {
+      const deficit = (40 - this.state.educationLevel) / 40;
+      growthPenalty *= Math.max(0.6, 1 - deficit * 0.4); // 最大40%低下
+      revenuePenalty *= Math.max(0.85, 1 - deficit * 0.15); // 最大15%低下
+    }
+
+    // 医療度不足ペナルティ（病気増加、人口流出）
+    if (this.state.medicalLevel < 40) {
+      const deficit = (40 - this.state.medicalLevel) / 40;
+      // 病気発生倍率が2倍
+      for (let y = 0; y < this.gridSize; y++) {
+        for (let x = 0; x < this.gridSize; x++) {
+          if (this.state.diseaseMap[y][x] > 0) {
+            this.state.diseaseMap[y][x] = Math.min(10, this.state.diseaseMap[y][x] * 1.15);
+          }
+        }
+      }
+      // 人口流出（快適度低下）
+      this.state.comfort *= Math.max(0.5, 1 - deficit * 0.5);
+    }
+
+    this.state.growthPenalty = growthPenalty;
+    this.state.revenuePenalty = revenuePenalty;
+  }
+
   // 人口計算
   calculatePopulation(): number {
     let total = 0;
@@ -588,6 +677,8 @@ export class GameEngine {
       internationalLevel: INITIAL_PARAMETERS.internationalLevel,
       powerSupplyRate: INITIAL_PARAMETERS.powerSupplyRate,
       waterSupplyRate: INITIAL_PARAMETERS.waterSupplyRate,
+      growthPenalty: 1.0,
+      revenuePenalty: 1.0,
       settings: this.state.settings,
     };
     const center = this.gridSize / 2;
