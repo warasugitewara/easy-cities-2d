@@ -371,6 +371,10 @@ export class GameEngine {
     // インフラ効果計算（詳細パラメータ更新）
     this.updateInfrastructureEffects();
 
+    // 人口と快適度を計算
+    this.calculatePopulation();
+    this.calculateComfort();
+
     let revenue = 0;
     let maintenance = 0;
 

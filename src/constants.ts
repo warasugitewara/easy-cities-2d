@@ -184,14 +184,14 @@ export const MAINTENANCE_COSTS: Record<number, number> = {
   [TileType.ROAD]: 10,
   [TileType.STATION]: 100,
   [TileType.PARK]: 5,
-  [TileType.POLICE]: 200,
-  [TileType.FIRE_STATION]: 180,
-  [TileType.HOSPITAL]: 250,
-  [TileType.SCHOOL]: 150,
-  [TileType.POWER_PLANT]: 400,
-  [TileType.WATER_TREATMENT]: 300,
-  [TileType.LANDMARK_STADIUM]: 1000,
-  [TileType.LANDMARK_AIRPORT]: 2000,
+  [TileType.POLICE]: 300,      // 200 → 300
+  [TileType.FIRE_STATION]: 280, // 180 → 280
+  [TileType.HOSPITAL]: 400,     // 250 → 400
+  [TileType.SCHOOL]: 250,       // 150 → 250
+  [TileType.POWER_PLANT]: 600,  // 400 → 600
+  [TileType.WATER_TREATMENT]: 500, // 300 → 500
+  [TileType.LANDMARK_STADIUM]: 2000, // 1000 → 2000
+  [TileType.LANDMARK_AIRPORT]: 4000, // 2000 → 4000
 };
 
 // 月額税収
@@ -208,8 +208,8 @@ export const TAX_REVENUE: Record<number, number> = {
   [TileType.INDUSTRIAL_L2]: 75,
   [TileType.INDUSTRIAL_L3]: 180,
   [TileType.INDUSTRIAL_L4]: 350,
-  [TileType.LANDMARK_STADIUM]: 5000,
-  [TileType.LANDMARK_AIRPORT]: 10000,
+  [TileType.LANDMARK_STADIUM]: 100,     // 5000 → 100（月額基本料）
+  [TileType.LANDMARK_AIRPORT]: 200,     // 10000 → 200（月額基本料）
 };
 
 // ==================== インフラ効果定数 ====================
