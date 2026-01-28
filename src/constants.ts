@@ -1,5 +1,5 @@
 // ゲーム定数
-export const GAME_VERSION = '0.7.0';
+export const GAME_VERSION = '0.8.0';
 
 export type MapSize = 'small' | 'medium' | 'large';
 
