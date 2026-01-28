@@ -1,6 +1,6 @@
 # Easy Cities 2D 🏙️
 
-**Version: v1.0.3** | Last Updated: 2026-01-28
+**Version: v1.0.4** | Last Updated: 2026-01-29
 
 Cities Skylines風の戦略性を備えたブラウザ型都市建設シミュレーターです。
 初期資金250,000円で都市を発展させ、人口、資金、快適度のバランスを取りながら経営を続けます。
