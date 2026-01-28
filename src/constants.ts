@@ -124,6 +124,24 @@ export const BUILDING_SIZES: Record<number, { width: number; height: number }> =
   [TileType.WATER_TREATMENT]: { width: 3, height: 3 },
 };
 
+// インフラごとの色定義
+export const INFRASTRUCTURE_COLORS: Record<string, string> = {
+  station: '#ffaa00',      // オレンジ（鉄道）
+  park: '#22dd22',         // 明るい緑
+  police: '#0066ff',       // 青（警察）
+  fire_station: '#ff3333', // 赤（消防）
+  hospital: '#ff69b4',     // ホットピンク（医療）
+  school: '#ffbb33',       // オレンジ黄（教育）
+  power_plant: '#ffff00',  // イエロー（電力）
+  water_treatment: '#00ffff', // シアン（水道）
+};
+
+// ランドマークの色定義
+export const LANDMARK_COLORS: Record<string, string> = {
+  stadium: '#ff1493',      // 深いピンク（スタジアム）
+  airport: '#9932cc',      // 暗い紫（空港）
+};
+
 
 // 人口テーブル
 export const POPULATION_TABLE: Record<number, number> = {

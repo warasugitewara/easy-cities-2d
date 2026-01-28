@@ -227,15 +227,28 @@ export class UIManager {
     options.forEach((opt) => {
       const btn = document.createElement('button');
       btn.className = 'infra-btn';
-      btn.innerHTML = `${opt.icon} ${opt.name}<br><small>¥${opt.cost.toLocaleString()}</small>`;
+      
+      // 色サンプルを取得
+      const { INFRASTRUCTURE_COLORS } = require('./constants');
+      const color = INFRASTRUCTURE_COLORS[opt.type] || '#999';
+      
+      btn.innerHTML = `
+        <div style="display: flex; align-items: center; gap: 8px; width: 100%;">
+          <div style="width: 24px; height: 24px; background-color: ${color}; border: 1px solid #666; border-radius: 3px;"></div>
+          <div style="text-align: left; flex: 1;">
+            <div>${opt.icon} ${opt.name}</div>
+            <small>¥${opt.cost.toLocaleString()}</small>
+          </div>
+        </div>
+      `;
+      
       btn.addEventListener('click', () => {
         this.selectedInfrastructure = opt.type;
-        // 全ボタンから active を削除
         optionsDiv.querySelectorAll('.infra-btn').forEach(b => b.classList.remove('active'));
-        // クリックされたボタンに active を追加
         btn.classList.add('active');
         console.log('Selected infrastructure:', opt.type);
       });
+      
       if (opt.type === this.selectedInfrastructure) {
         btn.classList.add('active');
       }
@@ -257,15 +270,28 @@ export class UIManager {
     options.forEach((opt) => {
       const btn = document.createElement('button');
       btn.className = 'landmark-btn';
-      btn.innerHTML = `${opt.icon} ${opt.name}<br><small>¥${opt.cost.toLocaleString()}</small>`;
+      
+      // 色サンプルを取得
+      const { LANDMARK_COLORS } = require('./constants');
+      const color = LANDMARK_COLORS[opt.type] || '#999';
+      
+      btn.innerHTML = `
+        <div style="display: flex; align-items: center; gap: 8px; width: 100%;">
+          <div style="width: 24px; height: 24px; background-color: ${color}; border: 1px solid #666; border-radius: 3px;"></div>
+          <div style="text-align: left; flex: 1;">
+            <div>${opt.icon} ${opt.name}</div>
+            <small>¥${opt.cost.toLocaleString()}</small>
+          </div>
+        </div>
+      `;
+      
       btn.addEventListener('click', () => {
         this.selectedLandmark = opt.type;
-        // 全ボタンから active を削除
         optionsDiv.querySelectorAll('.landmark-btn').forEach(b => b.classList.remove('active'));
-        // クリックされたボタンに active を追加
         btn.classList.add('active');
         console.log('Selected landmark:', opt.type);
       });
+      
       if (opt.type === this.selectedLandmark) {
         btn.classList.add('active');
       }
