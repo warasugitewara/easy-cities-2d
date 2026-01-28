@@ -83,7 +83,7 @@ export class Renderer {
       case TileType.EMPTY:
         return '#0a0a0a';
       case TileType.ROAD:
-        return '#888888';
+        return '#444444';      // より濃いグレー（視認性向上）
       case TileType.STATION:
         return '#ffaa00';      // オレンジ（鉄道）
       case TileType.PARK:

@@ -69,7 +69,7 @@ export type BuildingCategory = 'road' | 'residential' | 'commercial' | 'industri
 
 // カテゴリ別ツール定義
 export const BUILDING_TOOLS: Record<BuildingCategory, { label: string; icon: string; color: string }> = {
-  road: { label: '道路', icon: '🛣️', color: '#666' },
+  road: { label: '道路', icon: '🛣️', color: '#444444' },
   residential: { label: '住宅', icon: '🏠', color: '#4a90e2' },
   commercial: { label: '商業', icon: '🏢', color: '#7ed321' },
   industrial: { label: '工業', icon: '🏭', color: '#f5a623' },
