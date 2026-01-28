@@ -142,10 +142,10 @@ export class Renderer {
   }
 
   screenToWorld(screenX: number, screenY: number): { x: number; y: number } {
-    // DPR を考慮した座標変換
+    // CSS座標をキャンバス内部ピクセルに変換（DPR対応）
     const dpr = window.devicePixelRatio || 1;
-    const x = (screenX / dpr - this.cameraOffsetX) / this.zoomLevel;
-    const y = (screenY / dpr - this.cameraOffsetY) / this.zoomLevel;
+    const x = ((screenX * dpr) - this.cameraOffsetX) / this.zoomLevel;
+    const y = ((screenY * dpr) - this.cameraOffsetY) / this.zoomLevel;
     return { x, y };
   }
 }
