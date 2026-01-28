@@ -56,6 +56,7 @@ export class UIManager {
         <button class="tool-btn" data-mode="station" title="駅 (S)">🚉 駅</button>
         <button class="tool-btn" data-mode="park" title="公園 (P)">🌳 公園</button>
         <button class="tool-btn" data-mode="demolish" title="解体 (D)">🗑 解体</button>
+        <button class="tool-btn" id="continuous-mode-btn" title="連続敷設 (C)">📌 連続ON</button>
       </div>
       <div class="speed-group">
         <button class="speed-btn" data-speed="0" title="停止">⏸ 停止</button>
@@ -118,6 +119,24 @@ export class UIManager {
         this.currentSlot = parseInt((e.target as HTMLElement).getAttribute('data-slot')!);
         this.updateSlotDisplay();
       });
+    });
+
+    // 連続敷設モード切り替え
+    document.getElementById('continuous-mode-btn')?.addEventListener('click', () => {
+      const state = (window as any).toggleContinuousMode();
+      const btn = document.getElementById('continuous-mode-btn');
+      if (btn) {
+        btn.textContent = state ? '📌 連続OFF' : '📌 連続ON';
+        btn.classList.toggle('active', state);
+      }
+    });
+
+    // キーボード: C キー で連続敷設モード切り替え
+    document.addEventListener('keydown', (e) => {
+      if (e.key.toLowerCase() === 'c') {
+        const continuousModeBtn = document.getElementById('continuous-mode-btn');
+        continuousModeBtn?.click();
+      }
     });
 
     // セーブ/ロード
