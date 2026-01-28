@@ -219,7 +219,7 @@ export class GameEngine {
         }
       }
 
-      console.log('✅ Building placed, tileType:', tileType, 'size:', size);
+      console.log('✅ Building placed, tileType:', tileType, 'size:', size, 'mode:', this.state.buildMode, 'infrastructure:', this.state.selectedInfrastructure, 'landmark:', this.state.selectedLandmark);
       this.state.money -= cost;
       return true;
     }
