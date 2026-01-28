@@ -5,6 +5,9 @@ export class Renderer {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
   private engine: GameEngine;
+  public cameraOffsetX: number = 0;
+  public cameraOffsetY: number = 0;
+  public zoomLevel: number = 1;
 
   constructor(canvas: HTMLCanvasElement, engine: GameEngine) {
     this.canvas = canvas;
@@ -14,6 +17,11 @@ export class Renderer {
 
   draw(): void {
     const map = this.engine.state.map;
+
+    // カメラトランスフォーム適用
+    this.ctx.save();
+    this.ctx.translate(this.cameraOffsetX, this.cameraOffsetY);
+    this.ctx.scale(this.zoomLevel, this.zoomLevel);
 
     for (let y = 0; y < GRID_SIZE; y++) {
       for (let x = 0; x < GRID_SIZE; x++) {
@@ -29,6 +37,22 @@ export class Renderer {
         this.ctx.strokeRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
       }
     }
+
+    this.ctx.restore();
+  }
+
+  // ワールド座標をスクリーン座標に変換
+  screenToWorld(screenX: number, screenY: number): { x: number; y: number } {
+    const x = (screenX - this.cameraOffsetX) / this.zoomLevel;
+    const y = (screenY - this.cameraOffsetY) / this.zoomLevel;
+    return { x, y };
+  }
+
+  // スクリーン座標をワールド座標に変換
+  worldToScreen(worldX: number, worldY: number): { x: number; y: number } {
+    const x = worldX * this.zoomLevel + this.cameraOffsetX;
+    const y = worldY * this.zoomLevel + this.cameraOffsetY;
+    return { x, y };
   }
 
   private getTileColor(tile: number): string {

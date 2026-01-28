@@ -26,6 +26,11 @@ try {
   let monthCounter = 0;
   let continuousModeEnabled = false;
   let isMouseDown = false;
+  let isDragging = false;
+  let dragStartX = 0;
+  let dragStartY = 0;
+  let lastCameraOffsetX = 0;
+  let lastCameraOffsetY = 0;
   let continuousIntervalId: number | null = null;
 
   // ゲームループ
@@ -57,23 +62,43 @@ try {
   function buildAtMouse(e: MouseEvent): void {
     try {
       const rect = canvas.getBoundingClientRect();
-      const x = Math.floor((e.clientX - rect.left) / (CANVAS_SIZE / 128));
-      const y = Math.floor((e.clientY - rect.top) / (CANVAS_SIZE / 128));
+      const screenX = e.clientX - rect.left;
+      const screenY = e.clientY - rect.top;
 
-      if (engine.build(x, y)) {
-        uiManager.updateDisplay();
-      } else if (engine.state.buildMode === 'demolish') {
-        engine.build(x, y);
-        uiManager.updateDisplay();
+      // スクリーン座標をワールド座標に変換
+      const worldCoords = renderer.screenToWorld(screenX, screenY);
+      const x = Math.floor(worldCoords.x / 8); // TILE_SIZE = 8
+      const y = Math.floor(worldCoords.y / 8);
+
+      if (x >= 0 && x < 128 && y >= 0 && y < 128) {
+        if (engine.build(x, y)) {
+          uiManager.updateDisplay();
+        } else if (engine.state.buildMode === 'demolish') {
+          engine.build(x, y);
+          uiManager.updateDisplay();
+        }
       }
     } catch (e) {
       console.error('❌ Build error:', e);
     }
   }
 
-  // マウスダウン: 長押し開始
+  // マウスダウン: 長押し開始 または ドラッグ開始
   canvas.addEventListener('mousedown', (e) => {
     isMouseDown = true;
+    dragStartX = e.clientX;
+    dragStartY = e.clientY;
+    lastCameraOffsetX = renderer.cameraOffsetX;
+    lastCameraOffsetY = renderer.cameraOffsetY;
+
+    // 右クリック: ドラッグ開始フラグ
+    if (e.button === 2) {
+      isDragging = true;
+      e.preventDefault();
+      return;
+    }
+
+    // 左クリック: 敷設
     buildAtMouse(e);
 
     // 連続モードが有効な場合、定期的に敷設
@@ -86,15 +111,26 @@ try {
     }
   });
 
-  // マウスムーブ: 移動中に敷設（連続モード有効時）
+  // マウスムーブ: ドラッグ処理 または 移動中敷設
   canvas.addEventListener('mousemove', (e) => {
-    if (isMouseDown && continuousModeEnabled && engine.state.buildMode !== 'demolish') {
+    if (isDragging) {
+      // ドラッグ中: カメラ移動
+      const deltaX = e.clientX - dragStartX;
+      const deltaY = e.clientY - dragStartY;
+      renderer.cameraOffsetX = lastCameraOffsetX + deltaX;
+      renderer.cameraOffsetY = lastCameraOffsetY + deltaY;
+      e.preventDefault();
+    } else if (isMouseDown && continuousModeEnabled && engine.state.buildMode !== 'demolish') {
+      // 移動中敷設
       buildAtMouse(e);
     }
   });
 
-  // マウスアップ: 長押し終了
-  canvas.addEventListener('mouseup', () => {
+  // マウスアップ: ドラッグ終了 または 敷設終了
+  canvas.addEventListener('mouseup', (e) => {
+    if (e.button === 2) {
+      isDragging = false;
+    }
     isMouseDown = false;
     if (continuousIntervalId !== null) {
       clearInterval(continuousIntervalId);
@@ -105,10 +141,32 @@ try {
   // マウスが離れた場合も終了
   canvas.addEventListener('mouseleave', () => {
     isMouseDown = false;
+    isDragging = false;
     if (continuousIntervalId !== null) {
       clearInterval(continuousIntervalId);
       continuousIntervalId = null;
     }
+  });
+
+  // マウスホイール: ズーム
+  canvas.addEventListener('wheel', (e) => {
+    e.preventDefault();
+
+    const zoomSpeed = 0.1;
+    const oldZoom = renderer.zoomLevel;
+    renderer.zoomLevel += e.deltaY > 0 ? -zoomSpeed : zoomSpeed;
+    renderer.zoomLevel = Math.max(0.5, Math.min(3, renderer.zoomLevel)); // 0.5x～3x
+
+    // ズーム中心をマウス位置にする
+    const rect = canvas.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+
+    const zoomChange = renderer.zoomLevel - oldZoom;
+    renderer.cameraOffsetX -= mouseX * zoomChange / oldZoom;
+    renderer.cameraOffsetY -= mouseY * zoomChange / oldZoom;
+
+    console.log(`🔍 Zoom: ${renderer.zoomLevel.toFixed(2)}x`);
   });
 
   // 連続敷設モード切り替え
@@ -122,8 +180,26 @@ try {
   (window as any).toggleContinuousMode = toggleContinuousMode;
   (window as any).getContinuousModeState = () => continuousModeEnabled;
 
-  // マウスホイール（ズーム機能は将来実装）
-  canvas.addEventListener('wheel', (e) => {
+  // キーボード操作
+  document.addEventListener('keydown', (e) => {
+    switch (e.key.toLowerCase()) {
+      case 'r':
+        engine.state.buildMode = 'road';
+        break;
+      case 's':
+        engine.state.buildMode = 'station';
+        break;
+      case 'p':
+        engine.state.buildMode = 'park';
+        break;
+      case 'd':
+        engine.state.buildMode = 'demolish';
+        break;
+    }
+  });
+
+  // 右クリックメニューを無効化
+  canvas.addEventListener('contextmenu', (e) => {
     e.preventDefault();
   });
 
