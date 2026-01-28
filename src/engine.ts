@@ -19,6 +19,8 @@ export interface GameState {
   buildMode: BuildingCategory;
   settings: GameSettings;
   gridSize: number;
+  selectedInfrastructure: string;
+  selectedLandmark: string;
 }
 
 export class GameEngine {
@@ -39,6 +41,8 @@ export class GameEngine {
       paused: false,
       buildMode: 'road',
       gridSize: this.gridSize,
+      selectedInfrastructure: 'station',
+      selectedLandmark: 'stadium',
       settings: settings || {
         difficulty: 'normal',
         mapSize: 'medium',
@@ -84,12 +88,48 @@ export class GameEngine {
         tileType = TileType.INDUSTRIAL_L1;
         break;
       case 'infrastructure':
-        // デフォルトは駅
-        tileType = TileType.STATION;
+        // 選択されたインフラストラクチャータイプに応じて設置
+        switch (this.state.selectedInfrastructure) {
+          case 'station':
+            tileType = TileType.STATION;
+            break;
+          case 'park':
+            tileType = TileType.PARK;
+            break;
+          case 'police':
+            tileType = TileType.POLICE;
+            break;
+          case 'fire_station':
+            tileType = TileType.FIRE_STATION;
+            break;
+          case 'hospital':
+            tileType = TileType.HOSPITAL;
+            break;
+          case 'school':
+            tileType = TileType.SCHOOL;
+            break;
+          case 'power_plant':
+            tileType = TileType.POWER_PLANT;
+            break;
+          case 'water_treatment':
+            tileType = TileType.WATER_TREATMENT;
+            break;
+          default:
+            tileType = TileType.STATION;
+        }
         break;
       case 'landmark':
-        // デフォルトはスタジアム
-        tileType = TileType.LANDMARK_STADIUM;
+        // 選択されたランドマークタイプに応じて設置
+        switch (this.state.selectedLandmark) {
+          case 'stadium':
+            tileType = TileType.LANDMARK_STADIUM;
+            break;
+          case 'airport':
+            tileType = TileType.LANDMARK_AIRPORT;
+            break;
+          default:
+            tileType = TileType.LANDMARK_STADIUM;
+        }
         break;
     }
 

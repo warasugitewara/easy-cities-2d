@@ -8,6 +8,8 @@ export class UIManager {
   private currentSlot: number = 0;
   private currentTab: BuildingCategory = 'road';
   private guiVisible: boolean = false;
+  private selectedInfrastructure: string = 'station';
+  private selectedLandmark: string = 'stadium';
 
   constructor(engine: GameEngine, storage: StorageManager) {
     this.engine = engine;
@@ -119,6 +121,8 @@ export class UIManager {
   private switchTab(category: BuildingCategory): void {
     this.currentTab = category;
     this.engine.state.buildMode = category;
+    this.engine.state.selectedInfrastructure = this.selectedInfrastructure;
+    this.engine.state.selectedLandmark = this.selectedLandmark;
 
     // タブ表示の更新
     document.querySelectorAll('.tab-button-overlay').forEach((btn) => {
@@ -188,8 +192,16 @@ export class UIManager {
       btn.className = 'infra-btn';
       btn.innerHTML = `${opt.icon} ${opt.name}<br><small>¥${opt.cost.toLocaleString()}</small>`;
       btn.addEventListener('click', () => {
+        this.selectedInfrastructure = opt.type;
+        // 全ボタンから active を削除
+        optionsDiv.querySelectorAll('.infra-btn').forEach(b => b.classList.remove('active'));
+        // クリックされたボタンに active を追加
+        btn.classList.add('active');
         console.log('Selected infrastructure:', opt.type);
       });
+      if (opt.type === this.selectedInfrastructure) {
+        btn.classList.add('active');
+      }
       optionsDiv.appendChild(btn);
     });
 
@@ -210,8 +222,16 @@ export class UIManager {
       btn.className = 'landmark-btn';
       btn.innerHTML = `${opt.icon} ${opt.name}<br><small>¥${opt.cost.toLocaleString()}</small>`;
       btn.addEventListener('click', () => {
+        this.selectedLandmark = opt.type;
+        // 全ボタンから active を削除
+        optionsDiv.querySelectorAll('.landmark-btn').forEach(b => b.classList.remove('active'));
+        // クリックされたボタンに active を追加
+        btn.classList.add('active');
         console.log('Selected landmark:', opt.type);
       });
+      if (opt.type === this.selectedLandmark) {
+        btn.classList.add('active');
+      }
       optionsDiv.appendChild(btn);
     });
 
