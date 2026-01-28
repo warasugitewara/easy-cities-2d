@@ -13,7 +13,13 @@ export class UIManager {
   }
 
   private setupUI(): void {
-    const uiContainer = document.getElementById('ui-container')!;
+    const uiContainer = document.getElementById('ui-container');
+    if (!uiContainer) {
+      console.error('❌ UI container not found!');
+      return;
+    }
+
+    console.log('✅ Setting up UI...');
 
     // ダッシュボード
     const dashboard = document.createElement('div');
