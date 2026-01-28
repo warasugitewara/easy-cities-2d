@@ -110,11 +110,16 @@ async function initializeGame(): Promise<void> {
   setMapSize(settings.mapSize);
   const canvasSize = getCanvasSize();
 
-  // キャンバスサイズを設定（CSS座標系で統一）
-  canvas.width = canvasSize;
-  canvas.height = canvasSize;
+  // キャンバスをDOM に挿入後、実際のCSS サイズを取得
+  const canvasRect = canvas.getBoundingClientRect();
+  const actualWidth = canvasRect.width || canvasSize;
+  const actualHeight = canvasRect.height || canvasSize;
   
-  console.log(`✅ Canvas setup: ${canvasSize}x${canvasSize}px`);
+  // キャンバスの内部サイズを実際のCSS サイズに合わせる
+  canvas.width = Math.floor(actualWidth);
+  canvas.height = Math.floor(actualHeight);
+
+  console.log(`✅ Canvas setup: ${canvas.width}x${canvas.height}px (CSS: ${actualWidth}x${actualHeight}px)`);
 
   try {
     const engine = new GameEngine(settings);
