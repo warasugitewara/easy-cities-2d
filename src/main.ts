@@ -119,6 +119,16 @@ try {
       const deltaY = e.clientY - dragStartY;
       renderer.cameraOffsetX = lastCameraOffsetX + deltaX;
       renderer.cameraOffsetY = lastCameraOffsetY + deltaY;
+
+      // カメラをクランプして、マップが画面外に出ないようにする
+      const mapWidth = 128 * 8 * renderer.zoomLevel; // GRID_SIZE * TILE_SIZE * zoom
+      const mapHeight = 128 * 8 * renderer.zoomLevel;
+      const maxOffsetX = mapWidth - CANVAS_SIZE;
+      const maxOffsetY = mapHeight - CANVAS_SIZE;
+
+      renderer.cameraOffsetX = Math.max(-maxOffsetX, Math.min(0, renderer.cameraOffsetX));
+      renderer.cameraOffsetY = Math.max(-maxOffsetY, Math.min(0, renderer.cameraOffsetY));
+
       e.preventDefault();
     } else if (isMouseDown && continuousModeEnabled && engine.state.buildMode !== 'demolish') {
       // 移動中敷設
@@ -155,7 +165,10 @@ try {
     const zoomSpeed = 0.1;
     const oldZoom = renderer.zoomLevel;
     renderer.zoomLevel += e.deltaY > 0 ? -zoomSpeed : zoomSpeed;
-    renderer.zoomLevel = Math.max(0.5, Math.min(3, renderer.zoomLevel)); // 0.5x～3x
+    
+    // グリッド全体が画面に収まる最小ズーム: 1024px (128 * 8) / 1024px = 1.0
+    // 最大ズーム: 3倍
+    renderer.zoomLevel = Math.max(1.0, Math.min(3, renderer.zoomLevel));
 
     // ズーム中心をマウス位置にする
     const rect = canvas.getBoundingClientRect();
@@ -165,6 +178,15 @@ try {
     const zoomChange = renderer.zoomLevel - oldZoom;
     renderer.cameraOffsetX -= mouseX * zoomChange / oldZoom;
     renderer.cameraOffsetY -= mouseY * zoomChange / oldZoom;
+
+    // カメラをクランプして、マップが画面外に出ないようにする
+    const mapWidth = 128 * 8 * renderer.zoomLevel; // GRID_SIZE * TILE_SIZE * zoom
+    const mapHeight = 128 * 8 * renderer.zoomLevel;
+    const maxOffsetX = mapWidth - CANVAS_SIZE;
+    const maxOffsetY = mapHeight - CANVAS_SIZE;
+
+    renderer.cameraOffsetX = Math.max(-maxOffsetX, Math.min(0, renderer.cameraOffsetX));
+    renderer.cameraOffsetY = Math.max(-maxOffsetY, Math.min(0, renderer.cameraOffsetY));
 
     console.log(`🔍 Zoom: ${renderer.zoomLevel.toFixed(2)}x`);
   });
