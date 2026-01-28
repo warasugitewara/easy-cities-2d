@@ -702,6 +702,9 @@ body {
 @media (max-width: 1024px) {
   body {
     overflow: hidden;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
   }
 
   #app {
@@ -709,38 +712,39 @@ body {
     height: 100vh;
     gap: 0;
     padding: 0;
+    display: flex;
   }
 
   #gameContainer {
-    flex: 1;
+    flex: 0 0 50vh;
     display: flex;
     flex-direction: column;
     justify-content: center;
     align-items: center;
     width: 100%;
     overflow: hidden;
+    background: #000;
   }
 
   h1 {
-    font-size: 18px;
-    margin: 8px 0 4px 0;
+    font-size: 16px;
+    margin: 4px 0 2px 0;
     text-align: center;
   }
 
   #gameCanvas {
-    width: 100%;
-    height: auto;
-    aspect-ratio: 1;
-    max-width: calc(100vh - 50vh);
-    max-height: calc(100vh - 50vh);
+    width: 50vh;
+    height: 50vh;
     border: 2px solid #00bfff;
     display: block;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
   }
 
   #ui-container {
+    flex: 0 0 50vh;
     width: 100%;
-    height: 50vh;
-    padding: 0;
+    overflow: hidden;
   }
 
   /* デスクトップ用UIを非表示 */
@@ -753,22 +757,24 @@ body {
   }
 }
 
-/* スマートフォン（〜600px）さらなる最適化 */
+/* スマートフォン（〜600px）最適化 */
 @media (max-width: 600px) {
   #gameContainer {
-    padding: 0;
+    flex: 0 0 50vh;
   }
 
   h1 {
-    font-size: 16px;
-    margin: 4px 0 2px 0;
+    font-size: 14px;
+    margin: 2px 0 1px 0;
   }
 
   #gameCanvas {
-    width: calc(100vw);
-    height: calc(100vw);
-    max-width: calc(100vh - 50vh);
-    max-height: calc(100vh - 50vh);
+    width: 50vh;
+    height: 50vh;
+  }
+
+  #ui-container {
+    flex: 0 0 50vh;
   }
 
   .mobile-stats-grid {
