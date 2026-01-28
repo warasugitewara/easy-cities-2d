@@ -140,4 +140,12 @@ export class Renderer {
         return '#0a0a0a';
     }
   }
+
+  screenToWorld(screenX: number, screenY: number): { x: number; y: number } {
+    // DPR を考慮した座標変換
+    const dpr = window.devicePixelRatio || 1;
+    const x = (screenX / dpr - this.cameraOffsetX) / this.zoomLevel;
+    const y = (screenY / dpr - this.cameraOffsetY) / this.zoomLevel;
+    return { x, y };
+  }
 }
