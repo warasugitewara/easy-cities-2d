@@ -214,12 +214,10 @@ export class GameEngine {
   // 人口計算
   calculatePopulation(): number {
     let total = 0;
-    for (let y = 0; y < GRID_SIZE; y++) {
-      for (let x = 0; x < GRID_SIZE; x++) {
+    for (let y = 0; y < this.gridSize; y++) {
+      for (let x = 0; x < this.gridSize; x++) {
         const tile = this.state.map[y][x];
-        if (tile >= TileType.BUILDING_L1 && tile <= TileType.BUILDING_L4) {
-          total += POPULATION_TABLE[tile] || 0;
-        }
+        total += POPULATION_TABLE[tile] || 0;
       }
     }
     this.state.population = total;
@@ -227,14 +225,15 @@ export class GameEngine {
   }
 
   // 快適度計算
+  // 快適度計算
   calculateComfort(): number {
     let score = 0;
 
     // 1. 緑地率
     let parkCount = 0;
     let totalTiles = 0;
-    for (let y = 0; y < GRID_SIZE; y++) {
-      for (let x = 0; x < GRID_SIZE; x++) {
+    for (let y = 0; y < this.gridSize; y++) {
+      for (let x = 0; x < this.gridSize; x++) {
         if (this.state.map[y][x] !== TileType.EMPTY) totalTiles++;
         if (this.state.map[y][x] === TileType.PARK) parkCount++;
       }
@@ -244,8 +243,8 @@ export class GameEngine {
     // 2. 交通充実度（駅の数と分布）
     let stationCount = 0;
     let stationDispersion = 0;
-    for (let y = 0; y < GRID_SIZE; y++) {
-      for (let x = 0; x < GRID_SIZE; x++) {
+    for (let y = 0; y < this.gridSize; y++) {
+      for (let x = 0; x < this.gridSize; x++) {
         if (this.state.map[y][x] === TileType.STATION) stationCount++;
       }
     }
@@ -266,15 +265,17 @@ export class GameEngine {
   // リセット
   reset(): void {
     this.state = {
-      map: Array.from({ length: GRID_SIZE }, () => Array(GRID_SIZE).fill(TileType.EMPTY)),
+      map: Array.from({ length: this.gridSize }, () => Array(this.gridSize).fill(TileType.EMPTY)),
       population: 0,
       money: 250000,
       comfort: 50,
       month: 0,
       paused: false,
       buildMode: 'road',
+      gridSize: this.gridSize,
+      settings: this.state.settings,
     };
-    const center = GRID_SIZE / 2;
+    const center = this.gridSize / 2;
     this.state.map[Math.floor(center)][Math.floor(center)] = TileType.STATION;
   }
 

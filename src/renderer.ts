@@ -72,14 +72,50 @@ export class Renderer {
         return '#00bfff';
       case TileType.PARK:
         return '#228b22';
-      case TileType.BUILDING_L1:
-        return '#2e8b57';
-      case TileType.BUILDING_L2:
-        return '#9acd32';
-      case TileType.BUILDING_L3:
-        return '#ffa500';
-      case TileType.BUILDING_L4:
-        return '#cc3333';
+      case TileType.POLICE:
+        return '#ff4444';
+      case TileType.FIRE_STATION:
+        return '#ff6600';
+      case TileType.HOSPITAL:
+        return '#ff1493';
+      case TileType.SCHOOL:
+        return '#4169e1';
+      case TileType.POWER_PLANT:
+        return '#ffff00';
+      case TileType.WATER_TREATMENT:
+        return '#1e90ff';
+      // 住宅
+      case TileType.RESIDENTIAL_L1:
+        return '#4a90e2';
+      case TileType.RESIDENTIAL_L2:
+        return '#357abd';
+      case TileType.RESIDENTIAL_L3:
+        return '#1e5a96';
+      case TileType.RESIDENTIAL_L4:
+        return '#0d3d6f';
+      // 商業
+      case TileType.COMMERCIAL_L1:
+        return '#7ed321';
+      case TileType.COMMERCIAL_L2:
+        return '#5ca319';
+      case TileType.COMMERCIAL_L3:
+        return '#3d7511';
+      case TileType.COMMERCIAL_L4:
+        return '#1f4709';
+      // 工業
+      case TileType.INDUSTRIAL_L1:
+        return '#f5a623';
+      case TileType.INDUSTRIAL_L2:
+        return '#c17f1a';
+      case TileType.INDUSTRIAL_L3:
+        return '#8d5a11';
+      case TileType.INDUSTRIAL_L4:
+        return '#593508';
+      // ランドマーク
+      case TileType.LANDMARK_STADIUM:
+        return '#ff6b6b';
+      case TileType.LANDMARK_AIRPORT:
+        return '#9b59b6';
       default:
         return '#0a0a0a';
     }
