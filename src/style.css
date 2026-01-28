@@ -1349,3 +1349,77 @@ body {
   transform: scale(0.95);
   box-shadow: 0 0 10px rgba(255, 152, 0, 0.5);
 }
+
+/* ===== ウィンドウスタイルのリサイズハンドル ===== */
+
+/* リサイズハンドル共通スタイル */
+.resize-right,
+.resize-bottom,
+.resize-corner {
+  position: absolute;
+  background: transparent;
+}
+
+/* 右辺のリサイズハンドル */
+.resize-right {
+  right: 0;
+  top: 0;
+  width: 6px;
+  height: 100%;
+  cursor: ew-resize;
+}
+
+.resize-right:hover {
+  background: linear-gradient(90deg, transparent, rgba(0, 191, 255, 0.3));
+}
+
+/* 下辺のリサイズハンドル */
+.resize-bottom {
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 6px;
+  cursor: ns-resize;
+}
+
+.resize-bottom:hover {
+  background: linear-gradient(180deg, transparent, rgba(0, 191, 255, 0.3));
+}
+
+/* コーナーのリサイズハンドル */
+.resize-corner {
+  right: 0;
+  bottom: 0;
+  width: 12px;
+  height: 12px;
+  cursor: nwse-resize;
+  background: linear-gradient(135deg, transparent 50%, rgba(0, 191, 255, 0.5) 50%);
+  border-radius: 0 0 4px 0;
+}
+
+.resize-corner:hover {
+  background: linear-gradient(135deg, transparent 50%, rgba(0, 191, 255, 0.8) 50%);
+}
+
+/* ドラッグ可能パネルの共通スタイル */
+.build-menu-overlay,
+.controls-panel-overlay,
+.demand-meter-container {
+  position: fixed;
+  overflow: auto;
+  resize: none; /* ブラウザデフォルトのリサイズ無効化 */
+}
+
+/* パネルにおけるドラッグ可能なヘッダー */
+.controls-header,
+.demand-meter-header,
+.tab-container-overlay {
+  cursor: grab;
+  user-select: none;
+}
+
+.controls-header:active,
+.demand-meter-header:active,
+.tab-container-overlay:active {
+  cursor: grabbing;
+}
