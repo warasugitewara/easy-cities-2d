@@ -110,16 +110,11 @@ async function initializeGame(): Promise<void> {
   setMapSize(settings.mapSize);
   const canvasSize = getCanvasSize();
 
-  // キャンバスサイズを設定（DPR対応）
-  const dpr = window.devicePixelRatio || 1;
-  canvas.width = canvasSize * dpr;
-  canvas.height = canvasSize * dpr;
+  // キャンバスサイズを設定（CSS座標系で統一）
+  canvas.width = canvasSize;
+  canvas.height = canvasSize;
   
-  // CSS用のサイズを設定
-  canvas.style.width = canvasSize + 'px';
-  canvas.style.height = canvasSize + 'px';
-
-  console.log(`✅ Canvas setup: ${canvasSize}x${canvasSize}px, DPR: ${dpr}`);
+  console.log(`✅ Canvas setup: ${canvasSize}x${canvasSize}px`);
 
   try {
     const engine = new GameEngine(settings);

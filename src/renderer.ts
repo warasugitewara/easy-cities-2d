@@ -19,10 +19,6 @@ export class Renderer {
     this.gridSize = engine.state.gridSize;
     this.tileSize = getTileSize();
     this.mapSize = this.gridSize * this.tileSize;
-    
-    // DPR対応：高解像度ディスプレイでの描画品質向上
-    const dpr = window.devicePixelRatio || 1;
-    this.ctx.scale(dpr, dpr);
   }
 
   draw(): void {
@@ -142,10 +138,9 @@ export class Renderer {
   }
 
   screenToWorld(screenX: number, screenY: number): { x: number; y: number } {
-    // CSS座標をキャンバス内部ピクセルに変換（DPR対応）
-    const dpr = window.devicePixelRatio || 1;
-    const x = ((screenX * dpr) - this.cameraOffsetX) / this.zoomLevel;
-    const y = ((screenY * dpr) - this.cameraOffsetY) / this.zoomLevel;
+    // CSS座標をワールド座標に変換（DPRは考慮しない）
+    const x = (screenX - this.cameraOffsetX) / this.zoomLevel;
+    const y = (screenY - this.cameraOffsetY) / this.zoomLevel;
     return { x, y };
   }
 }
