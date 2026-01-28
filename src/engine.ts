@@ -1,4 +1,4 @@
-import { MapSize, MAP_SIZES, TileType, POPULATION_TABLE, TAX_REVENUE, MAINTENANCE_COSTS, BUILD_COSTS, BuildingCategory, getGridSize, BUILDING_SIZES, INITIAL_PARAMETERS } from './constants';
+import { MapSize, MAP_SIZES, TileType, POPULATION_TABLE, TAX_REVENUE, MAINTENANCE_COSTS, BUILD_COSTS, BuildingCategory, getGridSize, BUILDING_SIZES, INITIAL_PARAMETERS, INFRASTRUCTURE_REQUIREMENTS } from './constants';
 
 // ゲーム設定インターフェース
 export interface GameSettings {
@@ -465,6 +465,9 @@ export class GameEngine {
     this.state.medicalLevel = Math.min(100, this.state.medicalLevel);
     this.state.tourismLevel = Math.min(100, this.state.tourismLevel);
     this.state.internationalLevel = Math.min(100, this.state.internationalLevel);
+
+    // 人口に基づいてインフラスケーリングを適用
+    this.applyPopulationScaling();
   }
 
   // 半径内に効果を適用
@@ -524,6 +527,55 @@ export class GameEngine {
 
     this.state.powerSupplyRate = totalBuildings > 0 ? (powerSupplied / totalBuildings) * 100 : 0;
     this.state.waterSupplyRate = totalBuildings > 0 ? (waterSupplied / totalBuildings) * 100 : 0;
+  }
+
+  // 人口に基づくインフラスケーリング
+  private applyPopulationScaling(): void {
+    // インフラ数をカウント
+    let policeCount = 0;
+    let fireCount = 0;
+    let schoolCount = 0;
+    let hospitalCount = 0;
+    let powerCount = 0;
+    let waterCount = 0;
+
+    for (let y = 0; y < this.gridSize; y++) {
+      for (let x = 0; x < this.gridSize; x++) {
+        const tile = this.state.map[y][x];
+        if (tile === TileType.POLICE) policeCount++;
+        if (tile === TileType.FIRE_STATION) fireCount++;
+        if (tile === TileType.SCHOOL) schoolCount++;
+        if (tile === TileType.HOSPITAL) hospitalCount++;
+        if (tile === TileType.POWER_PLANT) powerCount++;
+        if (tile === TileType.WATER_TREATMENT) waterCount++;
+      }
+    }
+
+    const population = this.state.population;
+
+    // 必要インフラ数を計算
+    const requiredPolice = Math.max(INFRASTRUCTURE_REQUIREMENTS.police.base, Math.ceil(population / INFRASTRUCTURE_REQUIREMENTS.police.populationPerUnit));
+    const requiredFire = Math.max(INFRASTRUCTURE_REQUIREMENTS.fire_station.base, Math.ceil(population / INFRASTRUCTURE_REQUIREMENTS.fire_station.populationPerUnit));
+    const requiredSchool = Math.max(INFRASTRUCTURE_REQUIREMENTS.school.base, Math.ceil(population / INFRASTRUCTURE_REQUIREMENTS.school.populationPerUnit));
+    const requiredHospital = Math.max(INFRASTRUCTURE_REQUIREMENTS.hospital.base, Math.ceil(population / INFRASTRUCTURE_REQUIREMENTS.hospital.populationPerUnit));
+    const requiredPower = Math.max(INFRASTRUCTURE_REQUIREMENTS.power_plant.base, Math.ceil(population / INFRASTRUCTURE_REQUIREMENTS.power_plant.populationPerUnit));
+    const requiredWater = Math.max(INFRASTRUCTURE_REQUIREMENTS.water_treatment.base, Math.ceil(population / INFRASTRUCTURE_REQUIREMENTS.water_treatment.populationPerUnit));
+
+    // 人口に対するインフラ不足率を計算
+    const policeDeficit = Math.max(0, 1 - (policeCount / requiredPolice));
+    const fireDeficit = Math.max(0, 1 - (fireCount / requiredFire));
+    const schoolDeficit = Math.max(0, 1 - (schoolCount / requiredSchool));
+    const hospitalDeficit = Math.max(0, 1 - (hospitalCount / requiredHospital));
+    const powerDeficit = Math.max(0, 1 - (powerCount / requiredPower));
+    const waterDeficit = Math.max(0, 1 - (waterCount / requiredWater));
+
+    // パラメータを不足率に応じて減衰
+    this.state.securityLevel *= (1 - policeDeficit * 0.5);    // 不足で最大50%低下
+    this.state.safetyLevel *= (1 - fireDeficit * 0.5);
+    this.state.educationLevel *= (1 - schoolDeficit * 0.5);
+    this.state.medicalLevel *= (1 - hospitalDeficit * 0.5);
+    this.state.powerSupplyRate *= (1 - powerDeficit * 0.3);   // 電力供給率低下
+    this.state.waterSupplyRate *= (1 - waterDeficit * 0.3);
   }
 
   // インフラ不足ペナルティ計算

@@ -1,5 +1,5 @@
 // ゲーム定数
-export const GAME_VERSION = '0.8.1';
+export const GAME_VERSION = '1.0.0';
 
 export type MapSize = 'small' | 'medium' | 'large';
 
@@ -287,6 +287,36 @@ export const SYNERGY_EFFECTS = {
   station_school_police: {
     distanceThreshold: 20,
     commercialGrowthBonus: 0.2, // 商業成長+20%
+  },
+};
+
+// ==================== 人口スケーリング ====================
+
+// 人口に対するインフラ必要数
+export const INFRASTRUCTURE_REQUIREMENTS = {
+  police: {
+    populationPerUnit: 1000,        // 1,000人ごとに警察署1個必要
+    base: 1,                        // 最低1個必要
+  },
+  fire_station: {
+    populationPerUnit: 1000,
+    base: 1,
+  },
+  school: {
+    populationPerUnit: 1500,
+    base: 1,
+  },
+  hospital: {
+    populationPerUnit: 1500,
+    base: 1,
+  },
+  power_plant: {
+    populationPerUnit: 2000,
+    base: 1,
+  },
+  water_treatment: {
+    populationPerUnit: 2000,
+    base: 1,
   },
 };
 
