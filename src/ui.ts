@@ -243,6 +243,7 @@ export class UIManager {
       
       btn.addEventListener('click', () => {
         this.selectedInfrastructure = opt.type;
+        this.engine.state.selectedInfrastructure = opt.type;
         optionsDiv.querySelectorAll('.infra-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         console.log('Selected infrastructure:', opt.type);
@@ -285,6 +286,7 @@ export class UIManager {
       
       btn.addEventListener('click', () => {
         this.selectedLandmark = opt.type;
+        this.engine.state.selectedLandmark = opt.type;
         optionsDiv.querySelectorAll('.landmark-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         console.log('Selected landmark:', opt.type);

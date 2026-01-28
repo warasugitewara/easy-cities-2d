@@ -229,6 +229,27 @@ export class GameEngine {
   }
 
   private getCost(mode: BuildingCategory): number {
+    if (mode === 'infrastructure') {
+      // 選択されたインフラのコストを返す
+      const costs: Record<string, number> = {
+        station: 5000,
+        park: 1000,
+        police: 8000,
+        fire_station: 7000,
+        hospital: 10000,
+        school: 6000,
+        power_plant: 15000,
+        water_treatment: 12000,
+      };
+      return costs[this.state.selectedInfrastructure] || 5000;
+    } else if (mode === 'landmark') {
+      // 選択されたランドマークのコストを返す
+      const costs: Record<string, number> = {
+        stadium: 50000,
+        airport: 80000,
+      };
+      return costs[this.state.selectedLandmark] || 50000;
+    }
     return BUILD_COSTS[mode] || 0;
   }
 
