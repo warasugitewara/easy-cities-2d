@@ -884,6 +884,15 @@ export class UIManager {
         e.stopPropagation();
 
         this.draggingPanel = panel;
+        
+        // transform: translateX(-50%) などの変換を解除し、left/top に正しい位置を設定
+        const rect = panel.getBoundingClientRect();
+        panel.style.transform = 'none';
+        panel.style.left = rect.left + 'px';
+        panel.style.top = rect.top + 'px';
+        panel.style.right = 'auto';
+        panel.style.bottom = 'auto';
+        
         this.dragOffsetX = e.clientX - panel.offsetLeft;
         this.dragOffsetY = e.clientY - panel.offsetTop;
         panel.style.cursor = 'grabbing';

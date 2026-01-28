@@ -1053,6 +1053,8 @@ body {
   border-radius: 8px;
   padding: 15px;
   pointer-events: auto;
+  width: auto;
+  min-width: 300px;
   max-width: 600px;
   max-height: 400px;
   overflow-y: auto;
@@ -1132,7 +1134,9 @@ body {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  width: 180px;
   min-width: 150px;
+  max-width: 250px;
   box-shadow: 0 0 20px rgba(0, 191, 255, 0.4);
   z-index: 102;
   cursor: grab;
@@ -1202,7 +1206,12 @@ body {
   pointer-events: auto;
   box-shadow: 0 0 15px rgba(255, 152, 0, 0.3);
   z-index: 101;
+  width: 220px;
   min-width: 200px;
+  max-width: 400px;
+  height: auto;
+  min-height: 100px;
+  max-height: 300px;
   cursor: grab;
   user-select: none;
 }
