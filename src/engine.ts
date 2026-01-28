@@ -1,4 +1,12 @@
-import { GRID_SIZE, TileType, POPULATION_TABLE, TAX_REVENUE, MAINTENANCE_COSTS, BUILD_COSTS } from './constants';
+import { GRID_SIZE, TileType, POPULATION_TABLE, TAX_REVENUE, MAINTENANCE_COSTS, BUILD_COSTS, BuildingCategory } from './constants';
+
+// ゲーム設定インターフェース
+export interface GameSettings {
+  difficulty: 'easy' | 'normal' | 'hard';
+  disastersEnabled: boolean;
+  pollutionEnabled: boolean;
+  slumEnabled: boolean;
+}
 
 export interface GameState {
   map: number[][];
@@ -7,14 +15,15 @@ export interface GameState {
   comfort: number;
   month: number;
   paused: boolean;
-  buildMode: 'road' | 'station' | 'park' | 'demolish';
+  buildMode: BuildingCategory;
+  settings: GameSettings;
 }
 
 export class GameEngine {
   state: GameState;
   private growthRate: number = 0.02;
 
-  constructor() {
+  constructor(settings?: GameSettings) {
     this.state = {
       map: Array.from({ length: GRID_SIZE }, () => Array(GRID_SIZE).fill(TileType.EMPTY)),
       population: 0,
@@ -23,6 +32,12 @@ export class GameEngine {
       month: 0,
       paused: false,
       buildMode: 'road',
+      settings: settings || {
+        difficulty: 'normal',
+        disastersEnabled: false,
+        pollutionEnabled: false,
+        slumEnabled: false,
+      },
     };
     // 初期に中央に駅を配置
     const center = GRID_SIZE / 2;
@@ -45,19 +60,41 @@ export class GameEngine {
 
     if (this.state.map[y][x] !== TileType.EMPTY) return false;
 
-    if (this.state.buildMode === 'road') {
-      this.state.map[y][x] = TileType.ROAD;
-    } else if (this.state.buildMode === 'station') {
-      this.state.map[y][x] = TileType.STATION;
-    } else if (this.state.buildMode === 'park') {
-      this.state.map[y][x] = TileType.PARK;
+    let tileType: TileType | null = null;
+
+    switch (this.state.buildMode) {
+      case 'road':
+        tileType = TileType.ROAD;
+        break;
+      case 'residential':
+        tileType = TileType.RESIDENTIAL_L1;
+        break;
+      case 'commercial':
+        tileType = TileType.COMMERCIAL_L1;
+        break;
+      case 'industrial':
+        tileType = TileType.INDUSTRIAL_L1;
+        break;
+      case 'infrastructure':
+        // デフォルトは駅
+        tileType = TileType.STATION;
+        break;
+      case 'landmark':
+        // デフォルトはスタジアム
+        tileType = TileType.LANDMARK_STADIUM;
+        break;
     }
 
-    this.state.money -= cost;
-    return true;
+    if (tileType !== null) {
+      this.state.map[y][x] = tileType;
+      this.state.money -= cost;
+      return true;
+    }
+
+    return false;
   }
 
-  private getCost(mode: string): number {
+  private getCost(mode: BuildingCategory): number {
     return BUILD_COSTS[mode] || 0;
   }
 
