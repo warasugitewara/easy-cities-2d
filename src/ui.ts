@@ -222,8 +222,10 @@ export class UIManager {
 
     categorySelect.addEventListener('change', (e) => {
       const cat = (e.target as HTMLSelectElement).value as BuildingCategory;
+      console.log('🏗️ Mobile category changed to:', cat);
       this.switchTab(cat);
       this.updateMobileBuildContent(cat);
+      console.log('✅ Engine buildMode set to:', this.engine.state.buildMode);
     });
 
     // 初期表示
@@ -267,6 +269,7 @@ export class UIManager {
       btn.addEventListener('click', () => {
         this.selectedInfrastructure = type;
         this.engine.state.selectedInfrastructure = type;
+        console.log('🔧 Selected infrastructure:', type, '| buildMode:', this.engine.state.buildMode);
         container.querySelectorAll('.mobile-infra-btn').forEach((b) => b.classList.remove('active'));
         btn.classList.add('active');
       });
@@ -287,6 +290,7 @@ export class UIManager {
       btn.addEventListener('click', () => {
         this.selectedLandmark = type;
         this.engine.state.selectedLandmark = type;
+        console.log('🎪 Selected landmark:', type, '| buildMode:', this.engine.state.buildMode);
         container.querySelectorAll('.mobile-landmark-btn').forEach((b) => b.classList.remove('active'));
         btn.classList.add('active');
       });
@@ -638,8 +642,13 @@ export class UIManager {
     this.engine.state.gameSpeed = speed;
     this.engine.state.paused = (speed === 0); // ポーズボタンで一時停止
     
-    // ボタンのアクティブ状態を更新
+    // デスクトップ用ボタンのアクティブ状態を更新
     document.querySelectorAll('.time-btn').forEach((btn) => {
+      btn.classList.remove('active');
+    });
+    
+    // モバイル用ボタンのアクティブ状態を更新
+    document.querySelectorAll('.mobile-time-btn').forEach((btn) => {
       btn.classList.remove('active');
     });
 
