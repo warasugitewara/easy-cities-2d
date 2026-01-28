@@ -37,17 +37,10 @@ body {
 }
 
 #ui-container {
-  display: flex;
-  flex-direction: column;
-  gap: 15px;
-  width: 280px;
-  background: rgba(30, 30, 30, 0.9);
-  padding: 15px;
-  border-radius: 8px;
-  border: 2px solid #00bfff;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
-  overflow-y: auto;
-  max-height: 100vh;
+  position: relative;
+  pointer-events: none;
+  width: 100%;
+  height: 100%;
 }
 
 /* ダッシュボード */
@@ -506,19 +499,15 @@ body {
 
 /* ===== オーバーレイUI スタイル ===== */
 #ui-container {
-  position: fixed;
-  top: 0;
-  left: 0;
+  position: relative;
+  pointer-events: none;
   width: 100%;
   height: 100%;
-  pointer-events: none;
-  padding: 20px;
-  z-index: 100;
 }
 
 /* ダッシュボード（左上に常時表示）*/
 .dashboard-compact {
-  position: absolute;
+  position: fixed;
   top: 20px;
   left: 20px;
   background: rgba(0, 0, 0, 0.8);
@@ -593,7 +582,7 @@ body {
 
 /* ビルドメニュー（オーバーレイ、表示/非表示）*/
 .build-menu-overlay {
-  position: absolute;
+  position: fixed;
   bottom: 100px;
   left: 50%;
   transform: translateX(-50%);
@@ -607,7 +596,6 @@ body {
   overflow-y: auto;
   box-shadow: 0 0 20px rgba(0, 191, 255, 0.4);
   z-index: 102;
-  display: none;
 }
 
 .build-menu-overlay.hidden {
@@ -669,7 +657,7 @@ body {
 
 /* コントロールパネル（オーバーレイ、表示/非表示）*/
 .controls-panel-overlay {
-  position: absolute;
+  position: fixed;
   bottom: 100px;
   right: 30px;
   background: rgba(0, 0, 0, 0.9);

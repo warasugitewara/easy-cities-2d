@@ -327,10 +327,13 @@ async function initializeGame(): Promise<void> {
       renderer.cameraOffsetX -= mouseX * zoomChange / oldZoom;
       renderer.cameraOffsetY -= mouseY * zoomChange / oldZoom;
 
-      const mapWidth = 128 * 8 * renderer.zoomLevel;
-      const mapHeight = 128 * 8 * renderer.zoomLevel;
-      const maxOffsetX = mapWidth - CANVAS_SIZE;
-      const maxOffsetY = mapHeight - CANVAS_SIZE;
+      const gridSize = engine.state.gridSize;
+      const tileSize = getTileSize();
+      const mapWidth = gridSize * tileSize * renderer.zoomLevel;
+      const mapHeight = gridSize * tileSize * renderer.zoomLevel;
+      const canvasSize = getCanvasSize();
+      const maxOffsetX = mapWidth - canvasSize;
+      const maxOffsetY = mapHeight - canvasSize;
 
       renderer.cameraOffsetX = Math.max(-maxOffsetX, Math.min(0, renderer.cameraOffsetX));
       renderer.cameraOffsetY = Math.max(-maxOffsetY, Math.min(0, renderer.cameraOffsetY));
