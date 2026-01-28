@@ -25,6 +25,8 @@ export class Renderer {
     const map = this.engine.state.map;
     const fireMap = this.engine.state.fireMap;
     const diseaseMap = this.engine.state.diseaseMap;
+    const pollutionMap = this.engine.state.pollutionMap;
+    const slumMap = this.engine.state.slumMap;
     const gridSize = this.engine.state.gridSize;
 
     // カメラトランスフォーム適用
@@ -51,6 +53,20 @@ export class Renderer {
         if (diseaseMap[y][x] > 0) {
           const intensity = Math.min(1, diseaseMap[y][x] / 10);
           this.ctx.fillStyle = `rgba(255, 255, 50, ${0.2 + intensity * 0.4})`;
+          this.ctx.fillRect(x * this.tileSize, y * this.tileSize, this.tileSize, this.tileSize);
+        }
+
+        // 公害のビジュアル表示（茶色でハイライト）
+        if (pollutionMap[y][x] > 0) {
+          const intensity = Math.min(1, pollutionMap[y][x] / 100);
+          this.ctx.fillStyle = `rgba(150, 100, 50, ${0.2 + intensity * 0.4})`;
+          this.ctx.fillRect(x * this.tileSize, y * this.tileSize, this.tileSize, this.tileSize);
+        }
+
+        // スラム化のビジュアル表示（暗い紫でハイライト）
+        if (slumMap[y][x] > 0) {
+          const intensity = Math.min(1, slumMap[y][x] / 10);
+          this.ctx.fillStyle = `rgba(100, 50, 100, ${0.2 + intensity * 0.4})`;
           this.ctx.fillRect(x * this.tileSize, y * this.tileSize, this.tileSize, this.tileSize);
         }
 

@@ -945,14 +945,14 @@ export class GameEngine {
   }
 
   private updateFires(): void {
-    // 新しい火災をランダムに発生させる（確率を大幅に低下）
-    const fireChance = 0.001 * this.state.gameSpeed; // 0.02 → 0.001 に低下
+    // 新しい火災をランダムに発生させる（確率をさらに低下）
+    const fireChance = 0.0002 * this.state.gameSpeed; // 0.001 → 0.0002
     const sampleRate = Math.max(1, Math.floor(this.gridSize / 64));
     
     for (let y = 0; y < this.gridSize; y += sampleRate) {
       for (let x = 0; x < this.gridSize; x += sampleRate) {
         if (this.state.map[y][x] !== TileType.EMPTY && Math.random() < fireChance) {
-          this.state.fireMap[y][x] = Math.min(10, this.state.fireMap[y][x] + 3); // +5 → +3
+          this.state.fireMap[y][x] = Math.min(10, this.state.fireMap[y][x] + 2); // +3 → +2
         }
       }
     }
@@ -968,22 +968,22 @@ export class GameEngine {
             const nx = x + dx;
             const ny = y + dy;
             if (nx >= 0 && ny >= 0 && nx < this.gridSize && ny < this.gridSize) {
-              if (this.state.map[ny][nx] !== TileType.EMPTY && Math.random() < 0.02) { // 0.05 → 0.02
-                newFireMap[ny][nx] = Math.min(10, newFireMap[ny][nx] + 1); // +2 → +1
+              if (this.state.map[ny][nx] !== TileType.EMPTY && Math.random() < 0.01) { // 0.02 → 0.01
+                newFireMap[ny][nx] = Math.min(10, newFireMap[ny][nx] + 1);
               }
             }
           });
 
           // 消防署による消火（範囲と成功率を向上）
           let fireExtinguished = false;
-          for (let yy = -15; yy <= 15; yy++) { // -10 → -15
+          for (let yy = -15; yy <= 15; yy++) {
             if (fireExtinguished) break;
             for (let xx = -15; xx <= 15; xx++) {
               const nx = x + xx;
               const ny = y + yy;
               if (nx >= 0 && ny >= 0 && nx < this.gridSize && ny < this.gridSize) {
                 if (this.state.map[ny][nx] === TileType.FIRE_STATION) {
-                  if (Math.random() < 0.8) fireExtinguished = true; // 0.5 → 0.8
+                  if (Math.random() < 0.9) fireExtinguished = true; // 0.8 → 0.9
                   break;
                 }
               }
@@ -991,7 +991,7 @@ export class GameEngine {
           }
 
           if (fireExtinguished) {
-            newFireMap[y][x] = Math.max(0, newFireMap[y][x] - 4); // -3 → -4
+            newFireMap[y][x] = Math.max(0, newFireMap[y][x] - 5); // -4 → -5
           } else {
             newFireMap[y][x] = Math.max(0, newFireMap[y][x] - 1);
           }
@@ -999,7 +999,7 @@ export class GameEngine {
           // 火災が蔓延したら建物を破壊
           if (newFireMap[y][x] >= 10) {
             this.state.map[y][x] = TileType.EMPTY;
-            this.state.money -= 500; // 1000 → 500
+            this.state.money -= 500;
           }
         }
       }
