@@ -728,8 +728,9 @@ body {
   }
 
   #gameCanvas {
-    width: 100vw;
-    height: 100vw;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 1;
     max-width: calc(100vh - 50vh);
     max-height: calc(100vh - 50vh);
     border: 2px solid #00bfff;
@@ -754,9 +755,20 @@ body {
 
 /* スマートフォン（〜600px）さらなる最適化 */
 @media (max-width: 600px) {
+  #gameContainer {
+    padding: 0;
+  }
+
+  h1 {
+    font-size: 16px;
+    margin: 4px 0 2px 0;
+  }
+
   #gameCanvas {
-    width: 100vw;
-    height: 100vw;
+    width: calc(100vw);
+    height: calc(100vw);
+    max-width: calc(100vh - 50vh);
+    max-height: calc(100vh - 50vh);
   }
 
   .mobile-stats-grid {
