@@ -83,7 +83,47 @@ export class GameEngine {
 
     if (this.state.buildMode === 'demolish') {
       if (this.state.map[y][x] !== TileType.EMPTY) {
-        this.state.map[y][x] = TileType.EMPTY;
+        const tileType = this.state.map[y][x];
+        
+        // 複数マス占有建築物の場合、全体を削除
+        if (BUILDING_SIZES[tileType]) {
+          const size = BUILDING_SIZES[tileType];
+          // 建築物の左上を探す（クリックされたタイルから推測）
+          let startX = x;
+          let startY = y;
+          
+          // 同じタイプのタイルをスキャンして左上を見つける
+          for (let sy = Math.max(0, y - size.height); sy <= Math.min(this.gridSize - 1, y); sy++) {
+            for (let sx = Math.max(0, x - size.width); sx <= Math.min(this.gridSize - 1, x); sx++) {
+              if (this.state.map[sy][sx] === tileType) {
+                // この位置が左上の候補
+                let isLeftTop = true;
+                // 左上に同じタイプがないか確認
+                if (sx > 0 && this.state.map[sy][sx - 1] === tileType) isLeftTop = false;
+                if (sy > 0 && this.state.map[sy - 1][sx] === tileType) isLeftTop = false;
+                
+                if (isLeftTop) {
+                  startX = sx;
+                  startY = sy;
+                }
+              }
+            }
+          }
+          
+          // 左上から始まる全タイルを削除
+          for (let dy = 0; dy < size.height; dy++) {
+            for (let dx = 0; dx < size.width; dx++) {
+              const nx = startX + dx;
+              const ny = startY + dy;
+              if (nx >= 0 && ny >= 0 && nx < this.gridSize && ny < this.gridSize) {
+                this.state.map[ny][nx] = TileType.EMPTY;
+              }
+            }
+          }
+        } else {
+          // 1マス建築物の場合は通常削除
+          this.state.map[y][x] = TileType.EMPTY;
+        }
       }
       return true;
     }
