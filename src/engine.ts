@@ -41,6 +41,11 @@ export interface GameState {
   waterSupplyRate: number; // 給水率（％）
   pollutionLevel: number;  // 全体汚染度（0-100）
   slumRate: number;        // スラム化率（0-100）
+  // 需要メータ
+  residentialDemand: number; // 住宅地需要（0-100）
+  commercialDemand: number;  // 商業地需要（0-100）
+  industrialDemand: number;  // 工業地需要（0-100）
+  showDemandMeters: boolean; // 需要メータ表示フラグ
   // ペナルティシステム
   growthPenalty: number;   // 成長速度補正係数（1.0 = 通常、0.5 = 50%低下）
   revenuePenalty: number;  // 税収補正係数（1.0 = 通常）
@@ -98,6 +103,10 @@ export class GameEngine {
       waterSupplyRate: INITIAL_PARAMETERS.waterSupplyRate,
       pollutionLevel: 0,
       slumRate: 0,
+      residentialDemand: 50,
+      commercialDemand: 50,
+      industrialDemand: 50,
+      showDemandMeters: false,
       growthPenalty: 1.0,
       revenuePenalty: 1.0,
       settings: settings || {
@@ -353,16 +362,56 @@ export class GameEngine {
           if (!this.state.powerGrid[y][x]) localPenalty *= 0.6; // 電力なし：60%に低下
           if (!this.state.waterGrid[y][x]) localPenalty *= 0.3; // 給水なし：30%に低下
 
+          // 需要に応じたボーナス/ペナルティを適用
+          const tile = this.state.map[y][x];
+          if (tile >= TileType.RESIDENTIAL_L1 && tile <= TileType.RESIDENTIAL_L4) {
+            // 住宅地：需要が高いほどボーナス、低いほどペナルティ
+            if (this.state.residentialDemand > 50) {
+              localPenalty *= (1 + (this.state.residentialDemand - 50) * 0.006); // 最大 +30%
+            } else if (this.state.residentialDemand < 10) {
+              localPenalty *= 0.7; // -30%
+            }
+          } else if (tile >= TileType.COMMERCIAL_L1 && tile <= TileType.COMMERCIAL_L4) {
+            // 商業地：需要が高いほどボーナス
+            if (this.state.commercialDemand > 50) {
+              localPenalty *= (1 + (this.state.commercialDemand - 50) * 0.006);
+            } else if (this.state.commercialDemand < 10) {
+              localPenalty *= 0.7;
+            }
+          } else if (tile >= TileType.INDUSTRIAL_L1 && tile <= TileType.INDUSTRIAL_L4) {
+            // 工業地：需要が高いほどボーナス
+            if (this.state.industrialDemand > 50) {
+              localPenalty *= (1 + (this.state.industrialDemand - 50) * 0.006);
+            } else if (this.state.industrialDemand < 10) {
+              localPenalty *= 0.7;
+            }
+          }
+
           // 新規建設（道路隣接）
           if (this.state.map[y][x] === TileType.EMPTY && this.hasAdjacent(x, y, (t) => t === TileType.ROAD)) {
-            if (Math.random() < this.growthRate * bias * localPenalty) {
+            // 新規建設は全ゾーン需要の平均を参照
+            let demandBonus = 1.0;
+            const avgDemand = (this.state.residentialDemand + this.state.commercialDemand + this.state.industrialDemand) / 3;
+            if (avgDemand > 50) {
+              demandBonus = 1 + (avgDemand - 50) * 0.006;
+            } else if (avgDemand < 10) {
+              demandBonus = 0.7;
+            }
+            if (Math.random() < this.growthRate * bias * localPenalty * demandBonus) {
               this.state.map[y][x] = TileType.RESIDENTIAL_L1;
             }
           }
 
           // 波及建設（0.2倍）- 他の建物に隣接していても成長
           if (this.state.map[y][x] === TileType.EMPTY && this.hasAdjacent(x, y, (t) => t >= 1 && t <= 24)) {
-            if (Math.random() < this.growthRate * 0.2 * bias * localPenalty) {
+            let demandBonus = 1.0;
+            const avgDemand = (this.state.residentialDemand + this.state.commercialDemand + this.state.industrialDemand) / 3;
+            if (avgDemand > 50) {
+              demandBonus = 1 + (avgDemand - 50) * 0.006;
+            } else if (avgDemand < 10) {
+              demandBonus = 0.7;
+            }
+            if (Math.random() < this.growthRate * 0.2 * bias * localPenalty * demandBonus) {
               this.state.map[y][x] = TileType.RESIDENTIAL_L1;
             }
           }
@@ -511,6 +560,9 @@ export class GameEngine {
     // シナジー効果の計算
     this.applySynergyEffects();
 
+    // 需要計算
+    this.calculateDemands();
+
     // 人口に基づいてインフラスケーリングを適用
     this.applyPopulationScaling();
   }
@@ -572,6 +624,57 @@ export class GameEngine {
 
     this.state.powerSupplyRate = totalBuildings > 0 ? (powerSupplied / totalBuildings) * 100 : 0;
     this.state.waterSupplyRate = totalBuildings > 0 ? (waterSupplied / totalBuildings) * 100 : 0;
+  }
+
+  // 需要計算
+  private calculateDemands(): void {
+    let residentialCount = 0;
+    let commercialCount = 0;
+    let industrialCount = 0;
+    let totalBuildable = 0;
+
+    for (let y = 0; y < this.gridSize; y++) {
+      for (let x = 0; x < this.gridSize; x++) {
+        const tile = this.state.map[y][x];
+        
+        // インフラ以外の建物のみカウント
+        if (tile !== TileType.EMPTY && tile < 0) continue;
+        if (tile !== TileType.EMPTY && tile > 0) {
+          totalBuildable++;
+          
+          if (tile >= TileType.RESIDENTIAL_L1 && tile <= TileType.RESIDENTIAL_L4) {
+            residentialCount++;
+          } else if (tile >= TileType.COMMERCIAL_L1 && tile <= TileType.COMMERCIAL_L4) {
+            commercialCount++;
+          } else if (tile >= TileType.INDUSTRIAL_L1 && tile <= TileType.INDUSTRIAL_L4) {
+            industrialCount++;
+          }
+        }
+      }
+    }
+
+    // 占有率を計算（総建設可能タイル数に対する割合）
+    const maxTiles = this.gridSize * this.gridSize;
+    const residentialOccupancy = totalBuildable > 0 ? (residentialCount / maxTiles) * 100 : 0;
+    const commercialOccupancy = totalBuildable > 0 ? (commercialCount / maxTiles) * 100 : 0;
+    const industrialOccupancy = totalBuildable > 0 ? (industrialCount / maxTiles) * 100 : 0;
+
+    // 需要 = 100% - 占有率 （占有率が低いほど需要が高い）
+    let residentialDemand = Math.max(0, 100 - residentialOccupancy * 2); // x2 で需要をスケール
+    let commercialDemand = Math.max(0, 100 - commercialOccupancy * 2);
+    let industrialDemand = Math.max(0, 100 - industrialOccupancy * 2);
+
+    // 人口に応じた調整
+    if (this.state.population > 0) {
+      const populationRatio = this.state.population / 50000; // スケーリング基準
+      residentialDemand = Math.min(100, residentialDemand * (0.5 + populationRatio * 0.5));
+      commercialDemand = Math.min(100, commercialDemand * (0.2 + populationRatio * 0.8));
+      industrialDemand = Math.min(100, industrialDemand * (0.2 + populationRatio * 0.8));
+    }
+
+    this.state.residentialDemand = Math.round(residentialDemand);
+    this.state.commercialDemand = Math.round(commercialDemand);
+    this.state.industrialDemand = Math.round(industrialDemand);
   }
 
   // シナジー効果の計算
@@ -892,6 +995,10 @@ export class GameEngine {
       internationalLevel: INITIAL_PARAMETERS.internationalLevel,
       powerSupplyRate: INITIAL_PARAMETERS.powerSupplyRate,
       waterSupplyRate: INITIAL_PARAMETERS.waterSupplyRate,
+      residentialDemand: 50,
+      commercialDemand: 50,
+      industrialDemand: 50,
+      showDemandMeters: false,
       growthPenalty: 1.0,
       revenuePenalty: 1.0,
       settings: this.state.settings,
@@ -991,51 +1098,32 @@ export class GameEngine {
 
   private updatePollution(): void {
     // 工業地から汚染が発生
-    let totalPollution = 0;
     for (let y = 0; y < this.gridSize; y++) {
       for (let x = 0; x < this.gridSize; x++) {
         const tile = this.state.map[y][x];
-        // 工業地レベルに応じた汚染
+        // 工業地レベルに応じた汚染（工業地タイル内のみ）
         if (tile >= TileType.INDUSTRIAL_L1 && tile <= TileType.INDUSTRIAL_L4) {
           const level = tile - TileType.INDUSTRIAL_L1 + 1;
-          this.state.pollutionMap[y][x] = Math.min(100, this.state.pollutionMap[y][x] + level * 2);
-          totalPollution += this.state.pollutionMap[y][x];
+          // バランス調整：汚染度を段階的に設定（拡散なし）
+          this.state.pollutionMap[y][x] = level * 20; // L1: 20, L2: 40, L3: 60, L4: 80
+        } else {
+          // 工業地以外は自然に汚染が減少
+          this.state.pollutionMap[y][x] = Math.max(0, this.state.pollutionMap[y][x] - 2);
         }
       }
     }
-
-    // 汚染の拡散（隣接タイルへ）
-    const newPollutionMap = this.state.pollutionMap.map(row => [...row]);
-    for (let y = 0; y < this.gridSize; y++) {
-      for (let x = 0; x < this.gridSize; x++) {
-        if (this.state.pollutionMap[y][x] > 10) {
-          // 隣接タイルに拡散（低確率）
-          const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
-          dirs.forEach(([dx, dy]) => {
-            const nx = x + dx;
-            const ny = y + dy;
-            if (nx >= 0 && ny >= 0 && nx < this.gridSize && ny < this.gridSize) {
-              newPollutionMap[ny][nx] = Math.min(100, newPollutionMap[ny][nx] + 5);
-            }
-          });
-          // 自然減少
-          newPollutionMap[y][x] = Math.max(0, newPollutionMap[y][x] - 3);
-        }
-      }
-    }
-    this.state.pollutionMap = newPollutionMap;
 
     // 全体汚染度を計算
     const totalCells = this.gridSize * this.gridSize;
     const pollutedCells = this.state.pollutionMap.flat().filter(p => p > 0).length;
     this.state.pollutionLevel = Math.round((pollutedCells / totalCells) * 100);
 
-    // 汚染が高いと快適度低下
-    if (this.state.pollutionLevel > 30) {
-      this.state.comfort *= 0.95;
+    // 汚染が高いと快適度低下（基準を緩和）
+    if (this.state.pollutionLevel > 50) {
+      this.state.comfort *= 0.98;
     }
-    if (this.state.pollutionLevel > 60) {
-      this.state.comfort *= 0.90;
+    if (this.state.pollutionLevel > 80) {
+      this.state.comfort *= 0.95;
     }
   }
 
