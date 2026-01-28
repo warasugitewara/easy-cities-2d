@@ -393,32 +393,50 @@ export class UIManager {
           <span class="stat-value" id="stat-water">0%</span>
         </div>
       </div>
-      <div class="demand-meter-container" id="demand-meter-container" style="display: none;">
-        <div class="demand-meter">
-          <span class="demand-label">🏘️</span>
-          <div class="demand-bar">
-            <div class="demand-fill" id="demand-residential" style="width: 50%"></div>
-          </div>
-          <span class="demand-value" id="demand-value-residential">50</span>
-        </div>
-        <div class="demand-meter">
-          <span class="demand-label">🏪</span>
-          <div class="demand-bar">
-            <div class="demand-fill" id="demand-commercial" style="width: 50%"></div>
-          </div>
-          <span class="demand-value" id="demand-value-commercial">50</span>
-        </div>
-        <div class="demand-meter">
-          <span class="demand-label">🏭</span>
-          <div class="demand-bar">
-            <div class="demand-fill" id="demand-industrial" style="width: 50%"></div>
-          </div>
-          <span class="demand-value" id="demand-value-industrial">50</span>
-        </div>
-      </div>
-      <button id="btn-toggle-demand" class="btn-toggle-demand" title="需要メーター表示">📊</button>
     `;
     container.appendChild(dashboard);
+
+    // デマンドメーター（左下、ドラッグ可能）
+    const demandMeter = document.createElement('div');
+    demandMeter.id = 'demand-meter-container';
+    demandMeter.className = 'demand-meter-container';
+    demandMeter.style.display = 'none';
+    demandMeter.innerHTML = `
+      <div class="demand-meter-header">
+        <span style="flex: 1;">📊 需要メーター</span>
+        <button id="btn-close-demand" class="btn-close-demand" title="閉じる">✕</button>
+      </div>
+      <div class="demand-meter">
+        <span class="demand-label">🏘️</span>
+        <div class="demand-bar">
+          <div class="demand-fill" id="demand-residential" style="width: 50%"></div>
+        </div>
+        <span class="demand-value" id="demand-value-residential">50</span>
+      </div>
+      <div class="demand-meter">
+        <span class="demand-label">🏪</span>
+        <div class="demand-bar">
+          <div class="demand-fill" id="demand-commercial" style="width: 50%"></div>
+        </div>
+        <span class="demand-value" id="demand-value-commercial">50</span>
+      </div>
+      <div class="demand-meter">
+        <span class="demand-label">🏭</span>
+        <div class="demand-bar">
+          <div class="demand-fill" id="demand-industrial" style="width: 50%"></div>
+        </div>
+        <span class="demand-value" id="demand-value-industrial">50</span>
+      </div>
+    `;
+    container.appendChild(demandMeter);
+
+    // トグルボタン（画面左下に常時表示）
+    const demandToggle = document.createElement('button');
+    demandToggle.id = 'btn-toggle-demand';
+    demandToggle.className = 'btn-toggle-demand-fixed';
+    demandToggle.title = '需要メーター表示';
+    demandToggle.textContent = '📊';
+    container.appendChild(demandToggle);
 
     // 時間制御パネル（画面上部中央に常時表示）
     const timePanel = document.createElement('div');
@@ -700,6 +718,15 @@ export class UIManager {
       }
     });
 
+    // デマンドメーター 閉じるボタン
+    document.getElementById('btn-close-demand')?.addEventListener('click', () => {
+      const container = document.getElementById('demand-meter-container');
+      if (container) {
+        container.style.display = 'none';
+        this.engine.state.showDemandMeters = false;
+      }
+    });
+
     // 時間制御ボタン
     document.getElementById('btn-pause')?.addEventListener('click', () => this.setGameSpeed(0));
     document.getElementById('btn-slow')?.addEventListener('click', () => this.setGameSpeed(0.5));
@@ -718,6 +745,7 @@ export class UIManager {
     // UI パネルのドラッグ機能
     this.makePanelDraggable('build-menu');
     this.makePanelDraggable('controls-panel');
+    this.makePanelDraggable('demand-meter-container');
   }
 
   private setGameSpeed(speed: number): void {

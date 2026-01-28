@@ -1192,17 +1192,54 @@ body {
 
 /* デマンドメーター（デスクトップ） */
 .demand-meter-container {
-  position: absolute;
-  top: 140px;
+  position: fixed;
+  bottom: 80px;
   left: 20px;
   background: rgba(0, 0, 0, 0.8);
   border: 2px solid #ff9800;
   border-radius: 8px;
-  padding: 12px;
+  padding: 0;
   pointer-events: auto;
   box-shadow: 0 0 15px rgba(255, 152, 0, 0.3);
   z-index: 101;
   min-width: 200px;
+  cursor: grab;
+  user-select: none;
+}
+
+.demand-meter-container:active {
+  cursor: grabbing;
+}
+
+.demand-meter-header {
+  background: linear-gradient(135deg, #ff9800, #ff7043);
+  color: #000;
+  padding: 8px 12px;
+  border-radius: 6px 6px 0 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: bold;
+  font-size: 14px;
+}
+
+.btn-close-demand {
+  background: none;
+  border: none;
+  color: #000;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 0;
+  margin-left: 8px;
+  transition: transform 0.2s;
+}
+
+.btn-close-demand:hover {
+  transform: scale(1.2);
+}
+
+.demand-meter-container > div:not(.demand-meter-header) {
+  padding: 8px 12px;
 }
 
 .demand-meter {
@@ -1245,27 +1282,31 @@ body {
   font-size: 12px;
 }
 
-.btn-toggle-demand {
-  position: absolute;
-  bottom: 30px;
-  right: 50%;
-  transform: translateX(70px);
-  padding: 12px 16px;
+.btn-toggle-demand-fixed {
+  position: fixed;
+  bottom: 20px;
+  left: 20px;
+  padding: 14px 18px;
   background: linear-gradient(135deg, #ff9800, #ff7043);
   color: #000;
   border: none;
   border-radius: 6px;
   cursor: pointer;
-  font-size: 16px;
+  font-size: 18px;
   font-weight: bold;
   box-shadow: 0 0 15px rgba(255, 152, 0, 0.5);
   transition: all 0.2s;
   pointer-events: auto;
+  z-index: 100;
 }
 
-.btn-toggle-demand:hover {
-  transform: translateX(70px) scale(1.05);
+.btn-toggle-demand-fixed:hover {
+  transform: scale(1.08);
   box-shadow: 0 0 25px rgba(255, 152, 0, 0.8);
+}
+
+.btn-toggle-demand-fixed:active {
+  transform: scale(0.95);
 }
 
 /* デマンドメーター（モバイル） */
