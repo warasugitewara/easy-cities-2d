@@ -15,6 +15,36 @@ if (!canvas) {
 
 console.log('✅ Canvas found:', canvas);
 
+// Bresenhamのラインアルゴリズム: 2点間の直線上のタイルを取得
+function bresenhamLine(x0: number, y0: number, x1: number, y1: number): Array<{ x: number; y: number }> {
+  const points: Array<{ x: number; y: number }> = [];
+  const dx = Math.abs(x1 - x0);
+  const dy = Math.abs(y1 - y0);
+  const sx = x0 < x1 ? 1 : -1;
+  const sy = y0 < y1 ? 1 : -1;
+  let err = dx - dy;
+
+  let x = x0;
+  let y = y0;
+
+  while (true) {
+    points.push({ x, y });
+    if (x === x1 && y === y1) break;
+
+    const e2 = 2 * err;
+    if (e2 > -dy) {
+      err -= dy;
+      x += sx;
+    }
+    if (e2 < dx) {
+      err += dx;
+      y += sy;
+    }
+  }
+
+  return points;
+}
+
 try {
   const engine = new GameEngine();
   const renderer = new Renderer(canvas, engine);
@@ -58,42 +88,22 @@ try {
     }
   }
 
-  // Bresenhamのラインアルゴリズム: 2点間の直線上のタイルを取得
-  function bresenhamLine(x0: number, y0: number, x1: number, y1: number): Array<{ x: number; y: number }> {
-    const points: Array<{ x: number; y: number }> = [];
-    const dx = Math.abs(x1 - x0);
-    const dy = Math.abs(y1 - y0);
-    const sx = x0 < x1 ? 1 : -1;
-    const sy = y0 < y1 ? 1 : -1;
-    let err = dx - dy;
-
-    let x = x0;
-    let y = y0;
-
-    while (true) {
-      points.push({ x, y });
-      if (x === x1 && y === y1) break;
-
-      const e2 = 2 * err;
-      if (e2 > -dy) {
-        err -= dy;
-        x += sx;
-      }
-      if (e2 < dx) {
-        err += dx;
-        y += sy;
-      }
+  // スクリーン座標を取得（マウス/タッチ両対応）
+  function getClientCoordinates(e: MouseEvent | TouchEvent): { clientX: number; clientY: number } {
+    if ('touches' in e && e.touches.length > 0) {
+      return { clientX: e.touches[0].clientX, clientY: e.touches[0].clientY };
+    } else if (e instanceof MouseEvent) {
+      return { clientX: e.clientX, clientY: e.clientY };
     }
-
-    return points;
+    return { clientX: 0, clientY: 0 };
   }
 
   // 敷設処理（共通）
-  function buildAtMouse(e: MouseEvent): void {
+  function buildAtMouse(clientX: number, clientY: number): void {
     try {
       const rect = canvas.getBoundingClientRect();
-      const screenX = e.clientX - rect.left;
-      const screenY = e.clientY - rect.top;
+      const screenX = clientX - rect.left;
+      const screenY = clientY - rect.top;
 
       // スクリーン座標をワールド座標に変換
       const worldCoords = renderer.screenToWorld(screenX, screenY);
@@ -113,59 +123,55 @@ try {
     }
   }
 
-  // マウスダウン: 長押し開始 または ドラッグ開始
-  canvas.addEventListener('mousedown', (e) => {
+  // ポインターダウン処理（マウス＆タッチ共用）
+  function handlePointerDown(clientX: number, clientY: number, isRightClick: boolean = false): void {
     isMouseDown = true;
-    dragStartX = e.clientX;
-    dragStartY = e.clientY;
+    dragStartX = clientX;
+    dragStartY = clientY;
     lastCameraOffsetX = renderer.cameraOffsetX;
     lastCameraOffsetY = renderer.cameraOffsetY;
 
     // 右クリック: ドラッグ開始フラグ
-    if (e.button === 2) {
+    if (isRightClick) {
       isDragging = true;
-      e.preventDefault();
       return;
     }
 
     // 左クリック: 敷設
-    buildAtMouse(e);
+    buildAtMouse(clientX, clientY);
 
     // 連続モードが有効な場合、定期的に敷設
     if (continuousModeEnabled && engine.state.buildMode !== 'demolish') {
       continuousIntervalId = window.setInterval(() => {
         if (isMouseDown) {
-          buildAtMouse(e);
+          buildAtMouse(clientX, clientY);
         }
       }, 100);
     }
-  });
+  }
 
-  // マウスムーブ: ドラッグ処理 または 移動中敷設
-  canvas.addEventListener('mousemove', (e) => {
+  // ポインタームーブ処理（マウス＆タッチ共用）
+  function handlePointerMove(clientX: number, clientY: number): void {
     if (isDragging) {
       // ドラッグ中: カメラ移動
-      const deltaX = e.clientX - dragStartX;
-      const deltaY = e.clientY - dragStartY;
+      const deltaX = clientX - dragStartX;
+      const deltaY = clientY - dragStartY;
       renderer.cameraOffsetX = lastCameraOffsetX + deltaX;
       renderer.cameraOffsetY = lastCameraOffsetY + deltaY;
 
       // カメラをクランプして、マップが画面外に出ないようにする
-      const mapWidth = 128 * 8 * renderer.zoomLevel; // GRID_SIZE * TILE_SIZE * zoom
+      const mapWidth = 128 * 8 * renderer.zoomLevel;
       const mapHeight = 128 * 8 * renderer.zoomLevel;
       const maxOffsetX = mapWidth - CANVAS_SIZE;
       const maxOffsetY = mapHeight - CANVAS_SIZE;
 
       renderer.cameraOffsetX = Math.max(-maxOffsetX, Math.min(0, renderer.cameraOffsetX));
       renderer.cameraOffsetY = Math.max(-maxOffsetY, Math.min(0, renderer.cameraOffsetY));
-
-      e.preventDefault();
-    } else if (isMouseDown && (engine.state.buildMode !== 'demolish')) {
-      // 左ドラッグ敷設: マウス移動した経路上に敷設
-      // Bresenhamのラインアルゴリズムで経路上のタイルをすべて敷設
+    } else if (isMouseDown && engine.state.buildMode !== 'demolish') {
+      // 左ドラッグ敷設
       const rect = canvas.getBoundingClientRect();
-      const currentScreenX = e.clientX - rect.left;
-      const currentScreenY = e.clientY - rect.top;
+      const currentScreenX = clientX - rect.left;
+      const currentScreenY = clientY - rect.top;
 
       const startWorldCoords = renderer.screenToWorld(dragStartX - rect.left, dragStartY - rect.top);
       const currentWorldCoords = renderer.screenToWorld(currentScreenX, currentScreenY);
@@ -175,43 +181,71 @@ try {
       const endX = Math.floor(currentWorldCoords.x / 8);
       const endY = Math.floor(currentWorldCoords.y / 8);
 
-      // ラインアルゴリズム: 開始から現在位置まで敷設
       const tilesOnLine = bresenhamLine(startX, startY, endX, endY);
       tilesOnLine.forEach(({ x, y }) => {
         if (x >= 0 && x < 128 && y >= 0 && y < 128) {
-          if (engine.build(x, y)) {
-            // 成功
-          }
+          engine.build(x, y);
         }
       });
 
-      // 最後の位置を記憶（次のmoveイベント用）
-      dragStartX = e.clientX;
-      dragStartY = e.clientY;
+      dragStartX = clientX;
+      dragStartY = clientY;
       uiManager.updateDisplay();
     }
-  });
+  }
 
-  // マウスアップ: ドラッグ終了 または 敷設終了
-  canvas.addEventListener('mouseup', (e) => {
-    if (e.button === 2) {
-      isDragging = false;
-    }
-    isMouseDown = false;
-    if (continuousIntervalId !== null) {
-      clearInterval(continuousIntervalId);
-      continuousIntervalId = null;
-    }
-  });
-
-  // マウスが離れた場合も終了
-  canvas.addEventListener('mouseleave', () => {
-    isMouseDown = false;
+  // ポインターアップ処理
+  function handlePointerUp(): void {
     isDragging = false;
+    isMouseDown = false;
     if (continuousIntervalId !== null) {
       clearInterval(continuousIntervalId);
       continuousIntervalId = null;
     }
+  }
+
+  // マウスイベント
+  canvas.addEventListener('mousedown', (e) => {
+    const coords = getClientCoordinates(e);
+    handlePointerDown(coords.clientX, coords.clientY, e.button === 2);
+    e.preventDefault();
+  });
+
+  canvas.addEventListener('mousemove', (e) => {
+    const coords = getClientCoordinates(e);
+    handlePointerMove(coords.clientX, coords.clientY);
+    e.preventDefault();
+  });
+
+  canvas.addEventListener('mouseup', (e) => {
+    handlePointerUp();
+  });
+
+  canvas.addEventListener('mouseleave', () => {
+    handlePointerUp();
+  });
+
+  // タッチイベント
+  canvas.addEventListener('touchstart', (e) => {
+    const coords = getClientCoordinates(e);
+    handlePointerDown(coords.clientX, coords.clientY, false);
+    e.preventDefault();
+  });
+
+  canvas.addEventListener('touchmove', (e) => {
+    const coords = getClientCoordinates(e);
+    handlePointerMove(coords.clientX, coords.clientY);
+    e.preventDefault();
+  });
+
+  canvas.addEventListener('touchend', (e) => {
+    handlePointerUp();
+    e.preventDefault();
+  });
+
+  canvas.addEventListener('touchcancel', (e) => {
+    handlePointerUp();
+    e.preventDefault();
   });
 
   // マウスホイール: ズーム
@@ -221,12 +255,9 @@ try {
     const zoomSpeed = 0.1;
     const oldZoom = renderer.zoomLevel;
     renderer.zoomLevel += e.deltaY > 0 ? -zoomSpeed : zoomSpeed;
-    
-    // グリッド全体が画面に収まる最小ズーム: 1024px (128 * 8) / 1024px = 1.0
-    // 最大ズーム: 3倍
+
     renderer.zoomLevel = Math.max(1.0, Math.min(3, renderer.zoomLevel));
 
-    // ズーム中心をマウス位置にする
     const rect = canvas.getBoundingClientRect();
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
@@ -235,8 +266,7 @@ try {
     renderer.cameraOffsetX -= mouseX * zoomChange / oldZoom;
     renderer.cameraOffsetY -= mouseY * zoomChange / oldZoom;
 
-    // カメラをクランプして、マップが画面外に出ないようにする
-    const mapWidth = 128 * 8 * renderer.zoomLevel; // GRID_SIZE * TILE_SIZE * zoom
+    const mapWidth = 128 * 8 * renderer.zoomLevel;
     const mapHeight = 128 * 8 * renderer.zoomLevel;
     const maxOffsetX = mapWidth - CANVAS_SIZE;
     const maxOffsetY = mapHeight - CANVAS_SIZE;
@@ -272,6 +302,9 @@ try {
         break;
       case 'd':
         engine.state.buildMode = 'demolish';
+        break;
+      case 'c':
+        toggleContinuousMode();
         break;
     }
   });
