@@ -1,6 +1,6 @@
 # Easy Cities 2D 🏙️
 
-都市シミュレーションゲーム「Easy Cities」の2D改良版です。Cities Skylines並みのゲーム性を備えた、ブラウザベースの都市建設シミュレーターです。
+知り合いの松島さん作、都市シミュレーションゲーム「Easy Cities」の2D改良版です。Cities Skylines並みのゲーム性を備えた、ブラウザベースの都市建設シミュレーターです。
 
 [🎮 Play Online](https://warasugitewara.github.io/easy-cities-2d/)
 
