@@ -7,6 +7,7 @@ export class UIManager {
   private storage: StorageManager;
   private currentSlot: number = 0;
   private currentTab: BuildingCategory = 'road';
+  private guiVisible: boolean = false;
 
   constructor(engine: GameEngine, storage: StorageManager) {
     this.engine = engine;
@@ -23,45 +24,58 @@ export class UIManager {
 
     console.log('✅ Setting up UI...');
 
-    // ダッシュボード
+    // ダッシュボード（画面左上に常時表示）
     const dashboard = document.createElement('div');
     dashboard.id = 'dashboard';
-    dashboard.className = 'dashboard';
+    dashboard.className = 'dashboard-compact';
     dashboard.innerHTML = `
-      <div class="stat-panel">
-        <div class="stat-item">
-          <span class="stat-label">人口</span>
+      <div class="stat-panel-compact">
+        <div class="stat-item-compact">
+          <span class="stat-label">👥</span>
           <span class="stat-value" id="stat-population">0</span>
         </div>
-        <div class="stat-item">
-          <span class="stat-label">資金</span>
-          <span class="stat-value" id="stat-money">¥250,000</span>
+        <div class="stat-item-compact">
+          <span class="stat-label">💰</span>
+          <span class="stat-value" id="stat-money">¥250K</span>
         </div>
-        <div class="stat-item">
-          <span class="stat-label">快適度</span>
+        <div class="stat-item-compact">
+          <span class="stat-label">😊</span>
           <span class="stat-value" id="stat-comfort">50</span>
         </div>
-        <div class="stat-item">
-          <span class="stat-label">月</span>
+        <div class="stat-item-compact">
+          <span class="stat-label">📅</span>
           <span class="stat-value" id="stat-month">0</span>
         </div>
       </div>
     `;
     uiContainer.appendChild(dashboard);
 
-    // ビルドメニュー（タブ式）
+    // トグルボタン（画面下部中央に常時表示）
+    const toggleContainer = document.createElement('div');
+    toggleContainer.id = 'toggle-container';
+    toggleContainer.className = 'toggle-container';
+    toggleContainer.innerHTML = `
+      <button id="btn-toggle-gui" class="btn-toggle-gui">🎛️</button>
+    `;
+    uiContainer.appendChild(toggleContainer);
+
+    // ビルドメニュー（オーバーレイ、最初は非表示）
     this.createBuildMenu(uiContainer);
 
-    // コントロールパネル
+    // コントロールパネル（オーバーレイ、最初は非表示）
     const controls = document.createElement('div');
     controls.id = 'controls-panel';
-    controls.className = 'controls-panel';
+    controls.className = 'controls-panel-overlay hidden';
     controls.innerHTML = `
-      <button id="btn-settings" class="btn-icon" title="設定">⚙️</button>
-      <button id="btn-save" class="btn-icon" title="セーブ">💾</button>
-      <button id="btn-load" class="btn-icon" title="ロード">📂</button>
-      <button id="btn-export" class="btn-icon" title="エクスポート">📤</button>
-      <button id="btn-import" class="btn-icon" title="インポート">📥</button>
+      <div class="controls-header">
+        <h3>⚙️ メニュー</h3>
+        <button id="btn-close-gui" class="btn-close">✕</button>
+      </div>
+      <button id="btn-settings" class="btn-control">⚙️ 設定</button>
+      <button id="btn-save" class="btn-control">💾 セーブ</button>
+      <button id="btn-load" class="btn-control">📂 ロード</button>
+      <button id="btn-export" class="btn-control">📤 エクスポート</button>
+      <button id="btn-import" class="btn-control">📥 インポート</button>
     `;
     uiContainer.appendChild(controls);
 
@@ -71,11 +85,11 @@ export class UIManager {
   private createBuildMenu(container: HTMLElement): void {
     const menu = document.createElement('div');
     menu.id = 'build-menu';
-    menu.className = 'build-menu';
+    menu.className = 'build-menu-overlay hidden';
 
     // タブコンテナ
     const tabContainer = document.createElement('div');
-    tabContainer.className = 'tab-container';
+    tabContainer.className = 'tab-container-overlay';
 
     const categories: BuildingCategory[] = ['road', 'residential', 'commercial', 'industrial', 'infrastructure', 'landmark', 'demolish'];
 
@@ -83,9 +97,10 @@ export class UIManager {
     categories.forEach((cat) => {
       const tool = BUILDING_TOOLS[cat];
       const tab = document.createElement('button');
-      tab.className = `tab-button ${cat === this.currentTab ? 'active' : ''}`;
+      tab.className = `tab-button-overlay ${cat === this.currentTab ? 'active' : ''}`;
       tab.dataset.category = cat;
-      tab.innerHTML = `${tool.icon} ${tool.label}`;
+      tab.innerHTML = `${tool.icon}`;
+      tab.title = tool.label;
       tab.addEventListener('click', () => this.switchTab(cat));
       tabContainer.appendChild(tab);
     });
@@ -95,7 +110,7 @@ export class UIManager {
     // コンテンツエリア
     const contentArea = document.createElement('div');
     contentArea.id = 'build-content';
-    contentArea.className = 'build-content';
+    contentArea.className = 'build-content-overlay';
     menu.appendChild(contentArea);
 
     container.appendChild(menu);
@@ -106,7 +121,7 @@ export class UIManager {
     this.engine.state.buildMode = category;
 
     // タブ表示の更新
-    document.querySelectorAll('.tab-button').forEach((btn) => {
+    document.querySelectorAll('.tab-button-overlay').forEach((btn) => {
       btn.classList.toggle('active', (btn as HTMLElement).dataset.category === category);
     });
 
@@ -123,7 +138,7 @@ export class UIManager {
     const tool = BUILDING_TOOLS[category];
 
     const infoDiv = document.createElement('div');
-    infoDiv.className = 'build-info';
+    infoDiv.className = 'build-info-overlay';
     infoDiv.innerHTML = `
       <div class="info-title">${tool.icon} ${tool.label}</div>
       <div class="info-description">
@@ -137,12 +152,6 @@ export class UIManager {
       this.createInfrastructureOptions(content);
     } else if (category === 'landmark') {
       this.createLandmarkOptions(content);
-    } else {
-      // 通常は説明のみ
-      const helpDiv = document.createElement('div');
-      helpDiv.className = 'help-text';
-      helpDiv.innerHTML = `左クリック: 敷設 | ドラッグ: 連続敷設 | 右クリックドラッグ: 画面移動`;
-      content.appendChild(helpDiv);
     }
   }
 
@@ -179,7 +188,6 @@ export class UIManager {
       btn.className = 'infra-btn';
       btn.innerHTML = `${opt.icon} ${opt.name}<br><small>¥${opt.cost.toLocaleString()}</small>`;
       btn.addEventListener('click', () => {
-        // TODO: インフラ選択処理
         console.log('Selected infrastructure:', opt.type);
       });
       optionsDiv.appendChild(btn);
@@ -202,7 +210,6 @@ export class UIManager {
       btn.className = 'landmark-btn';
       btn.innerHTML = `${opt.icon} ${opt.name}<br><small>¥${opt.cost.toLocaleString()}</small>`;
       btn.addEventListener('click', () => {
-        // TODO: ランドマーク選択処理
         console.log('Selected landmark:', opt.type);
       });
       optionsDiv.appendChild(btn);
@@ -212,13 +219,20 @@ export class UIManager {
   }
 
   updateDisplay(): void {
-    document.getElementById('stat-population')!.textContent = this.engine.state.population.toLocaleString();
-    document.getElementById('stat-money')!.textContent = `¥${this.engine.state.money.toLocaleString()}`;
+    const population = this.engine.state.population;
+    const money = this.engine.state.money;
+    
+    document.getElementById('stat-population')!.textContent = (population / 1000).toFixed(1) + 'K';
+    document.getElementById('stat-money')!.textContent = `¥${(money / 1000).toFixed(0)}K`;
     document.getElementById('stat-comfort')!.textContent = Math.round(this.engine.state.comfort).toString();
     document.getElementById('stat-month')!.textContent = this.engine.state.month.toString();
   }
 
   private attachEventListeners(): void {
+    // GUI表示/非表示トグル
+    document.getElementById('btn-toggle-gui')?.addEventListener('click', () => this.toggleGUI());
+    document.getElementById('btn-close-gui')?.addEventListener('click', () => this.toggleGUI());
+
     // 設定ボタン
     document.getElementById('btn-settings')?.addEventListener('click', () => this.showSettings());
 
@@ -227,6 +241,20 @@ export class UIManager {
     document.getElementById('btn-load')?.addEventListener('click', () => this.showLoadSlots());
     document.getElementById('btn-export')?.addEventListener('click', () => this.exportGame());
     document.getElementById('btn-import')?.addEventListener('click', () => this.importGame());
+  }
+
+  private toggleGUI(): void {
+    this.guiVisible = !this.guiVisible;
+    const menu = document.getElementById('build-menu');
+    const controls = document.getElementById('controls-panel');
+    
+    if (this.guiVisible) {
+      menu?.classList.remove('hidden');
+      controls?.classList.remove('hidden');
+    } else {
+      menu?.classList.add('hidden');
+      controls?.classList.add('hidden');
+    }
   }
 
   private showSettings(): void {

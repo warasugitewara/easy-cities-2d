@@ -1,7 +1,35 @@
 // ゲーム定数
-export const GRID_SIZE = 128;
-export const TILE_SIZE = 8; // 1024 / 128
-export const CANVAS_SIZE = GRID_SIZE * TILE_SIZE;
+export type MapSize = 'small' | 'medium' | 'large';
+
+export const MAP_SIZES: Record<MapSize, { gridSize: number; canvasSize: number; label: string }> = {
+  small: { gridSize: 64, canvasSize: 512, label: '小（512x512）' },
+  medium: { gridSize: 128, canvasSize: 1024, label: '中（1024x1024）' },
+  large: { gridSize: 256, canvasSize: 2048, label: '大（2048x2048）' },
+};
+
+// デフォルト値（中サイズ）
+export const DEFAULT_MAP_SIZE: MapSize = 'medium';
+let GRID_SIZE = MAP_SIZES[DEFAULT_MAP_SIZE].gridSize;
+let CANVAS_SIZE = MAP_SIZES[DEFAULT_MAP_SIZE].canvasSize;
+const TILE_SIZE = CANVAS_SIZE / GRID_SIZE;
+
+// マップサイズ変更関数
+export function setMapSize(size: MapSize): void {
+  GRID_SIZE = MAP_SIZES[size].gridSize;
+  CANVAS_SIZE = MAP_SIZES[size].canvasSize;
+}
+
+export function getGridSize(): number {
+  return GRID_SIZE;
+}
+
+export function getCanvasSize(): number {
+  return CANVAS_SIZE;
+}
+
+export function getTileSize(): number {
+  return TILE_SIZE;
+}
 
 // タイル種別
 export enum TileType {

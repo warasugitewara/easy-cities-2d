@@ -1,8 +1,9 @@
-import { GRID_SIZE, TileType, POPULATION_TABLE, TAX_REVENUE, MAINTENANCE_COSTS, BUILD_COSTS, BuildingCategory } from './constants';
+import { MapSize, MAP_SIZES, TileType, POPULATION_TABLE, TAX_REVENUE, MAINTENANCE_COSTS, BUILD_COSTS, BuildingCategory, getGridSize } from './constants';
 
 // ゲーム設定インターフェース
 export interface GameSettings {
   difficulty: 'easy' | 'normal' | 'hard';
+  mapSize: MapSize;
   disastersEnabled: boolean;
   pollutionEnabled: boolean;
   slumEnabled: boolean;
@@ -17,36 +18,43 @@ export interface GameState {
   paused: boolean;
   buildMode: BuildingCategory;
   settings: GameSettings;
+  gridSize: number;
 }
 
 export class GameEngine {
   state: GameState;
   private growthRate: number = 0.02;
+  private gridSize: number;
 
   constructor(settings?: GameSettings) {
+    const mapSize = settings?.mapSize || 'medium';
+    this.gridSize = MAP_SIZES[mapSize].gridSize;
+
     this.state = {
-      map: Array.from({ length: GRID_SIZE }, () => Array(GRID_SIZE).fill(TileType.EMPTY)),
+      map: Array.from({ length: this.gridSize }, () => Array(this.gridSize).fill(TileType.EMPTY)),
       population: 0,
       money: 250000,
       comfort: 50,
       month: 0,
       paused: false,
       buildMode: 'road',
+      gridSize: this.gridSize,
       settings: settings || {
         difficulty: 'normal',
+        mapSize: 'medium',
         disastersEnabled: false,
         pollutionEnabled: false,
         slumEnabled: false,
       },
     };
     // 初期に中央に駅を配置
-    const center = GRID_SIZE / 2;
+    const center = this.gridSize / 2;
     this.state.map[Math.floor(center)][Math.floor(center)] = TileType.STATION;
   }
 
   // 建設処理
   build(x: number, y: number): boolean {
-    if (x < 0 || y < 0 || x >= GRID_SIZE || y >= GRID_SIZE) return false;
+    if (x < 0 || y < 0 || x >= this.gridSize || y >= this.gridSize) return false;
 
     const cost = this.getCost(this.state.buildMode);
     if (this.state.money < cost) return false;
@@ -100,7 +108,7 @@ export class GameEngine {
 
   // 都心バイアス
   private centerBias(x: number, y: number): number {
-    const center = GRID_SIZE / 2;
+    const center = this.gridSize / 2;
     const dx = x - center;
     const dy = y - center;
     const dist = Math.sqrt(dx * dx + dy * dy);
@@ -113,7 +121,7 @@ export class GameEngine {
     return dirs.some(([dx, dy]) => {
       const nx = x + dx;
       const ny = y + dy;
-      return nx >= 0 && ny >= 0 && nx < GRID_SIZE && ny < GRID_SIZE && condition(this.state.map[ny][nx]);
+      return nx >= 0 && ny >= 0 && nx < this.gridSize && ny < this.gridSize && condition(this.state.map[ny][nx]);
     });
   }
 
@@ -124,7 +132,7 @@ export class GameEngine {
       for (let xx = -4; xx <= 4; xx++) {
         const nx = x + xx;
         const ny = y + yy;
-        if (nx >= 0 && ny >= 0 && nx < GRID_SIZE && ny < GRID_SIZE && this.state.map[ny][nx] === TileType.STATION) {
+        if (nx >= 0 && ny >= 0 && nx < this.gridSize && ny < this.gridSize && this.state.map[ny][nx] === TileType.STATION) {
           boost = 1.5;
         }
       }
@@ -136,26 +144,40 @@ export class GameEngine {
   grow(): void {
     if (this.state.paused) return;
 
-    for (let y = 0; y < GRID_SIZE; y++) {
-      for (let x = 0; x < GRID_SIZE; x++) {
+    for (let y = 0; y < this.gridSize; y++) {
+      for (let x = 0; x < this.gridSize; x++) {
         const bias = this.centerBias(x, y) * this.stationBoost(x, y);
 
         // 新規建設（道路隣接）
         if (this.state.map[y][x] === TileType.EMPTY && this.hasAdjacent(x, y, (t) => t === TileType.ROAD)) {
           if (Math.random() < this.growthRate * bias) {
-            this.state.map[y][x] = TileType.BUILDING_L1;
+            this.state.map[y][x] = TileType.RESIDENTIAL_L1;
           }
         }
 
-        // 波及建設（0.2倍）
-        if (this.state.map[y][x] === TileType.EMPTY && this.hasAdjacent(x, y, (t) => t >= 1)) {
+        // 波及建設（0.2倍）- 他の建物に隣接していても成長
+        if (this.state.map[y][x] === TileType.EMPTY && this.hasAdjacent(x, y, (t) => t >= 1 && t <= 24)) {
           if (Math.random() < this.growthRate * 0.2 * bias) {
-            this.state.map[y][x] = TileType.BUILDING_L1;
+            this.state.map[y][x] = TileType.RESIDENTIAL_L1;
           }
         }
 
-        // 高層化（最大Lv4）
-        if (this.state.map[y][x] >= TileType.BUILDING_L1 && this.state.map[y][x] < TileType.BUILDING_L4) {
+        // 高層化（最大Lv4）- 住宅のみ
+        if (this.state.map[y][x] >= TileType.RESIDENTIAL_L1 && this.state.map[y][x] < TileType.RESIDENTIAL_L4) {
+          if (Math.random() < this.growthRate * 0.4 * bias) {
+            this.state.map[y][x]++;
+          }
+        }
+
+        // 商業地の高層化
+        if (this.state.map[y][x] >= TileType.COMMERCIAL_L1 && this.state.map[y][x] < TileType.COMMERCIAL_L4) {
+          if (Math.random() < this.growthRate * 0.4 * bias) {
+            this.state.map[y][x]++;
+          }
+        }
+
+        // 工業地の高層化
+        if (this.state.map[y][x] >= TileType.INDUSTRIAL_L1 && this.state.map[y][x] < TileType.INDUSTRIAL_L4) {
           if (Math.random() < this.growthRate * 0.4 * bias) {
             this.state.map[y][x]++;
           }

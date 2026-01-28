@@ -3,7 +3,7 @@ import { GameEngine, GameSettings } from './engine';
 import { Renderer } from './renderer';
 import { StorageManager } from './storage';
 import { UIManager } from './ui';
-import { CANVAS_SIZE } from './constants';
+import { MAP_SIZES, MapSize, setMapSize, getCanvasSize, getTileSize } from './constants';
 
 console.log('🎮 Easy Cities 2D - Initializing...');
 
@@ -22,9 +22,16 @@ function showInitialSettings(): Promise<GameSettings> {
     modal.className = 'modal';
     modal.style.zIndex = '10000';
     modal.innerHTML = `
-      <div class="modal-content" style="min-width: 400px;">
+      <div class="modal-content" style="min-width: 450px;">
         <h2>🎮 Easy Cities 2D</h2>
         <p>ゲーム設定を選択してください</p>
+        
+        <div style="margin: 20px 0;">
+          <h3>マップサイズ</h3>
+          <label><input type="radio" name="mapsize" value="small"> 小（512x512） - 64x64グリッド</label><br>
+          <label><input type="radio" name="mapsize" value="medium" checked> 中（1024x1024） - 128x128グリッド</label><br>
+          <label><input type="radio" name="mapsize" value="large"> 大（2048x2048） - 256x256グリッド</label>
+        </div>
         
         <div style="margin: 20px 0;">
           <h3>難易度</h3>
@@ -49,8 +56,10 @@ function showInitialSettings(): Promise<GameSettings> {
     document.body.appendChild(modal);
 
     document.getElementById('btn-start-game')?.addEventListener('click', () => {
+      const mapSize = (document.querySelector('input[name="mapsize"]:checked') as HTMLInputElement)?.value || 'medium';
       const difficulty = (document.querySelector('input[name="difficulty"]:checked') as HTMLInputElement)?.value || 'normal';
       const settings: GameSettings = {
+        mapSize: mapSize as any,
         difficulty: difficulty as any,
         disastersEnabled: (document.getElementById('init-disasters') as HTMLInputElement)?.checked || false,
         pollutionEnabled: (document.getElementById('init-pollution') as HTMLInputElement)?.checked || false,
@@ -97,6 +106,14 @@ async function initializeGame(): Promise<void> {
   // 初期設定画面を表示
   const settings = await showInitialSettings();
 
+  // マップサイズを設定
+  setMapSize(settings.mapSize);
+  const canvasSize = getCanvasSize();
+
+  // キャンバスサイズを設定
+  canvas.width = canvasSize;
+  canvas.height = canvasSize;
+
   try {
     const engine = new GameEngine(settings);
     const renderer = new Renderer(canvas, engine);
@@ -106,14 +123,12 @@ async function initializeGame(): Promise<void> {
     console.log('✅ Game engine initialized with settings:', settings);
 
     let monthCounter = 0;
-    let continuousModeEnabled = false;
     let isMouseDown = false;
     let isDragging = false;
     let dragStartX = 0;
     let dragStartY = 0;
     let lastCameraOffsetX = 0;
     let lastCameraOffsetY = 0;
-    let continuousIntervalId: number | null = null;
 
     // ゲームループ
     function gameLoop(): void {
@@ -159,10 +174,12 @@ async function initializeGame(): Promise<void> {
 
         // スクリーン座標をワールド座標に変換
         const worldCoords = renderer.screenToWorld(screenX, screenY);
-        const x = Math.floor(worldCoords.x / 8); // TILE_SIZE = 8
-        const y = Math.floor(worldCoords.y / 8);
+        const tileSize = getTileSize();
+        const x = Math.floor(worldCoords.x / tileSize);
+        const y = Math.floor(worldCoords.y / tileSize);
 
-        if (x >= 0 && x < 128 && y >= 0 && y < 128) {
+        const gridSize = engine.state.gridSize;
+        if (x >= 0 && x < gridSize && y >= 0 && y < gridSize) {
           if (engine.build(x, y)) {
             uiManager.updateDisplay();
           } else if (engine.state.buildMode === 'demolish') {
@@ -191,15 +208,6 @@ async function initializeGame(): Promise<void> {
 
       // 左クリック: 敷設
       buildAtMouse(clientX, clientY);
-
-      // 連続モードが有効な場合、定期的に敷設
-      if (continuousModeEnabled && engine.state.buildMode !== 'demolish') {
-        continuousIntervalId = window.setInterval(() => {
-          if (isMouseDown) {
-            buildAtMouse(clientX, clientY);
-          }
-        }, 100);
-      }
     }
 
     // ポインタームーブ処理（マウス＆タッチ共用）
@@ -212,10 +220,13 @@ async function initializeGame(): Promise<void> {
         renderer.cameraOffsetY = lastCameraOffsetY + deltaY;
 
         // カメラをクランプして、マップが画面外に出ないようにする
-        const mapWidth = 128 * 8 * renderer.zoomLevel;
-        const mapHeight = 128 * 8 * renderer.zoomLevel;
-        const maxOffsetX = mapWidth - CANVAS_SIZE;
-        const maxOffsetY = mapHeight - CANVAS_SIZE;
+        const gridSize = engine.state.gridSize;
+        const tileSize = getTileSize();
+        const mapWidth = gridSize * tileSize * renderer.zoomLevel;
+        const mapHeight = gridSize * tileSize * renderer.zoomLevel;
+        const canvasSize = getCanvasSize();
+        const maxOffsetX = mapWidth - canvasSize;
+        const maxOffsetY = mapHeight - canvasSize;
 
         renderer.cameraOffsetX = Math.max(-maxOffsetX, Math.min(0, renderer.cameraOffsetX));
         renderer.cameraOffsetY = Math.max(-maxOffsetY, Math.min(0, renderer.cameraOffsetY));
@@ -228,14 +239,16 @@ async function initializeGame(): Promise<void> {
         const startWorldCoords = renderer.screenToWorld(dragStartX - rect.left, dragStartY - rect.top);
         const currentWorldCoords = renderer.screenToWorld(currentScreenX, currentScreenY);
 
-        const startX = Math.floor(startWorldCoords.x / 8);
-        const startY = Math.floor(startWorldCoords.y / 8);
-        const endX = Math.floor(currentWorldCoords.x / 8);
-        const endY = Math.floor(currentWorldCoords.y / 8);
+        const tileSize = getTileSize();
+        const startX = Math.floor(startWorldCoords.x / tileSize);
+        const startY = Math.floor(startWorldCoords.y / tileSize);
+        const endX = Math.floor(currentWorldCoords.x / tileSize);
+        const endY = Math.floor(currentWorldCoords.y / tileSize);
 
+        const gridSize = engine.state.gridSize;
         const tilesOnLine = bresenhamLine(startX, startY, endX, endY);
         tilesOnLine.forEach(({ x, y }) => {
-          if (x >= 0 && x < 128 && y >= 0 && y < 128) {
+          if (x >= 0 && x < gridSize && y >= 0 && y < gridSize) {
             engine.build(x, y);
           }
         });
@@ -250,10 +263,6 @@ async function initializeGame(): Promise<void> {
     function handlePointerUp(): void {
       isDragging = false;
       isMouseDown = false;
-      if (continuousIntervalId !== null) {
-        clearInterval(continuousIntervalId);
-        continuousIntervalId = null;
-      }
     }
 
     // マウスイベント
@@ -329,17 +338,6 @@ async function initializeGame(): Promise<void> {
       console.log(`🔍 Zoom: ${renderer.zoomLevel.toFixed(2)}x`);
     });
 
-    // 連続敷設モード切り替え
-    function toggleContinuousMode(): boolean {
-      continuousModeEnabled = !continuousModeEnabled;
-      console.log(`🔄 連続敷設モード: ${continuousModeEnabled ? 'ON' : 'OFF'}`);
-      return continuousModeEnabled;
-    }
-
-    // グローバルスコープに公開（UIからアクセスするため）
-    (window as any).toggleContinuousMode = toggleContinuousMode;
-    (window as any).getContinuousModeState = () => continuousModeEnabled;
-
     // キーボード操作
     document.addEventListener('keydown', (e) => {
       switch (e.key.toLowerCase()) {
@@ -360,10 +358,6 @@ async function initializeGame(): Promise<void> {
           break;
         case 'd':
           engine.state.buildMode = 'demolish';
-          break;
-        case 'space':
-          e.preventDefault();
-          toggleContinuousMode();
           break;
       }
     });

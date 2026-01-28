@@ -1,4 +1,4 @@
-import { GRID_SIZE, TILE_SIZE, CANVAS_SIZE, TileType } from './constants';
+import { getTileSize, TileType, MAP_SIZES } from './constants';
 import { GameEngine } from './engine';
 
 export class Renderer {
@@ -8,33 +8,40 @@ export class Renderer {
   public cameraOffsetX: number = 0;
   public cameraOffsetY: number = 0;
   public zoomLevel: number = 1;
+  private gridSize: number;
+  private tileSize: number;
+  private mapSize: number; // ピクセル単位のマップサイズ
 
   constructor(canvas: HTMLCanvasElement, engine: GameEngine) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d')!;
     this.engine = engine;
+    this.gridSize = engine.state.gridSize;
+    this.tileSize = getTileSize();
+    this.mapSize = this.gridSize * this.tileSize;
   }
 
   draw(): void {
     const map = this.engine.state.map;
+    const gridSize = this.engine.state.gridSize;
 
     // カメラトランスフォーム適用
     this.ctx.save();
     this.ctx.translate(this.cameraOffsetX, this.cameraOffsetY);
     this.ctx.scale(this.zoomLevel, this.zoomLevel);
 
-    for (let y = 0; y < GRID_SIZE; y++) {
-      for (let x = 0; x < GRID_SIZE; x++) {
+    for (let y = 0; y < gridSize; y++) {
+      for (let x = 0; x < gridSize; x++) {
         const tile = map[y][x];
         const color = this.getTileColor(tile);
 
         this.ctx.fillStyle = color;
-        this.ctx.fillRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+        this.ctx.fillRect(x * this.tileSize, y * this.tileSize, this.tileSize, this.tileSize);
 
         // グリッド線
         this.ctx.strokeStyle = '#1a1a1a';
         this.ctx.lineWidth = 0.5;
-        this.ctx.strokeRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+        this.ctx.strokeRect(x * this.tileSize, y * this.tileSize, this.tileSize, this.tileSize);
       }
     }
 
