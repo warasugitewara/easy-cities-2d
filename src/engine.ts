@@ -28,6 +28,8 @@ export interface GameState {
   fireMap: number[][];     // 火災レベル（0=なし、1-10=火の強さ）
   diseaseMap: number[][];  // 病気レベル（0=なし、1-10=病気の強さ）
   crimeMap: number[][];    // 犯罪率（0-100）
+  pollutionMap: number[][]; // 汚染度（0-100）
+  slumMap: number[][];     // スラム化レベル（0=なし、1-10=スラム化の強さ）
   // 詳細パラメータ
   securityLevel: number;   // 治安度（0-100）
   safetyLevel: number;     // 安全度（0-100）
@@ -37,6 +39,8 @@ export interface GameState {
   internationalLevel: number; // 国際化度（0-100）
   powerSupplyRate: number; // 電力供給率（％）
   waterSupplyRate: number; // 給水率（％）
+  pollutionLevel: number;  // 全体汚染度（0-100）
+  slumRate: number;        // スラム化率（0-100）
   // ペナルティシステム
   growthPenalty: number;   // 成長速度補正係数（1.0 = 通常、0.5 = 50%低下）
   revenuePenalty: number;  // 税収補正係数（1.0 = 通常）
@@ -68,6 +72,8 @@ export class GameEngine {
       fireMap: Array.from({ length: this.gridSize }, () => Array(this.gridSize).fill(0)),
       diseaseMap: Array.from({ length: this.gridSize }, () => Array(this.gridSize).fill(0)),
       crimeMap: Array.from({ length: this.gridSize }, () => Array(this.gridSize).fill(0)),
+      pollutionMap: Array.from({ length: this.gridSize }, () => Array(this.gridSize).fill(0)),
+      slumMap: Array.from({ length: this.gridSize }, () => Array(this.gridSize).fill(0)),
       securityLevel: INITIAL_PARAMETERS.securityLevel,
       safetyLevel: INITIAL_PARAMETERS.safetyLevel,
       educationLevel: INITIAL_PARAMETERS.educationLevel,
@@ -76,6 +82,8 @@ export class GameEngine {
       internationalLevel: INITIAL_PARAMETERS.internationalLevel,
       powerSupplyRate: INITIAL_PARAMETERS.powerSupplyRate,
       waterSupplyRate: INITIAL_PARAMETERS.waterSupplyRate,
+      pollutionLevel: 0,
+      slumRate: 0,
       growthPenalty: 1.0,
       revenuePenalty: 1.0,
       settings: settings || {
@@ -816,6 +824,124 @@ export class GameEngine {
     this.updateFires();
     // 病気発生
     this.updateDiseases();
+    // 公害システム
+    if (this.state.settings.pollutionEnabled) {
+      this.updatePollution();
+    }
+    // スラム化システム
+    if (this.state.settings.slumEnabled) {
+      this.updateSlums();
+    }
+  }
+
+  private updatePollution(): void {
+    // 工業地から汚染が発生
+    let totalPollution = 0;
+    for (let y = 0; y < this.gridSize; y++) {
+      for (let x = 0; x < this.gridSize; x++) {
+        const tile = this.state.map[y][x];
+        // 工業地レベルに応じた汚染
+        if (tile >= TileType.INDUSTRIAL_L1 && tile <= TileType.INDUSTRIAL_L4) {
+          const level = tile - TileType.INDUSTRIAL_L1 + 1;
+          this.state.pollutionMap[y][x] = Math.min(100, this.state.pollutionMap[y][x] + level * 2);
+          totalPollution += this.state.pollutionMap[y][x];
+        }
+      }
+    }
+
+    // 汚染の拡散（隣接タイルへ）
+    const newPollutionMap = this.state.pollutionMap.map(row => [...row]);
+    for (let y = 0; y < this.gridSize; y++) {
+      for (let x = 0; x < this.gridSize; x++) {
+        if (this.state.pollutionMap[y][x] > 10) {
+          // 隣接タイルに拡散（低確率）
+          const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+          dirs.forEach(([dx, dy]) => {
+            const nx = x + dx;
+            const ny = y + dy;
+            if (nx >= 0 && ny >= 0 && nx < this.gridSize && ny < this.gridSize) {
+              newPollutionMap[ny][nx] = Math.min(100, newPollutionMap[ny][nx] + 5);
+            }
+          });
+          // 自然減少
+          newPollutionMap[y][x] = Math.max(0, newPollutionMap[y][x] - 3);
+        }
+      }
+    }
+    this.state.pollutionMap = newPollutionMap;
+
+    // 全体汚染度を計算
+    const totalCells = this.gridSize * this.gridSize;
+    const pollutedCells = this.state.pollutionMap.flat().filter(p => p > 0).length;
+    this.state.pollutionLevel = Math.round((pollutedCells / totalCells) * 100);
+
+    // 汚染が高いと快適度低下
+    if (this.state.pollutionLevel > 30) {
+      this.state.comfort *= 0.95;
+    }
+    if (this.state.pollutionLevel > 60) {
+      this.state.comfort *= 0.90;
+    }
+  }
+
+  private updateSlums(): void {
+    // 低快適度の住宅地がスラム化
+    for (let y = 0; y < this.gridSize; y++) {
+      for (let x = 0; x < this.gridSize; x++) {
+        const tile = this.state.map[y][x];
+        if (tile >= TileType.RESIDENTIAL_L1 && tile <= TileType.RESIDENTIAL_L4) {
+          // 周辺のスラム化度と汚染度を確認
+          let localSlum = 0;
+          let localPollution = 0;
+          let localSecurity = this.state.securityLevel;
+
+          for (let yy = -5; yy <= 5; yy++) {
+            for (let xx = -5; xx <= 5; xx++) {
+              const nx = x + xx;
+              const ny = y + yy;
+              if (nx >= 0 && ny >= 0 && nx < this.gridSize && ny < this.gridSize) {
+                localSlum += this.state.slumMap[ny][nx];
+                localPollution += this.state.pollutionMap[ny][nx];
+              }
+            }
+          }
+          localSlum /= 121;
+          localPollution /= 121;
+
+          // スラム化条件：高汚染＋低治安＋近くのスラム
+          const slumChance = 0.01 * (localPollution / 100) * (1 - localSecurity / 100) * (1 + localSlum / 10) * this.state.gameSpeed;
+          if (Math.random() < slumChance) {
+            this.state.slumMap[y][x] = Math.min(10, this.state.slumMap[y][x] + 1);
+          }
+
+          // スラム化が進むとレベルダウン
+          if (this.state.slumMap[y][x] > 8) {
+            // 住宅レベルを1段階低下
+            if (tile > TileType.RESIDENTIAL_L1) {
+              this.state.map[y][x] = tile - 1;
+            }
+            this.state.slumMap[y][x] = 0;
+          }
+
+          // スラム化度低下
+          this.state.slumMap[y][x] = Math.max(0, this.state.slumMap[y][x] - 0.5);
+        }
+      }
+    }
+
+    // 全体スラム化率を計算
+    const slummedCells = this.state.slumMap.flat().filter(s => s > 0).length;
+    this.state.slumRate = Math.round((slummedCells / (this.gridSize * this.gridSize)) * 100);
+
+    // スラム化が高いと快適度低下・人口流出
+    if (this.state.slumRate > 10) {
+      this.state.comfort *= 0.95;
+      this.state.population *= 0.98;
+    }
+    if (this.state.slumRate > 20) {
+      this.state.comfort *= 0.90;
+      this.state.population *= 0.95;
+    }
   }
 
   private updateFires(): void {
