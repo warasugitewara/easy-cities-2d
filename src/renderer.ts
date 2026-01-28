@@ -19,6 +19,10 @@ export class Renderer {
     this.gridSize = engine.state.gridSize;
     this.tileSize = getTileSize();
     this.mapSize = this.gridSize * this.tileSize;
+    
+    // DPR対応：高解像度ディスプレイでの描画品質向上
+    const dpr = window.devicePixelRatio || 1;
+    this.ctx.scale(dpr, dpr);
   }
 
   draw(): void {
