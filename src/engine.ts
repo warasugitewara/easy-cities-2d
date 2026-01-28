@@ -22,6 +22,12 @@ export interface GameState {
   selectedInfrastructure: string;
   selectedLandmark: string;
   gameSpeed: number;
+  // インフラシステム
+  powerGrid: boolean[][];
+  waterGrid: boolean[][];
+  fireMap: number[][];     // 火災レベル（0=なし、1-10=火の強さ）
+  diseaseMap: number[][];  // 病気レベル（0=なし、1-10=病気の強さ）
+  crimeMap: number[][];    // 犯罪率（0-100）
 }
 
 export class GameEngine {
@@ -45,6 +51,11 @@ export class GameEngine {
       selectedInfrastructure: 'station',
       selectedLandmark: 'stadium',
       gameSpeed: 1,
+      powerGrid: Array.from({ length: this.gridSize }, () => Array(this.gridSize).fill(false)),
+      waterGrid: Array.from({ length: this.gridSize }, () => Array(this.gridSize).fill(false)),
+      fireMap: Array.from({ length: this.gridSize }, () => Array(this.gridSize).fill(0)),
+      diseaseMap: Array.from({ length: this.gridSize }, () => Array(this.gridSize).fill(0)),
+      crimeMap: Array.from({ length: this.gridSize }, () => Array(this.gridSize).fill(0)),
       settings: settings || {
         difficulty: 'normal',
         mapSize: 'medium',
@@ -273,6 +284,12 @@ export class GameEngine {
   monthlyUpdate(): void {
     if (this.state.paused) return;
 
+    // インフラシステム更新
+    this.updateInfrastructure();
+    
+    // 災害処理
+    this.updateDisasters();
+
     let revenue = 0;
     let maintenance = 0;
 
@@ -356,6 +373,14 @@ export class GameEngine {
       paused: false,
       buildMode: 'road',
       gridSize: this.gridSize,
+      selectedInfrastructure: 'station',
+      selectedLandmark: 'stadium',
+      gameSpeed: 1,
+      powerGrid: Array.from({ length: this.gridSize }, () => Array(this.gridSize).fill(false)),
+      waterGrid: Array.from({ length: this.gridSize }, () => Array(this.gridSize).fill(false)),
+      fireMap: Array.from({ length: this.gridSize }, () => Array(this.gridSize).fill(0)),
+      diseaseMap: Array.from({ length: this.gridSize }, () => Array(this.gridSize).fill(0)),
+      crimeMap: Array.from({ length: this.gridSize }, () => Array(this.gridSize).fill(0)),
       settings: this.state.settings,
     };
     const center = this.gridSize / 2;
@@ -365,5 +390,218 @@ export class GameEngine {
   // 速度設定
   setGrowthRate(rate: number): void {
     this.growthRate = rate;
+  }
+
+  // インフラストラクチャシステム更新
+  updateInfrastructure(): void {
+    // 電力グリッド再計算
+    this.updatePowerGrid();
+    // 水道グリッド再計算
+    this.updateWaterGrid();
+  }
+
+  private updatePowerGrid(): void {
+    // 全ての電力グリッドをリセット
+    for (let y = 0; y < this.gridSize; y++) {
+      for (let x = 0; x < this.gridSize; x++) {
+        this.state.powerGrid[y][x] = false;
+      }
+    }
+
+    // 発電所から半径20マス以内に電力供給
+    for (let y = 0; y < this.gridSize; y++) {
+      for (let x = 0; x < this.gridSize; x++) {
+        if (this.state.map[y][x] === TileType.POWER_PLANT) {
+          this.spreadPower(x, y, 20);
+        }
+      }
+    }
+  }
+
+  private spreadPower(cx: number, cy: number, radius: number): void {
+    for (let y = 0; y < this.gridSize; y++) {
+      for (let x = 0; x < this.gridSize; x++) {
+        const dist = Math.sqrt((x - cx) ** 2 + (y - cy) ** 2);
+        if (dist <= radius) {
+          this.state.powerGrid[y][x] = true;
+        }
+      }
+    }
+  }
+
+  private updateWaterGrid(): void {
+    // 全ての水道グリッドをリセット
+    for (let y = 0; y < this.gridSize; y++) {
+      for (let x = 0; x < this.gridSize; x++) {
+        this.state.waterGrid[y][x] = false;
+      }
+    }
+
+    // 水処理施設から半径15マス以内に供給
+    for (let y = 0; y < this.gridSize; y++) {
+      for (let x = 0; x < this.gridSize; x++) {
+        if (this.state.map[y][x] === TileType.WATER_TREATMENT) {
+          this.spreadWater(x, y, 15);
+        }
+      }
+    }
+  }
+
+  private spreadWater(cx: number, cy: number, radius: number): void {
+    for (let y = 0; y < this.gridSize; y++) {
+      for (let x = 0; x < this.gridSize; x++) {
+        const dist = Math.sqrt((x - cx) ** 2 + (y - cy) ** 2);
+        if (dist <= radius) {
+          this.state.waterGrid[y][x] = true;
+        }
+      }
+    }
+  }
+
+  // 災害処理（毎月実行）
+  updateDisasters(): void {
+    if (!this.state.settings.disastersEnabled) return;
+
+    // 火災発生
+    this.updateFires();
+    // 病気発生
+    this.updateDiseases();
+  }
+
+  private updateFires(): void {
+    // 新しい火災をランダムに発生させる
+    const fireChance = 0.02 * this.state.gameSpeed; // ゲーム速度に応じてスケール
+    for (let y = 0; y < this.gridSize; y++) {
+      for (let x = 0; x < this.gridSize; x++) {
+        if (this.state.map[y][x] !== TileType.EMPTY && Math.random() < fireChance) {
+          this.state.fireMap[y][x] = Math.min(10, this.state.fireMap[y][x] + 5);
+        }
+      }
+    }
+
+    // 火災の波及
+    const newFireMap = this.state.fireMap.map(row => [...row]);
+    for (let y = 0; y < this.gridSize; y++) {
+      for (let x = 0; x < this.gridSize; x++) {
+        if (this.state.fireMap[y][x] > 0) {
+          // 隣接タイルに波及
+          const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+          dirs.forEach(([dx, dy]) => {
+            const nx = x + dx;
+            const ny = y + dy;
+            if (nx >= 0 && ny >= 0 && nx < this.gridSize && ny < this.gridSize) {
+              if (this.state.map[ny][nx] !== TileType.EMPTY && Math.random() < 0.05) {
+                newFireMap[ny][nx] = Math.min(10, newFireMap[ny][nx] + 2);
+              }
+            }
+          });
+
+          // 消防署による消火
+          let fireExtinguished = false;
+          for (let yy = -10; yy <= 10; yy++) {
+            for (let xx = -10; xx <= 10; xx++) {
+              const nx = x + xx;
+              const ny = y + yy;
+              if (nx >= 0 && ny >= 0 && nx < this.gridSize && ny < this.gridSize) {
+                if (this.state.map[ny][nx] === TileType.FIRE_STATION) {
+                  if (Math.random() < 0.5) fireExtinguished = true;
+                }
+              }
+            }
+          }
+
+          if (fireExtinguished) {
+            newFireMap[y][x] = Math.max(0, newFireMap[y][x] - 3);
+          } else {
+            newFireMap[y][x] = Math.max(0, newFireMap[y][x] - 1);
+          }
+
+          // 火災が蔓延したら建物を破壊
+          if (newFireMap[y][x] >= 10) {
+            this.state.map[y][x] = TileType.EMPTY;
+            this.state.money -= 1000; // 被害
+          }
+        }
+      }
+    }
+    this.state.fireMap = newFireMap;
+  }
+
+  private updateDiseases(): void {
+    // 新しい病気をランダムに発生させる（特に密集地）
+    for (let y = 0; y < this.gridSize; y++) {
+      for (let x = 0; x < this.gridSize; x++) {
+        const density = this.getLocalDensity(x, y);
+        const diseaseChance = 0.01 * (1 + density / 10) * this.state.gameSpeed;
+        if (this.state.map[y][x] !== TileType.EMPTY && Math.random() < diseaseChance) {
+          this.state.diseaseMap[y][x] = Math.min(10, this.state.diseaseMap[y][x] + 5);
+        }
+      }
+    }
+
+    // 病気の波及
+    const newDiseaseMap = this.state.diseaseMap.map(row => [...row]);
+    for (let y = 0; y < this.gridSize; y++) {
+      for (let x = 0; x < this.gridSize; x++) {
+        if (this.state.diseaseMap[y][x] > 0) {
+          // 隣接タイル3マスに波及
+          for (let dy = -3; dy <= 3; dy++) {
+            for (let dx = -3; dx <= 3; dx++) {
+              const nx = x + dx;
+              const ny = y + dy;
+              if (nx >= 0 && ny >= 0 && nx < this.gridSize && ny < this.gridSize) {
+                if (this.state.map[ny][nx] !== TileType.EMPTY && Math.random() < 0.2) {
+                  newDiseaseMap[ny][nx] = Math.min(10, newDiseaseMap[ny][nx] + 1);
+                }
+              }
+            }
+          }
+
+          // 病院による治癒
+          let diseaseHealed = false;
+          for (let yy = -10; yy <= 10; yy++) {
+            for (let xx = -10; xx <= 10; xx++) {
+              const nx = x + xx;
+              const ny = y + yy;
+              if (nx >= 0 && ny >= 0 && nx < this.gridSize && ny < this.gridSize) {
+                if (this.state.map[ny][nx] === TileType.HOSPITAL) {
+                  if (Math.random() < 0.7) diseaseHealed = true;
+                }
+              }
+            }
+          }
+
+          if (diseaseHealed) {
+            newDiseaseMap[y][x] = Math.max(0, newDiseaseMap[y][x] - 3);
+          } else {
+            newDiseaseMap[y][x] = Math.max(0, newDiseaseMap[y][x] - 1);
+          }
+
+          // 病気が蔓延したら人口減少
+          if (newDiseaseMap[y][x] >= 10) {
+            const popLoss = POPULATION_TABLE[this.state.map[y][x]] || 0;
+            this.state.population = Math.max(0, this.state.population - popLoss);
+            this.state.money -= 500; // 医療費
+          }
+        }
+      }
+    }
+    this.state.diseaseMap = newDiseaseMap;
+  }
+
+  private getLocalDensity(x: number, y: number): number {
+    let count = 0;
+    for (let dy = -4; dy <= 4; dy++) {
+      for (let dx = -4; dx <= 4; dx++) {
+        const nx = x + dx;
+        const ny = y + dy;
+        if (nx >= 0 && ny >= 0 && nx < this.gridSize && ny < this.gridSize) {
+          if (this.state.map[ny][nx] >= 1 && this.state.map[ny][nx] <= 24) {
+            count++;
+          }
+        }
+      }
+    }
+    return count;
   }
 }
