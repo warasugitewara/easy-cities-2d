@@ -77,6 +77,18 @@ export class UIManager {
     `;
     uiContainer.appendChild(dashboard);
 
+    // 時間制御パネル（画面上部中央に常時表示）
+    const timePanel = document.createElement('div');
+    timePanel.id = 'time-panel';
+    timePanel.className = 'time-panel';
+    timePanel.innerHTML = `
+      <button id="btn-pause" class="time-btn" title="ポーズ">⏸</button>
+      <button id="btn-slow" class="time-btn" title="遅い">⏪</button>
+      <button id="btn-normal" class="time-btn active" title="通常">▶</button>
+      <button id="btn-fast" class="time-btn" title="高速">⏩</button>
+    `;
+    uiContainer.appendChild(timePanel);
+
     // トグルボタン（画面下部中央に常時表示）
     const toggleContainer = document.createElement('div');
     toggleContainer.id = 'toggle-container';
@@ -278,6 +290,12 @@ export class UIManager {
     document.getElementById('btn-toggle-gui')?.addEventListener('click', () => this.toggleGUI());
     document.getElementById('btn-close-gui')?.addEventListener('click', () => this.toggleGUI());
 
+    // 時間制御ボタン
+    document.getElementById('btn-pause')?.addEventListener('click', () => this.setGameSpeed(0));
+    document.getElementById('btn-slow')?.addEventListener('click', () => this.setGameSpeed(0.5));
+    document.getElementById('btn-normal')?.addEventListener('click', () => this.setGameSpeed(1));
+    document.getElementById('btn-fast')?.addEventListener('click', () => this.setGameSpeed(2));
+
     // 設定ボタン
     document.getElementById('btn-settings')?.addEventListener('click', () => this.showSettings());
 
@@ -290,6 +308,25 @@ export class UIManager {
     // UI パネルのドラッグ機能
     this.makePanelDraggable('build-menu');
     this.makePanelDraggable('controls-panel');
+  }
+
+  private setGameSpeed(speed: number): void {
+    this.engine.state.gameSpeed = speed;
+    
+    // ボタンのアクティブ状態を更新
+    document.querySelectorAll('.time-btn').forEach((btn) => {
+      btn.classList.remove('active');
+    });
+
+    if (speed === 0) {
+      document.getElementById('btn-pause')?.classList.add('active');
+    } else if (speed === 0.5) {
+      document.getElementById('btn-slow')?.classList.add('active');
+    } else if (speed === 1) {
+      document.getElementById('btn-normal')?.classList.add('active');
+    } else if (speed === 2) {
+      document.getElementById('btn-fast')?.classList.add('active');
+    }
   }
 
   private makePanelDraggable(panelId: string): void {

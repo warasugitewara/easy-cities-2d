@@ -21,6 +21,7 @@ export interface GameState {
   gridSize: number;
   selectedInfrastructure: string;
   selectedLandmark: string;
+  gameSpeed: number;
 }
 
 export class GameEngine {
@@ -43,6 +44,7 @@ export class GameEngine {
       gridSize: this.gridSize,
       selectedInfrastructure: 'station',
       selectedLandmark: 'stadium',
+      gameSpeed: 1,
       settings: settings || {
         difficulty: 'normal',
         mapSize: 'medium',
@@ -182,44 +184,52 @@ export class GameEngine {
 
   // 成長処理
   grow(): void {
-    if (this.state.paused) return;
+    if (this.state.paused || this.state.gameSpeed === 0) return;
 
-    for (let y = 0; y < this.gridSize; y++) {
-      for (let x = 0; x < this.gridSize; x++) {
-        const bias = this.centerBias(x, y) * this.stationBoost(x, y);
+    // gameSpeed に応じた処理回数
+    const iterations = this.state.gameSpeed >= 1 ? Math.floor(this.state.gameSpeed) : 1;
+    const probability = this.state.gameSpeed < 1 ? this.state.gameSpeed : 1;
 
-        // 新規建設（道路隣接）
-        if (this.state.map[y][x] === TileType.EMPTY && this.hasAdjacent(x, y, (t) => t === TileType.ROAD)) {
-          if (Math.random() < this.growthRate * bias) {
-            this.state.map[y][x] = TileType.RESIDENTIAL_L1;
+    for (let iter = 0; iter < iterations; iter++) {
+      if (this.state.gameSpeed < 1 && Math.random() > probability) continue;
+
+      for (let y = 0; y < this.gridSize; y++) {
+        for (let x = 0; x < this.gridSize; x++) {
+          const bias = this.centerBias(x, y) * this.stationBoost(x, y);
+
+          // 新規建設（道路隣接）
+          if (this.state.map[y][x] === TileType.EMPTY && this.hasAdjacent(x, y, (t) => t === TileType.ROAD)) {
+            if (Math.random() < this.growthRate * bias) {
+              this.state.map[y][x] = TileType.RESIDENTIAL_L1;
+            }
           }
-        }
 
-        // 波及建設（0.2倍）- 他の建物に隣接していても成長
-        if (this.state.map[y][x] === TileType.EMPTY && this.hasAdjacent(x, y, (t) => t >= 1 && t <= 24)) {
-          if (Math.random() < this.growthRate * 0.2 * bias) {
-            this.state.map[y][x] = TileType.RESIDENTIAL_L1;
+          // 波及建設（0.2倍）- 他の建物に隣接していても成長
+          if (this.state.map[y][x] === TileType.EMPTY && this.hasAdjacent(x, y, (t) => t >= 1 && t <= 24)) {
+            if (Math.random() < this.growthRate * 0.2 * bias) {
+              this.state.map[y][x] = TileType.RESIDENTIAL_L1;
+            }
           }
-        }
 
-        // 高層化（最大Lv4）- 住宅のみ
-        if (this.state.map[y][x] >= TileType.RESIDENTIAL_L1 && this.state.map[y][x] < TileType.RESIDENTIAL_L4) {
-          if (Math.random() < this.growthRate * 0.4 * bias) {
-            this.state.map[y][x]++;
+          // 高層化（最大Lv4）- 住宅のみ
+          if (this.state.map[y][x] >= TileType.RESIDENTIAL_L1 && this.state.map[y][x] < TileType.RESIDENTIAL_L4) {
+            if (Math.random() < this.growthRate * 0.4 * bias) {
+              this.state.map[y][x]++;
+            }
           }
-        }
 
-        // 商業地の高層化
-        if (this.state.map[y][x] >= TileType.COMMERCIAL_L1 && this.state.map[y][x] < TileType.COMMERCIAL_L4) {
-          if (Math.random() < this.growthRate * 0.4 * bias) {
-            this.state.map[y][x]++;
+          // 商業地の高層化
+          if (this.state.map[y][x] >= TileType.COMMERCIAL_L1 && this.state.map[y][x] < TileType.COMMERCIAL_L4) {
+            if (Math.random() < this.growthRate * 0.4 * bias) {
+              this.state.map[y][x]++;
+            }
           }
-        }
 
-        // 工業地の高層化
-        if (this.state.map[y][x] >= TileType.INDUSTRIAL_L1 && this.state.map[y][x] < TileType.INDUSTRIAL_L4) {
-          if (Math.random() < this.growthRate * 0.4 * bias) {
-            this.state.map[y][x]++;
+          // 工業地の高層化
+          if (this.state.map[y][x] >= TileType.INDUSTRIAL_L1 && this.state.map[y][x] < TileType.INDUSTRIAL_L4) {
+            if (Math.random() < this.growthRate * 0.4 * bias) {
+              this.state.map[y][x]++;
+            }
           }
         }
       }
