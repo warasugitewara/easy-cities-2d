@@ -67,55 +67,55 @@ export class Renderer {
       case TileType.EMPTY:
         return '#0a0a0a';
       case TileType.ROAD:
-        return '#666666';
+        return '#888888';
       case TileType.STATION:
-        return '#00bfff';
+        return '#ffaa00';      // オレンジ（鉄道）
       case TileType.PARK:
-        return '#228b22';
+        return '#22dd22';      // 明るい緑
       case TileType.POLICE:
-        return '#ff4444';
+        return '#0066ff';      // 青（警察）
       case TileType.FIRE_STATION:
-        return '#ff6600';
+        return '#ff3333';      // 赤（消防）
       case TileType.HOSPITAL:
-        return '#ff1493';
+        return '#ff69b4';      // ホットピンク（医療）
       case TileType.SCHOOL:
-        return '#4169e1';
+        return '#ffbb33';      // オレンジ黄（教育）
       case TileType.POWER_PLANT:
-        return '#ffff00';
+        return '#ffff00';      // イエロー（電力）
       case TileType.WATER_TREATMENT:
-        return '#1e90ff';
-      // 住宅
+        return '#00ffff';      // シアン（水道）
+      // 住宅（青系）
       case TileType.RESIDENTIAL_L1:
-        return '#4a90e2';
+        return '#5599ff';      // 薄い青
       case TileType.RESIDENTIAL_L2:
-        return '#357abd';
+        return '#3366ff';      // 青
       case TileType.RESIDENTIAL_L3:
-        return '#1e5a96';
+        return '#1144cc';      // 濃い青
       case TileType.RESIDENTIAL_L4:
-        return '#0d3d6f';
-      // 商業
+        return '#002299';      // 深い青
+      // 商業（緑系）
       case TileType.COMMERCIAL_L1:
-        return '#7ed321';
+        return '#99ff66';      // 薄い緑黄
       case TileType.COMMERCIAL_L2:
-        return '#5ca319';
+        return '#66dd00';      // 緑黄
       case TileType.COMMERCIAL_L3:
-        return '#3d7511';
+        return '#44bb00';      // 濃い緑黄
       case TileType.COMMERCIAL_L4:
-        return '#1f4709';
-      // 工業
+        return '#228800';      // 深い緑黄
+      // 工業（オレンジ系）
       case TileType.INDUSTRIAL_L1:
-        return '#f5a623';
+        return '#ffcc66';      // 薄いオレンジ
       case TileType.INDUSTRIAL_L2:
-        return '#c17f1a';
+        return '#ffbb33';      // オレンジ
       case TileType.INDUSTRIAL_L3:
-        return '#8d5a11';
+        return '#ff9900';      // 濃いオレンジ
       case TileType.INDUSTRIAL_L4:
-        return '#593508';
+        return '#dd6600';      // 深いオレンジ
       // ランドマーク
       case TileType.LANDMARK_STADIUM:
-        return '#ff6b6b';
+        return '#ff1493';      // 深いピンク（スタジアム）
       case TileType.LANDMARK_AIRPORT:
-        return '#9b59b6';
+        return '#9932cc';      // 暗い紫（空港）
       default:
         return '#0a0a0a';
     }

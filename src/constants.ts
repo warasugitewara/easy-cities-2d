@@ -110,6 +110,20 @@ export const BUILDING_INFO: Record<TileType | string, { name: string; category: 
   [TileType.LANDMARK_AIRPORT]: { name: '空港', category: 'landmark', cost: 80000, maintenance: 2000, population: 0, revenue: 10000 },
 };
 
+// 建物サイズ定義（幅x高さ）
+export const BUILDING_SIZES: Record<number, { width: number; height: number }> = {
+  [TileType.LANDMARK_STADIUM]: { width: 4, height: 4 },
+  [TileType.LANDMARK_AIRPORT]: { width: 6, height: 6 },
+  [TileType.STATION]: { width: 2, height: 2 },
+  [TileType.PARK]: { width: 2, height: 2 },
+  [TileType.POLICE]: { width: 2, height: 2 },
+  [TileType.FIRE_STATION]: { width: 2, height: 2 },
+  [TileType.HOSPITAL]: { width: 3, height: 3 },
+  [TileType.SCHOOL]: { width: 3, height: 3 },
+  [TileType.POWER_PLANT]: { width: 4, height: 4 },
+  [TileType.WATER_TREATMENT]: { width: 3, height: 3 },
+};
+
 
 // 人口テーブル
 export const POPULATION_TABLE: Record<number, number> = {

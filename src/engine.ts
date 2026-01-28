@@ -1,4 +1,4 @@
-import { MapSize, MAP_SIZES, TileType, POPULATION_TABLE, TAX_REVENUE, MAINTENANCE_COSTS, BUILD_COSTS, BuildingCategory, getGridSize } from './constants';
+import { MapSize, MAP_SIZES, TileType, POPULATION_TABLE, TAX_REVENUE, MAINTENANCE_COSTS, BUILD_COSTS, BuildingCategory, getGridSize, BUILDING_SIZES } from './constants';
 
 // ゲーム設定インターフェース
 export interface GameSettings {
@@ -144,8 +144,31 @@ export class GameEngine {
     }
 
     if (tileType !== null) {
-      console.log('✅ Building placed, tileType:', tileType);
-      this.state.map[y][x] = tileType;
+      // 建物のサイズを取得
+      const size = BUILDING_SIZES[tileType] || { width: 1, height: 1 };
+      
+      // 建物を配置可能か確認（複数マス占有対応）
+      for (let dy = 0; dy < size.height; dy++) {
+        for (let dx = 0; dx < size.width; dx++) {
+          const nx = x + dx;
+          const ny = y + dy;
+          if (nx >= this.gridSize || ny >= this.gridSize || this.state.map[ny][nx] !== TileType.EMPTY) {
+            console.log('❌ Not enough space for', tileType);
+            return false;
+          }
+        }
+      }
+
+      // 建物を配置
+      for (let dy = 0; dy < size.height; dy++) {
+        for (let dx = 0; dx < size.width; dx++) {
+          const nx = x + dx;
+          const ny = y + dy;
+          this.state.map[ny][nx] = tileType;
+        }
+      }
+
+      console.log('✅ Building placed, tileType:', tileType, 'size:', size);
       this.state.money -= cost;
       return true;
     }
