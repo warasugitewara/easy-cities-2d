@@ -5,7 +5,7 @@ const SAVE_SLOTS = 3;
 
 export class StorageManager {
   // セーブスロットにゲーム状態を保存
-  saveSlot(slotIndex: number, state: GameState): boolean {
+  saveGame(slotIndex: number, state: GameState): boolean {
     if (slotIndex < 0 || slotIndex >= SAVE_SLOTS) return false;
 
     const key = `${STORAGE_KEY_PREFIX}save-${slotIndex}`;
@@ -16,6 +16,7 @@ export class StorageManager {
 
     try {
       localStorage.setItem(key, JSON.stringify(data));
+      console.log(`✅ Game saved to slot ${slotIndex}`);
       return true;
     } catch (e) {
       console.error('Save failed:', e);
@@ -24,16 +25,20 @@ export class StorageManager {
   }
 
   // セーブスロットからゲーム状態を読み込み
-  loadSlot(slotIndex: number): GameState | null {
+  loadGame(slotIndex: number): GameState | null {
     if (slotIndex < 0 || slotIndex >= SAVE_SLOTS) return null;
 
     const key = `${STORAGE_KEY_PREFIX}save-${slotIndex}`;
 
     try {
       const data = localStorage.getItem(key);
-      if (!data) return null;
+      if (!data) {
+        console.log(`❌ No save data in slot ${slotIndex}`);
+        return null;
+      }
 
       const parsed = JSON.parse(data);
+      console.log(`✅ Game loaded from slot ${slotIndex}`);
       return parsed.state;
     } catch (e) {
       console.error('Load failed:', e);
