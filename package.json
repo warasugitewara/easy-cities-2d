@@ -1,6 +1,6 @@
 {
   "name": "easy-cities-2d",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "Cities Skylines風のブラウザ型都市建設シミュレーターゲーム。TypeScript + Vite で開発。タッチ対応。GitHub Pages で無料公開中。",
   "author": "warasugitewara",
   "keywords": ["game", "city-builder", "simulation", "typescript", "vite", "browser-game", "github-pages"],

@@ -922,6 +922,10 @@ export class UIManager {
         <h2>ゲーム設定</h2>
         <div class="settings-group">
           <label>
+            <input type="checkbox" id="toggle-sandbox" ${this.engine.state.settings.sandbox ? 'checked' : ''}>
+            🎮 サンドボックスモード（資金∞）
+          </label>
+          <label>
             <input type="checkbox" id="toggle-disasters" ${this.engine.state.settings.disastersEnabled ? 'checked' : ''}>
             災害システム
           </label>
@@ -944,6 +948,7 @@ export class UIManager {
     document.body.appendChild(modal);
 
     document.getElementById('btn-settings-apply')?.addEventListener('click', () => {
+      this.engine.state.settings.sandbox = (document.getElementById('toggle-sandbox') as HTMLInputElement).checked;
       this.engine.state.settings.disastersEnabled = (document.getElementById('toggle-disasters') as HTMLInputElement).checked;
       this.engine.state.settings.pollutionEnabled = (document.getElementById('toggle-pollution') as HTMLInputElement).checked;
       this.engine.state.settings.slumEnabled = (document.getElementById('toggle-slum') as HTMLInputElement).checked;

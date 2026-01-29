@@ -7,6 +7,7 @@ export interface GameSettings {
   disastersEnabled: boolean;
   pollutionEnabled: boolean;
   slumEnabled: boolean;
+  sandbox?: boolean; // サンドボックスモード（資金∞）
 }
 
 export interface GameState {
@@ -115,6 +116,7 @@ export class GameEngine {
         disastersEnabled: false,
         pollutionEnabled: false,
         slumEnabled: false,
+        sandbox: false,
       },
     };
     // 初期に中央に駅を配置
@@ -131,7 +133,8 @@ export class GameEngine {
     const cost = this.getCost(this.state.buildMode);
     console.log('💰 Cost for', this.state.buildMode, ':', cost, 'Money:', this.state.money);
     
-    if (this.state.money < cost) {
+    // サンドボックスモードでない場合のみ資金チェック
+    if (!this.state.settings.sandbox && this.state.money < cost) {
       console.log('❌ Not enough money');
       return false;
     }

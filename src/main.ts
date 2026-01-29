@@ -42,6 +42,7 @@ function showInitialSettings(): Promise<GameSettings> {
         
         <div style="margin: 20px 0;">
           <h3>ゲームシステム</h3>
+          <label><input type="checkbox" id="init-sandbox"> 🎮 サンドボックスモード（資金∞）</label><br>
           <label><input type="checkbox" id="init-disasters"> 災害システムを有効にする</label><br>
           <label><input type="checkbox" id="init-pollution"> 公害システムを有効にする</label><br>
           <label><input type="checkbox" id="init-slum"> スラム化システムを有効にする</label>
@@ -61,6 +62,7 @@ function showInitialSettings(): Promise<GameSettings> {
       const settings: GameSettings = {
         mapSize: mapSize as any,
         difficulty: difficulty as any,
+        sandbox: (document.getElementById('init-sandbox') as HTMLInputElement)?.checked || false,
         disastersEnabled: (document.getElementById('init-disasters') as HTMLInputElement)?.checked || false,
         pollutionEnabled: (document.getElementById('init-pollution') as HTMLInputElement)?.checked || false,
         slumEnabled: (document.getElementById('init-slum') as HTMLInputElement)?.checked || false,
