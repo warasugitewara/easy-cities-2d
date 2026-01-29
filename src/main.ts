@@ -5,6 +5,13 @@ import { StorageManager } from './storage';
 import { UIManager } from './ui';
 import { MAP_SIZES, MapSize, setMapSize, getCanvasSize, getTileSize, GAME_VERSION } from './constants';
 
+// ページタイトルを動的に更新
+document.title = `Easy Cities 2D (ver.${GAME_VERSION})`;
+const titleElement = document.getElementById('app-title');
+if (titleElement) {
+  titleElement.textContent = `Easy Cities 2D (ver.${GAME_VERSION})`;
+}
+
 console.log(`🎮 Easy Cities 2D (ver.${GAME_VERSION}) - Initializing...`);
 
 const canvas = document.getElementById('gameCanvas') as HTMLCanvasElement;
