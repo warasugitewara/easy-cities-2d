@@ -703,7 +703,14 @@ export class UIManager {
     const money = this.engine.state.money;
     
     document.getElementById('stat-population')!.textContent = (population / 1000).toFixed(1) + 'K';
-    document.getElementById('stat-money')!.textContent = `¥${(money / 1000).toFixed(0)}K`;
+    
+    // サンドボックスモードの場合は∞表記、通常モードは金額表示
+    if (this.engine.state.settings.sandbox) {
+      document.getElementById('stat-money')!.textContent = '∞';
+    } else {
+      document.getElementById('stat-money')!.textContent = `¥${(money / 1000).toFixed(0)}K`;
+    }
+    
     document.getElementById('stat-comfort')!.textContent = Math.round(this.engine.state.comfort).toString();
     document.getElementById('stat-month')!.textContent = this.engine.state.month.toString();
     

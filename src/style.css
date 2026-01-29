@@ -80,6 +80,9 @@ body {
   font-weight: bold;
   color: #00ff7f;
   font-variant-numeric: tabular-nums;
+  min-width: 60px;
+  display: inline-block;
+  text-align: center;
 }
 
 /* ツールバー */
