@@ -439,7 +439,6 @@ export class UIManager {
     demandMeter.id = 'demand-meter-container';
     demandMeter.className = 'demand-meter-container';
     demandMeter.style.display = 'none';
-    demandMeter.style.pointerEvents = 'none';
     demandMeter.innerHTML = `
       <div class="demand-meter-header">
         <span style="flex: 1;">📊 需要メーター</span>
@@ -758,13 +757,10 @@ export class UIManager {
     // デマンドメーター トグル（デスクトップ）
     document.getElementById('btn-toggle-demand')?.addEventListener('click', () => {
       const container = document.getElementById('demand-meter-container');
-      const uiContainer = document.getElementById('ui-container');
-      if (container && uiContainer) {
+      if (container) {
         const isHidden = container.style.display === 'none';
         container.style.display = isHidden ? 'block' : 'none';
         container.style.pointerEvents = isHidden ? 'auto' : 'none';
-        // UI コンテナの pointer-events も制御
-        uiContainer.style.pointerEvents = isHidden ? 'auto' : 'none';
         this.engine.state.showDemandMeters = isHidden;
       }
     });
@@ -772,12 +768,9 @@ export class UIManager {
     // デマンドメーター 閉じるボタン
     document.getElementById('btn-close-demand')?.addEventListener('click', () => {
       const container = document.getElementById('demand-meter-container');
-      const uiContainer = document.getElementById('ui-container');
-      if (container && uiContainer) {
+      if (container) {
         container.style.display = 'none';
         container.style.pointerEvents = 'none';
-        // UI コンテナを元に戻す
-        uiContainer.style.pointerEvents = 'none';
         this.engine.state.showDemandMeters = false;
       }
     });
