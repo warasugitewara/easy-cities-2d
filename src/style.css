@@ -942,6 +942,8 @@ body {
   pointer-events: auto;
   box-shadow: 0 0 15px rgba(0, 191, 255, 0.3);
   z-index: 101;
+  cursor: grab;
+  user-select: none;
 }
 
 .stat-panel-compact {
@@ -987,6 +989,8 @@ body {
   gap: 6px;
   box-shadow: 0 0 15px rgba(0, 255, 127, 0.3);
   z-index: 101;
+  cursor: grab;
+  user-select: none;
 }
 
 .time-btn {

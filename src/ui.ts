@@ -734,8 +734,11 @@ export class UIManager {
     document.getElementById('btn-import')?.addEventListener('click', () => this.importGame());
 
     // UI パネルのドラッグ機能
+    this.makePanelDraggable('dashboard');
+    this.makePanelDraggable('time-panel');
     this.makePanelDraggable('build-menu');
     this.makePanelDraggable('controls-panel');
+    this.makeSimpleDraggable('demand-meter-container');
   }
 
   private setGameSpeed(speed: number): void {
@@ -767,95 +770,118 @@ export class UIManager {
     const panel = document.getElementById(panelId);
     if (!panel) return;
 
-    // パネルにリサイズハンドル追加（底部・右側・コーナー）
-    const handles = ['resize-right', 'resize-bottom', 'resize-corner'];
-    handles.forEach(handle => {
-      if (!panel.querySelector(`.${handle}`)) {
-        const div = document.createElement('div');
-        div.className = handle;
-        panel.appendChild(div);
-      }
-    });
-
-    // ドラッグ情報保存
-    let isResizing = false;
-    let resizeDir = '';
-    let startX = 0, startY = 0;
-    let startWidth = 0, startHeight = 0;
-
-    // リサイズハンドルのマウスダウン
-    const resizeHandles = panel.querySelectorAll('[class*="resize-"]');
-    resizeHandles.forEach((handle) => {
-      (handle as HTMLElement).addEventListener('mousedown', (e: MouseEvent) => {
-        // パネルが表示されていない場合はリサイズを無効化
-        if (panel.style.display === 'none') return;
-        
-        e.preventDefault();
-        e.stopPropagation();
-        
-        // ドラッグ中ならリサイズ開始しない
-        if (this.draggingPanel) return;
-        
-        this.resizingPanel = panel;
-        this.resizeDir = (handle as HTMLElement).className;
-        this.resizeStartX = e.clientX;
-        this.resizeStartY = e.clientY;
-        this.resizeStartWidth = panel.offsetWidth;
-        this.resizeStartHeight = panel.offsetHeight;
-        
-        const cursorMap: { [key: string]: string } = {
-          'resize-right': 'ew-resize',
-          'resize-bottom': 'ns-resize',
-          'resize-corner': 'nwse-resize'
-        };
-        document.body.style.cursor = cursorMap[this.resizeDir] || 'default';
-      });
-    });
-
-    // マウスムーブ時のリサイズ処理（グローバルハンドラーで処理）
-    // マウスアップ時のリサイズ終了（グローバルハンドラーで処理）
-
-    // ドラッグ処理（ヘッダー部分をドラッグ）
-    // ドラッグ対象を特定（パネルのタイトル/ヘッダー部分）
-    const dragHeader = panel.querySelector('.controls-header') || 
-                       panel.querySelector('.demand-meter-header') || 
-                       panel.querySelector('.tab-container-overlay');
+    // ダッシュボードと時間パネルはリサイズ不可
+    const noResize = ['dashboard', 'time-panel'];
     
-    if (dragHeader) {
-      (dragHeader as HTMLElement).addEventListener('mousedown', (e: MouseEvent) => {
-        // パネルが表示されていない場合はドラッグを無効化
-        if (panel.style.display === 'none') return;
-        
-        // リサイズ中ならドラッグ開始しない
-        if (this.resizingPanel) return;
-        
-        // リサイズハンドル上ではドラッグ無効
-        if ((e.target as HTMLElement).className.includes('resize-')) return;
-        
-        // ボタンやインタラクティブ要素でのドラッグを無効化
-        if ((e.target as HTMLElement).tagName === 'BUTTON' || 
-            (e.target as HTMLElement).tagName === 'INPUT') {
-          return;
+    if (!noResize.includes(panelId)) {
+      // パネルにリサイズハンドル追加（底部・右側・コーナー）
+      const handles = ['resize-right', 'resize-bottom', 'resize-corner'];
+      handles.forEach(handle => {
+        if (!panel.querySelector(`.${handle}`)) {
+          const div = document.createElement('div');
+          div.className = handle;
+          panel.appendChild(div);
         }
+      });
 
-        e.preventDefault();
-        e.stopPropagation();
-
-        this.draggingPanel = panel;
-        
-        // transform: translateX(-50%) などの変換を解除し、left/top に正しい位置を設定
-        const rect = panel.getBoundingClientRect();
-        panel.style.transform = 'none';
-        panel.style.left = rect.left + 'px';
-        panel.style.top = rect.top + 'px';
-        panel.style.right = 'auto';
-        panel.style.bottom = 'auto';
-        
-        this.dragOffsetX = e.clientX - panel.offsetLeft;
-        this.dragOffsetY = e.clientY - panel.offsetTop;
-        panel.style.cursor = 'grabbing';
+      // リサイズハンドルのマウスダウン
+      const resizeHandles = panel.querySelectorAll('[class*="resize-"]');
+      resizeHandles.forEach((handle) => {
+        (handle as HTMLElement).addEventListener('mousedown', (e: MouseEvent) => {
+          // パネルが表示されていない場合はリサイズを無効化
+          if (panel.style.display === 'none') return;
+          
+          e.preventDefault();
+          e.stopPropagation();
+          
+          // ドラッグ中ならリサイズ開始しない
+          if (this.draggingPanel) return;
+          
+          this.resizingPanel = panel;
+          this.resizeDir = (handle as HTMLElement).className;
+          this.resizeStartX = e.clientX;
+          this.resizeStartY = e.clientY;
+          this.resizeStartWidth = panel.offsetWidth;
+          this.resizeStartHeight = panel.offsetHeight;
+          
+          const cursorMap: { [key: string]: string } = {
+            'resize-right': 'ew-resize',
+            'resize-bottom': 'ns-resize',
+            'resize-corner': 'nwse-resize'
+          };
+          document.body.style.cursor = cursorMap[this.resizeDir] || 'default';
+        });
       });
     }
+
+    // ドラッグ処理（パネル全体をドラッグ対象に）
+    panel.addEventListener('mousedown', (e: MouseEvent) => {
+      // パネルが表示されていない場合はドラッグを無効化
+      if (panel.style.display === 'none') return;
+      
+      // リサイズ中ならドラッグ開始しない
+      if (this.resizingPanel) return;
+      
+      // リサイズハンドル上ではドラッグ無効
+      if ((e.target as HTMLElement).className.includes('resize-')) return;
+      
+      // ボタンやインタラクティブ要素でのドラッグを無効化
+      if ((e.target as HTMLElement).tagName === 'BUTTON' || 
+          (e.target as HTMLElement).tagName === 'INPUT') {
+        return;
+      }
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      this.draggingPanel = panel;
+      
+      // transform: translateX(-50%) などの変換を解除し、left/top に正しい位置を設定
+      const rect = panel.getBoundingClientRect();
+      panel.style.transform = 'none';
+      panel.style.left = rect.left + 'px';
+      panel.style.top = rect.top + 'px';
+      panel.style.right = 'auto';
+      panel.style.bottom = 'auto';
+      
+      this.dragOffsetX = e.clientX - panel.offsetLeft;
+      this.dragOffsetY = e.clientY - panel.offsetTop;
+      panel.style.cursor = 'grabbing';
+    });
+  }
+
+  private makeSimpleDraggable(panelId: string): void {
+    const panel = document.getElementById(panelId);
+    if (!panel) return;
+
+    // ドラッグ処理（パネル全体をドラッグ対象に）
+    panel.addEventListener('mousedown', (e: MouseEvent) => {
+      // パネルが表示されていない場合はドラッグを無効化
+      if (panel.style.display === 'none') return;
+      
+      // ボタンやインタラクティブ要素でのドラッグを無効化
+      if ((e.target as HTMLElement).tagName === 'BUTTON' || 
+          (e.target as HTMLElement).tagName === 'INPUT') {
+        return;
+      }
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      this.draggingPanel = panel;
+      
+      // transform を解除し、left/top に正しい位置を設定
+      const rect = panel.getBoundingClientRect();
+      panel.style.transform = 'none';
+      panel.style.left = rect.left + 'px';
+      panel.style.top = rect.top + 'px';
+      panel.style.right = 'auto';
+      panel.style.bottom = 'auto';
+      
+      this.dragOffsetX = e.clientX - panel.offsetLeft;
+      this.dragOffsetY = e.clientY - panel.offsetTop;
+      panel.style.cursor = 'grabbing';
+    });
   }
 
   private toggleGUI(): void {
