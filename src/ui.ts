@@ -844,8 +844,8 @@ export class UIManager {
       panel.style.right = 'auto';
       panel.style.bottom = 'auto';
       
-      this.dragOffsetX = e.clientX - panel.offsetLeft;
-      this.dragOffsetY = e.clientY - panel.offsetTop;
+      this.dragOffsetX = e.clientX - rect.left;
+      this.dragOffsetY = e.clientY - rect.top;
       panel.style.cursor = 'grabbing';
     });
   }
@@ -878,8 +878,8 @@ export class UIManager {
       panel.style.right = 'auto';
       panel.style.bottom = 'auto';
       
-      this.dragOffsetX = e.clientX - panel.offsetLeft;
-      this.dragOffsetY = e.clientY - panel.offsetTop;
+      this.dragOffsetX = e.clientX - rect.left;
+      this.dragOffsetY = e.clientY - rect.top;
       panel.style.cursor = 'grabbing';
     });
   }
