@@ -493,14 +493,20 @@ export class GameEngine {
     // ランドマーク商業ボーナス（スタジアム・空港周辺商業地への観光収入）
     revenue += this.calculateLandmarkCommercialBonus();
     
-    // 難易度に応じた維持費倍率を適用
-    maintenance *= this.maintenanceMultiplier;
-
-    this.state.money += revenue - maintenance;
+    // サンドボックスモードでない場合のみ維持費を適用
+    if (!this.state.settings.sandbox) {
+      // 難易度に応じた維持費倍率を適用
+      maintenance *= this.maintenanceMultiplier;
+      this.state.money += revenue - maintenance;
+    } else {
+      // サンドボックスモード：税収のみ加算、維持費なし
+      this.state.money += revenue;
+    }
+    
     this.state.month++;
 
-    // 破産判定
-    if (this.state.money < 0) {
+    // 破産判定（サンドボックスモードでは破産しない）
+    if (!this.state.settings.sandbox && this.state.money < 0) {
       alert('資金がなくなりました！ゲームオーバーです');
       this.reset();
     }
