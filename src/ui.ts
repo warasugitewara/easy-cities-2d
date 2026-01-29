@@ -430,51 +430,21 @@ export class UIManager {
           <span class="stat-label">💧</span>
           <span class="stat-value" id="stat-water">0%</span>
         </div>
+        <div class="stat-item-compact">
+          <span class="stat-label">🏘️</span>
+          <span class="stat-value" id="stat-residential-demand">50</span>
+        </div>
+        <div class="stat-item-compact">
+          <span class="stat-label">🏪</span>
+          <span class="stat-value" id="stat-commercial-demand">50</span>
+        </div>
+        <div class="stat-item-compact">
+          <span class="stat-label">🏭</span>
+          <span class="stat-value" id="stat-industrial-demand">50</span>
+        </div>
       </div>
     `;
     container.appendChild(dashboard);
-
-    // デマンドメーター（左下、ドラッグ可能）
-    const demandMeter = document.createElement('div');
-    demandMeter.id = 'demand-meter-container';
-    demandMeter.className = 'demand-meter-container';
-    demandMeter.style.display = 'none';
-    demandMeter.innerHTML = `
-      <div class="demand-meter-header">
-        <span style="flex: 1;">📊 需要メーター</span>
-        <button id="btn-close-demand" class="btn-close-demand" title="閉じる">✕</button>
-      </div>
-      <div class="demand-meter">
-        <span class="demand-label">🏘️</span>
-        <div class="demand-bar">
-          <div class="demand-fill" id="demand-residential" style="width: 50%"></div>
-        </div>
-        <span class="demand-value" id="demand-value-residential">50</span>
-      </div>
-      <div class="demand-meter">
-        <span class="demand-label">🏪</span>
-        <div class="demand-bar">
-          <div class="demand-fill" id="demand-commercial" style="width: 50%"></div>
-        </div>
-        <span class="demand-value" id="demand-value-commercial">50</span>
-      </div>
-      <div class="demand-meter">
-        <span class="demand-label">🏭</span>
-        <div class="demand-bar">
-          <div class="demand-fill" id="demand-industrial" style="width: 50%"></div>
-        </div>
-        <span class="demand-value" id="demand-value-industrial">50</span>
-      </div>
-    `;
-    container.appendChild(demandMeter);
-
-    // トグルボタン（画面左下に常時表示）
-    const demandToggle = document.createElement('button');
-    demandToggle.id = 'btn-toggle-demand';
-    demandToggle.className = 'btn-toggle-demand-fixed';
-    demandToggle.title = '需要メーター表示';
-    demandToggle.textContent = '📊';
-    container.appendChild(demandToggle);
 
     // 時間制御パネル（画面上部中央に常時表示）
     const timePanel = document.createElement('div');
@@ -724,56 +694,25 @@ export class UIManager {
     document.getElementById('stat-power')!.textContent = Math.round(this.engine.state.powerSupplyRate).toString() + '%';
     document.getElementById('stat-water')!.textContent = Math.round(this.engine.state.waterSupplyRate).toString() + '%';
     
-    // デマンドメーター表示（デスクトップ）
-    if (this.engine.state.showDemandMeters) {
-      const residentialDemand = Math.round(this.engine.state.residentialDemand);
-      const commercialDemand = Math.round(this.engine.state.commercialDemand);
-      const industrialDemand = Math.round(this.engine.state.industrialDemand);
-      
-      const resFill = document.getElementById('demand-residential') as HTMLElement;
-      const comFill = document.getElementById('demand-commercial') as HTMLElement;
-      const indFill = document.getElementById('demand-industrial') as HTMLElement;
-      
-      if (resFill) resFill.style.width = Math.max(0, Math.min(100, residentialDemand)) + '%';
-      if (comFill) comFill.style.width = Math.max(0, Math.min(100, commercialDemand)) + '%';
-      if (indFill) indFill.style.width = Math.max(0, Math.min(100, industrialDemand)) + '%';
-      
-      document.getElementById('demand-value-residential')!.textContent = residentialDemand.toString();
-      document.getElementById('demand-value-commercial')!.textContent = commercialDemand.toString();
-      document.getElementById('demand-value-industrial')!.textContent = industrialDemand.toString();
-      
-      // モバイル版
-      document.getElementById('demand-value-residential-mobile')!.textContent = residentialDemand.toString();
-      document.getElementById('demand-value-commercial-mobile')!.textContent = commercialDemand.toString();
-      document.getElementById('demand-value-industrial-mobile')!.textContent = industrialDemand.toString();
-    }
+    // 需要値をダッシュボードに表示
+    const residentialDemand = Math.round(this.engine.state.residentialDemand);
+    const commercialDemand = Math.round(this.engine.state.commercialDemand);
+    const industrialDemand = Math.round(this.engine.state.industrialDemand);
+    
+    document.getElementById('stat-residential-demand')!.textContent = residentialDemand.toString();
+    document.getElementById('stat-commercial-demand')!.textContent = commercialDemand.toString();
+    document.getElementById('stat-industrial-demand')!.textContent = industrialDemand.toString();
+    
+    // モバイル版の需要値表示
+    document.getElementById('demand-value-residential-mobile')!.textContent = residentialDemand.toString();
+    document.getElementById('demand-value-commercial-mobile')!.textContent = commercialDemand.toString();
+    document.getElementById('demand-value-industrial-mobile')!.textContent = industrialDemand.toString();
   }
 
   private attachEventListeners(): void {
     // GUI表示/非表示トグル
     document.getElementById('btn-toggle-gui')?.addEventListener('click', () => this.toggleGUI());
     document.getElementById('btn-close-gui')?.addEventListener('click', () => this.toggleGUI());
-
-    // デマンドメーター トグル（デスクトップ）
-    document.getElementById('btn-toggle-demand')?.addEventListener('click', () => {
-      const container = document.getElementById('demand-meter-container');
-      if (container) {
-        const isHidden = container.style.display === 'none';
-        container.style.display = isHidden ? 'block' : 'none';
-        container.style.pointerEvents = isHidden ? 'auto' : 'none';
-        this.engine.state.showDemandMeters = isHidden;
-      }
-    });
-
-    // デマンドメーター 閉じるボタン
-    document.getElementById('btn-close-demand')?.addEventListener('click', () => {
-      const container = document.getElementById('demand-meter-container');
-      if (container) {
-        container.style.display = 'none';
-        container.style.pointerEvents = 'none';
-        this.engine.state.showDemandMeters = false;
-      }
-    });
 
     // 時間制御ボタン
     document.getElementById('btn-pause')?.addEventListener('click', () => this.setGameSpeed(0));
@@ -793,7 +732,6 @@ export class UIManager {
     // UI パネルのドラッグ機能
     this.makePanelDraggable('build-menu');
     this.makePanelDraggable('controls-panel');
-    this.makePanelDraggable('demand-meter-container');
   }
 
   private setGameSpeed(speed: number): void {
