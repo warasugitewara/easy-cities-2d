@@ -844,8 +844,10 @@ export class UIManager {
       panel.style.right = 'auto';
       panel.style.bottom = 'auto';
       
-      this.dragOffsetX = e.clientX - rect.left;
-      this.dragOffsetY = e.clientY - rect.top;
+      // transform 設定後の正確な位置を取得してオフセットを計算
+      const rectAfter = panel.getBoundingClientRect();
+      this.dragOffsetX = e.clientX - rectAfter.left;
+      this.dragOffsetY = e.clientY - rectAfter.top;
       panel.style.cursor = 'grabbing';
     });
   }
@@ -878,8 +880,10 @@ export class UIManager {
       panel.style.right = 'auto';
       panel.style.bottom = 'auto';
       
-      this.dragOffsetX = e.clientX - rect.left;
-      this.dragOffsetY = e.clientY - rect.top;
+      // transform 設定後の正確な位置を取得してオフセットを計算
+      const rectAfter = panel.getBoundingClientRect();
+      this.dragOffsetX = e.clientX - rectAfter.left;
+      this.dragOffsetY = e.clientY - rectAfter.top;
       panel.style.cursor = 'grabbing';
     });
   }
