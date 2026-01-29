@@ -1206,7 +1206,7 @@ body {
   border: 2px solid #ff9800;
   border-radius: 8px;
   padding: 0;
-  pointer-events: none;
+  pointer-events: auto;
   box-shadow: 0 0 15px rgba(255, 152, 0, 0.3);
   z-index: 101;
   width: 220px;

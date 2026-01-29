@@ -439,6 +439,7 @@ export class UIManager {
     demandMeter.id = 'demand-meter-container';
     demandMeter.className = 'demand-meter-container';
     demandMeter.style.display = 'none';
+    demandMeter.style.pointerEvents = 'none';
     demandMeter.innerHTML = `
       <div class="demand-meter-header">
         <span style="flex: 1;">📊 需要メーター</span>
@@ -758,8 +759,10 @@ export class UIManager {
     document.getElementById('btn-toggle-demand')?.addEventListener('click', () => {
       const container = document.getElementById('demand-meter-container');
       if (container) {
-        container.style.display = container.style.display === 'none' ? 'block' : 'none';
-        this.engine.state.showDemandMeters = container.style.display !== 'none';
+        const isHidden = container.style.display === 'none';
+        container.style.display = isHidden ? 'block' : 'none';
+        container.style.pointerEvents = isHidden ? 'auto' : 'none';
+        this.engine.state.showDemandMeters = isHidden;
       }
     });
 
@@ -768,6 +771,7 @@ export class UIManager {
       const container = document.getElementById('demand-meter-container');
       if (container) {
         container.style.display = 'none';
+        container.style.pointerEvents = 'none';
         this.engine.state.showDemandMeters = false;
       }
     });
