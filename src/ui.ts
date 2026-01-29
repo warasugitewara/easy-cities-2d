@@ -703,10 +703,14 @@ export class UIManager {
     document.getElementById('stat-commercial-demand')!.textContent = commercialDemand.toString();
     document.getElementById('stat-industrial-demand')!.textContent = industrialDemand.toString();
     
-    // モバイル版の需要値表示
-    document.getElementById('demand-value-residential-mobile')!.textContent = residentialDemand.toString();
-    document.getElementById('demand-value-commercial-mobile')!.textContent = commercialDemand.toString();
-    document.getElementById('demand-value-industrial-mobile')!.textContent = industrialDemand.toString();
+    // モバイル版の需要値表示（存在する場合のみ）
+    const resMobileElement = document.getElementById('demand-value-residential-mobile');
+    const comMobileElement = document.getElementById('demand-value-commercial-mobile');
+    const indMobileElement = document.getElementById('demand-value-industrial-mobile');
+    
+    if (resMobileElement) resMobileElement.textContent = residentialDemand.toString();
+    if (comMobileElement) comMobileElement.textContent = commercialDemand.toString();
+    if (indMobileElement) indMobileElement.textContent = industrialDemand.toString();
   }
 
   private attachEventListeners(): void {
