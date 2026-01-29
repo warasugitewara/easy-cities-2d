@@ -852,6 +852,9 @@ export class UIManager {
     const resizeHandles = panel.querySelectorAll('[class*="resize-"]');
     resizeHandles.forEach((handle) => {
       (handle as HTMLElement).addEventListener('mousedown', (e: MouseEvent) => {
+        // パネルが表示されていない場合はリサイズを無効化
+        if (panel.style.display === 'none') return;
+        
         e.preventDefault();
         e.stopPropagation();
         
@@ -885,6 +888,9 @@ export class UIManager {
     
     if (dragHeader) {
       (dragHeader as HTMLElement).addEventListener('mousedown', (e: MouseEvent) => {
+        // パネルが表示されていない場合はドラッグを無効化
+        if (panel.style.display === 'none') return;
+        
         // リサイズ中ならドラッグ開始しない
         if (this.resizingPanel) return;
         
