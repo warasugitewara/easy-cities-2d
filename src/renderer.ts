@@ -80,14 +80,14 @@ export class Renderer {
     this.ctx.restore();
   }
 
-  // ワールド座標をスクリーン座標に変換
+  // スクリーン座標をワールド座標に変換
   screenToWorld(screenX: number, screenY: number): { x: number; y: number } {
     const x = (screenX - this.cameraOffsetX) / this.zoomLevel;
     const y = (screenY - this.cameraOffsetY) / this.zoomLevel;
     return { x, y };
   }
 
-  // スクリーン座標をワールド座標に変換
+  // ワールド座標をスクリーン座標に変換
   worldToScreen(worldX: number, worldY: number): { x: number; y: number } {
     const x = worldX * this.zoomLevel + this.cameraOffsetX;
     const y = worldY * this.zoomLevel + this.cameraOffsetY;
@@ -153,10 +153,4 @@ export class Renderer {
     }
   }
 
-  screenToWorld(screenX: number, screenY: number): { x: number; y: number } {
-    // CSS座標をワールド座標に変換（DPRは考慮しない）
-    const x = (screenX - this.cameraOffsetX) / this.zoomLevel;
-    const y = (screenY - this.cameraOffsetY) / this.zoomLevel;
-    return { x, y };
-  }
 }
