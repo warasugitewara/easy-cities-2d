@@ -1,6 +1,6 @@
 # Easy Cities 2D 🏙️
 
-**Version: v1.0.6** | Last Updated: 2026-01-29
+**Version: v1.0.7** | Last Updated: 2026-03-17
 
 Cities Skylines風の戦略性を備えたブラウザ型都市建設シミュレーターです。
 初期資金250,000円で都市を発展させ、人口、資金、快適度のバランスを取りながら経営を続けます。
@@ -334,13 +334,25 @@ npm run dev
 npm run build
 ```
 
+リント・フォーマット・型チェックは以下のコマンドで一括実行できます（[Vite+](https://viteplus.dev) が必要）:
+
+```bash
+# Vite+ をグローバルインストール（初回のみ）
+# Windows: irm https://vite.plus/ps1 | iex
+# macOS/Linux: curl -fsSL https://vite.plus | bash
+
+vp check        # リント + フォーマット + 型チェック
+vp check --fix  # 自動修正
+```
+
 生成されたファイルは `dist/` ディレクトリに出力されます。
 
 ## 技術スタック
 
 - **言語**: TypeScript
-- **ビルドツール**: Vite
-- **レンダリング**: Canvas API
+- **ツールチェーン**: [Vite+](https://viteplus.dev) (vite v8.0.0) — ビルド・リント・フォーマット・型チェックを一元管理
+- **バンドラー**: [Rolldown](https://rolldown.rs)（Rust製、高速ビルド）
+- **レンダリング**: Canvas API（ビューポートカリングによる描画最適化）
 - **ストレージ**: LocalStorage + JSON
 - **デプロイ**: GitHub Pages
 
@@ -350,10 +362,11 @@ npm run build
 src/
 ├── main.ts           # メインアプリケーション
 ├── engine.ts         # ゲームロジック・シミュレーション
-├── renderer.ts       # Canvas描画処理
+├── renderer.ts       # Canvas描画処理（ビューポートカリング実装）
 ├── ui.ts             # UIコンポーネント・操作
 ├── storage.ts        # LocalStorage・JSON I/O
 ├── constants.ts      # ゲーム定数
+├── vite-env.d.ts     # Vite型宣言
 └── style.css         # スタイル定義
 ```
 
@@ -405,11 +418,36 @@ Cities Skylines 2D版として複数の難易度が設定されています:
 - [x] マップサイズ選択オプション（小・中・大）
 - [x] 複数マス占有建物（スタジアム、空港）
 - [x] メニューに色サンプル表示
-- [ ] スラム化システム実装（機能計画中）
+- [x] スラム化システム実装（公害・治安悪化で発生）
+- [ ] シナジー効果の視覚表示
 - [ ] シナリオモード（目標達成型）
 - [ ] スコアランキング
 
 ## 📝 更新履歴
+
+### v1.0.7 (2026-03-17)
+
+**モバイル対応・Vite+移行・パフォーマンス最適化**
+
+- 📱 **モバイルタッチ操作を全面修正**
+  - `touch-action: none` 追加によりブラウザのスクロール横取りを防止
+  - `{ passive: false }` でタッチイベントを正しくハンドル
+  - キャンバス座標系を修正（CSS表示サイズ vs 内部解像度のスケーリング対応）
+  - 2本指パン・ピンチズームを新規実装
+- 🚀 **[Vite+](https://viteplus.dev) v0.1.12 へ移行**
+  - ビルドツール: rolldown-vite → `@voidzero-dev/vite-plus-core`（vite v8.0.0）
+  - Oxlint（ESLintの100倍速）+ Oxfmt（Prettierの30倍速）+ 型チェックを `vp check` 1コマンドに統合
+  - `vp check` 全クリア（エラー0・警告0）
+- 🎨 **ビューポートカリングで描画最適化**
+  - 画面外タイルの描画をスキップ（大マップ・ズームイン時に最大16倍削減）
+- 🔧 **バグ修正**
+  - `engine.ts` の `reset()` でpollutionMap/slumMap等が未初期化だった問題を修正
+  - 破産リセット後に初期資金が難易度を無視して固定値になっていた問題を修正
+  - 安全度・医療度不足ペナルティがハードコードで`deficit`変数未使用だったのを修正
+  - CSS重複定義（`@keyframes glow`）を削除
+- 🗑️ **デッドコード除去**
+  - 未使用定数 `BUILDING_INFO`・関数 `getGridSize()` を削除
+  - 各ファイルの未使用 import・変数を整理
 
 ### v1.0.6 (2026-01-29)
 
