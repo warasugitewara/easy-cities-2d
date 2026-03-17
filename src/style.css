@@ -911,20 +911,6 @@ body {
   animation: glow 2s ease-in-out infinite;
 }
 
-/* アニメーション */
-@keyframes glow {
-  0%, 100% {
-    box-shadow: 0 0 10px rgba(0, 191, 255, 0.3);
-  }
-  50% {
-    box-shadow: 0 0 20px rgba(0, 191, 255, 0.6);
-  }
-}
-
-#gameCanvas {
-  animation: glow 2s ease-in-out infinite;
-}
-
 /* ===== オーバーレイUI スタイル ===== */
 #ui-container {
   position: relative;

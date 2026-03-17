@@ -21,9 +21,6 @@ export function setMapSize(size: MapSize): void {
   CANVAS_SIZE = MAP_SIZES[size].canvasSize;
 }
 
-export function getGridSize(): number {
-  return GRID_SIZE;
-}
 
 export function getCanvasSize(): number {
   return CANVAS_SIZE;
@@ -78,38 +75,6 @@ export const BUILDING_TOOLS: Record<BuildingCategory, { label: string; icon: str
   infrastructure: { label: 'インフラ', icon: '⚙️', color: '#bd10e0' },
   landmark: { label: 'ランドマーク', icon: '🏛️', color: '#ff6b6b' },
   demolish: { label: '削除', icon: '💥', color: '#d0021b' },
-};
-
-// 建物タイプごとの詳細情報
-export const BUILDING_INFO: Record<TileType | string, { name: string; category: BuildingCategory; cost: number; maintenance: number; population?: number; revenue?: number }> = {
-  // インフラ
-  [TileType.ROAD]: { name: '道路', category: 'road', cost: 200, maintenance: 10 },
-  [TileType.STATION]: { name: '駅', category: 'infrastructure', cost: 5000, maintenance: 100 },
-  [TileType.PARK]: { name: '公園', category: 'infrastructure', cost: 1000, maintenance: 5 },
-  [TileType.POLICE]: { name: '警察署', category: 'infrastructure', cost: 8000, maintenance: 200 },
-  [TileType.FIRE_STATION]: { name: '消防署', category: 'infrastructure', cost: 7000, maintenance: 180 },
-  [TileType.HOSPITAL]: { name: '病院', category: 'infrastructure', cost: 10000, maintenance: 250 },
-  [TileType.SCHOOL]: { name: '学校', category: 'infrastructure', cost: 6000, maintenance: 150 },
-  [TileType.POWER_PLANT]: { name: '発電所', category: 'infrastructure', cost: 15000, maintenance: 400 },
-  [TileType.WATER_TREATMENT]: { name: '水処理施設', category: 'infrastructure', cost: 12000, maintenance: 300 },
-  // 住宅
-  [TileType.RESIDENTIAL_L1]: { name: '住宅Lv1', category: 'residential', cost: 0, maintenance: 0, population: 10, revenue: 20 },
-  [TileType.RESIDENTIAL_L2]: { name: '住宅Lv2', category: 'residential', cost: 0, maintenance: 0, population: 50, revenue: 60 },
-  [TileType.RESIDENTIAL_L3]: { name: '住宅Lv3', category: 'residential', cost: 0, maintenance: 0, population: 200, revenue: 150 },
-  [TileType.RESIDENTIAL_L4]: { name: '住宅Lv4', category: 'residential', cost: 0, maintenance: 0, population: 500, revenue: 300 },
-  // 商業
-  [TileType.COMMERCIAL_L1]: { name: '商業Lv1', category: 'commercial', cost: 0, maintenance: 0, population: 5, revenue: 30 },
-  [TileType.COMMERCIAL_L2]: { name: '商業Lv2', category: 'commercial', cost: 0, maintenance: 0, population: 25, revenue: 90 },
-  [TileType.COMMERCIAL_L3]: { name: '商業Lv3', category: 'commercial', cost: 0, maintenance: 0, population: 100, revenue: 200 },
-  [TileType.COMMERCIAL_L4]: { name: '商業Lv4', category: 'commercial', cost: 0, maintenance: 0, population: 250, revenue: 400 },
-  // 工業
-  [TileType.INDUSTRIAL_L1]: { name: '工業Lv1', category: 'industrial', cost: 0, maintenance: 0, population: 15, revenue: 25 },
-  [TileType.INDUSTRIAL_L2]: { name: '工業Lv2', category: 'industrial', cost: 0, maintenance: 0, population: 60, revenue: 75 },
-  [TileType.INDUSTRIAL_L3]: { name: '工業Lv3', category: 'industrial', cost: 0, maintenance: 0, population: 220, revenue: 180 },
-  [TileType.INDUSTRIAL_L4]: { name: '工業Lv4', category: 'industrial', cost: 0, maintenance: 0, population: 550, revenue: 350 },
-  // ランドマーク
-  [TileType.LANDMARK_STADIUM]: { name: 'スタジアム', category: 'landmark', cost: 50000, maintenance: 1000, population: 0, revenue: 5000 },
-  [TileType.LANDMARK_AIRPORT]: { name: '空港', category: 'landmark', cost: 80000, maintenance: 2000, population: 0, revenue: 10000 },
 };
 
 // 建物サイズ定義（幅x高さ）

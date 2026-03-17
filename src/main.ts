@@ -3,7 +3,7 @@ import { GameEngine, GameSettings } from './engine';
 import { Renderer } from './renderer';
 import { StorageManager } from './storage';
 import { UIManager } from './ui';
-import { MAP_SIZES, MapSize, setMapSize, getCanvasSize, getTileSize, GAME_VERSION } from './constants';
+import { MapSize, setMapSize, getCanvasSize, getTileSize, GAME_VERSION } from './constants';
 
 // ページタイトルを動的に更新
 document.title = `Easy Cities 2D (ver.${GAME_VERSION})`;

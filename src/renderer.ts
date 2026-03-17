@@ -1,4 +1,4 @@
-import { getTileSize, TileType, MAP_SIZES } from './constants';
+import { getTileSize, TileType } from './constants';
 import { GameEngine } from './engine';
 
 export class Renderer {

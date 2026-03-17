@@ -1,4 +1,4 @@
-import { MapSize, MAP_SIZES, TileType, POPULATION_TABLE, TAX_REVENUE, MAINTENANCE_COSTS, BUILD_COSTS, BuildingCategory, getGridSize, BUILDING_SIZES, INITIAL_PARAMETERS, INFRASTRUCTURE_REQUIREMENTS } from './constants';
+import { MapSize, MAP_SIZES, TileType, POPULATION_TABLE, TAX_REVENUE, MAINTENANCE_COSTS, BUILD_COSTS, BuildingCategory, BUILDING_SIZES, INITIAL_PARAMETERS, INFRASTRUCTURE_REQUIREMENTS } from './constants';
 
 // ゲーム設定インターフェース
 export interface GameSettings {
@@ -979,10 +979,16 @@ export class GameEngine {
 
   // リセット
   reset(): void {
+    const difficultyConfig = {
+      easy: 350000,
+      normal: 250000,
+      hard: 150000,
+    };
+    const initialMoney = difficultyConfig[this.state.settings.difficulty] ?? 250000;
     this.state = {
       map: Array.from({ length: this.gridSize }, () => Array(this.gridSize).fill(TileType.EMPTY)),
       population: 0,
-      money: 250000,
+      money: initialMoney,
       comfort: 50,
       month: 0,
       paused: false,
@@ -996,6 +1002,8 @@ export class GameEngine {
       fireMap: Array.from({ length: this.gridSize }, () => Array(this.gridSize).fill(0)),
       diseaseMap: Array.from({ length: this.gridSize }, () => Array(this.gridSize).fill(0)),
       crimeMap: Array.from({ length: this.gridSize }, () => Array(this.gridSize).fill(0)),
+      pollutionMap: Array.from({ length: this.gridSize }, () => Array(this.gridSize).fill(0)),
+      slumMap: Array.from({ length: this.gridSize }, () => Array(this.gridSize).fill(0)),
       securityLevel: INITIAL_PARAMETERS.securityLevel,
       safetyLevel: INITIAL_PARAMETERS.safetyLevel,
       educationLevel: INITIAL_PARAMETERS.educationLevel,
@@ -1004,6 +1012,8 @@ export class GameEngine {
       internationalLevel: INITIAL_PARAMETERS.internationalLevel,
       powerSupplyRate: INITIAL_PARAMETERS.powerSupplyRate,
       waterSupplyRate: INITIAL_PARAMETERS.waterSupplyRate,
+      pollutionLevel: 0,
+      slumRate: 0,
       residentialDemand: 50,
       commercialDemand: 50,
       industrialDemand: 50,
