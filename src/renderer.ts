@@ -34,8 +34,21 @@ export class Renderer {
     this.ctx.translate(this.cameraOffsetX, this.cameraOffsetY);
     this.ctx.scale(this.zoomLevel, this.zoomLevel);
 
-    for (let y = 0; y < gridSize; y++) {
-      for (let x = 0; x < gridSize; x++) {
+    // ビューポートカリング: 画面内に見えているタイルの範囲のみ描画
+    const canvasW = this.canvas.width;
+    const canvasH = this.canvas.height;
+    const worldMinX = -this.cameraOffsetX / this.zoomLevel;
+    const worldMinY = -this.cameraOffsetY / this.zoomLevel;
+    const worldMaxX = (canvasW - this.cameraOffsetX) / this.zoomLevel;
+    const worldMaxY = (canvasH - this.cameraOffsetY) / this.zoomLevel;
+
+    const startX = Math.max(0, Math.floor(worldMinX / this.tileSize));
+    const startY = Math.max(0, Math.floor(worldMinY / this.tileSize));
+    const endX = Math.min(gridSize, Math.ceil(worldMaxX / this.tileSize));
+    const endY = Math.min(gridSize, Math.ceil(worldMaxY / this.tileSize));
+
+    for (let y = startY; y < endY; y++) {
+      for (let x = startX; x < endX; x++) {
         const tile = map[y][x];
         const color = this.getTileColor(tile);
 
