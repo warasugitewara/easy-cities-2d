@@ -1,16 +1,16 @@
 // ゲーム定数
-export const GAME_VERSION = '1.0.6';
+export const GAME_VERSION = "1.0.6";
 
-export type MapSize = 'small' | 'medium' | 'large';
+export type MapSize = "small" | "medium" | "large";
 
 export const MAP_SIZES: Record<MapSize, { gridSize: number; canvasSize: number; label: string }> = {
-  small: { gridSize: 64, canvasSize: 512, label: '小（512x512）' },
-  medium: { gridSize: 128, canvasSize: 1024, label: '中（1024x1024）' },
-  large: { gridSize: 256, canvasSize: 2048, label: '大（2048x2048）' },
+  small: { gridSize: 64, canvasSize: 512, label: "小（512x512）" },
+  medium: { gridSize: 128, canvasSize: 1024, label: "中（1024x1024）" },
+  large: { gridSize: 256, canvasSize: 2048, label: "大（2048x2048）" },
 };
 
 // デフォルト値（中サイズ）
-export const DEFAULT_MAP_SIZE: MapSize = 'medium';
+export const DEFAULT_MAP_SIZE: MapSize = "medium";
 let GRID_SIZE = MAP_SIZES[DEFAULT_MAP_SIZE].gridSize;
 let CANVAS_SIZE = MAP_SIZES[DEFAULT_MAP_SIZE].canvasSize;
 const TILE_SIZE = CANVAS_SIZE / GRID_SIZE;
@@ -20,7 +20,6 @@ export function setMapSize(size: MapSize): void {
   GRID_SIZE = MAP_SIZES[size].gridSize;
   CANVAS_SIZE = MAP_SIZES[size].canvasSize;
 }
-
 
 export function getCanvasSize(): number {
   return CANVAS_SIZE;
@@ -64,17 +63,27 @@ export enum TileType {
 }
 
 // 建物カテゴリ
-export type BuildingCategory = 'road' | 'residential' | 'commercial' | 'industrial' | 'infrastructure' | 'landmark' | 'demolish';
+export type BuildingCategory =
+  | "road"
+  | "residential"
+  | "commercial"
+  | "industrial"
+  | "infrastructure"
+  | "landmark"
+  | "demolish";
 
 // カテゴリ別ツール定義
-export const BUILDING_TOOLS: Record<BuildingCategory, { label: string; icon: string; color: string }> = {
-  road: { label: '道路', icon: '🛣️', color: '#444444' },
-  residential: { label: '住宅', icon: '🏠', color: '#4a90e2' },
-  commercial: { label: '商業', icon: '🏢', color: '#7ed321' },
-  industrial: { label: '工業', icon: '🏭', color: '#f5a623' },
-  infrastructure: { label: 'インフラ', icon: '⚙️', color: '#bd10e0' },
-  landmark: { label: 'ランドマーク', icon: '🏛️', color: '#ff6b6b' },
-  demolish: { label: '削除', icon: '💥', color: '#d0021b' },
+export const BUILDING_TOOLS: Record<
+  BuildingCategory,
+  { label: string; icon: string; color: string }
+> = {
+  road: { label: "道路", icon: "🛣️", color: "#444444" },
+  residential: { label: "住宅", icon: "🏠", color: "#4a90e2" },
+  commercial: { label: "商業", icon: "🏢", color: "#7ed321" },
+  industrial: { label: "工業", icon: "🏭", color: "#f5a623" },
+  infrastructure: { label: "インフラ", icon: "⚙️", color: "#bd10e0" },
+  landmark: { label: "ランドマーク", icon: "🏛️", color: "#ff6b6b" },
+  demolish: { label: "削除", icon: "💥", color: "#d0021b" },
 };
 
 // 建物サイズ定義（幅x高さ）
@@ -93,22 +102,21 @@ export const BUILDING_SIZES: Record<number, { width: number; height: number }> =
 
 // インフラごとの色定義
 export const INFRASTRUCTURE_COLORS: Record<string, string> = {
-  station: '#ffaa00',      // オレンジ（鉄道）
-  park: '#22dd22',         // 明るい緑
-  police: '#0066ff',       // 青（警察）
-  fire_station: '#ff3333', // 赤（消防）
-  hospital: '#ff69b4',     // ホットピンク（医療）
-  school: '#ffbb33',       // オレンジ黄（教育）
-  power_plant: '#ffff00',  // イエロー（電力）
-  water_treatment: '#00ffff', // シアン（水道）
+  station: "#ffaa00", // オレンジ（鉄道）
+  park: "#22dd22", // 明るい緑
+  police: "#0066ff", // 青（警察）
+  fire_station: "#ff3333", // 赤（消防）
+  hospital: "#ff69b4", // ホットピンク（医療）
+  school: "#ffbb33", // オレンジ黄（教育）
+  power_plant: "#ffff00", // イエロー（電力）
+  water_treatment: "#00ffff", // シアン（水道）
 };
 
 // ランドマークの色定義
 export const LANDMARK_COLORS: Record<string, string> = {
-  stadium: '#ff1493',      // 深いピンク（スタジアム）
-  airport: '#9932cc',      // 暗い紫（空港）
+  stadium: "#ff1493", // 深いピンク（スタジアム）
+  airport: "#9932cc", // 暗い紫（空港）
 };
-
 
 // 人口テーブル
 export const POPULATION_TABLE: Record<number, number> = {
@@ -149,11 +157,11 @@ export const MAINTENANCE_COSTS: Record<number, number> = {
   [TileType.ROAD]: 10,
   [TileType.STATION]: 100,
   [TileType.PARK]: 5,
-  [TileType.POLICE]: 300,      // 200 → 300
+  [TileType.POLICE]: 300, // 200 → 300
   [TileType.FIRE_STATION]: 280, // 180 → 280
-  [TileType.HOSPITAL]: 400,     // 250 → 400
-  [TileType.SCHOOL]: 250,       // 150 → 250
-  [TileType.POWER_PLANT]: 600,  // 400 → 600
+  [TileType.HOSPITAL]: 400, // 250 → 400
+  [TileType.SCHOOL]: 250, // 150 → 250
+  [TileType.POWER_PLANT]: 600, // 400 → 600
   [TileType.WATER_TREATMENT]: 500, // 300 → 500
   [TileType.LANDMARK_STADIUM]: 2000, // 1000 → 2000
   [TileType.LANDMARK_AIRPORT]: 4000, // 2000 → 4000
@@ -173,8 +181,8 @@ export const TAX_REVENUE: Record<number, number> = {
   [TileType.INDUSTRIAL_L2]: 75,
   [TileType.INDUSTRIAL_L3]: 180,
   [TileType.INDUSTRIAL_L4]: 350,
-  [TileType.LANDMARK_STADIUM]: 100,     // 5000 → 100（月額基本料）
-  [TileType.LANDMARK_AIRPORT]: 200,     // 10000 → 200（月額基本料）
+  [TileType.LANDMARK_STADIUM]: 100, // 5000 → 100（月額基本料）
+  [TileType.LANDMARK_AIRPORT]: 200, // 10000 → 200（月額基本料）
 };
 
 // ==================== インフラ効果定数 ====================
@@ -182,41 +190,41 @@ export const TAX_REVENUE: Record<number, number> = {
 // インフラの効果範囲（タイル単位）
 export const INFRASTRUCTURE_EFFECTS = {
   police: {
-    rangeRadius: 30,          // 効果範囲半径
-    securityBoost: 5,         // 年間治安度向上
-    growthPenalty: 0.5,       // 治安度低い時の成長ペナルティ（0.5 = 50%低下）
+    rangeRadius: 30, // 効果範囲半径
+    securityBoost: 5, // 年間治安度向上
+    growthPenalty: 0.5, // 治安度低い時の成長ペナルティ（0.5 = 50%低下）
   },
   fire_station: {
     rangeRadius: 30,
-    safetyBoost: 5,           // 年間安全度向上
+    safetyBoost: 5, // 年間安全度向上
     fireSuppressionRate: 0.75, // 火災発生確率低下率（75%低下）
   },
   school: {
     rangeRadius: 25,
-    educationBoost: 3,         // 年間教育度向上
-    taxBonusThreshold: 60,     // 教育度がこれ以上で税収+15%
+    educationBoost: 3, // 年間教育度向上
+    taxBonusThreshold: 60, // 教育度がこれ以上で税収+15%
   },
   hospital: {
     rangeRadius: 25,
-    medicalBoost: 4,           // 年間医療度向上
+    medicalBoost: 4, // 年間医療度向上
     diseaseReductionRate: 0.6, // 病気発生確率低下率（60%低下）
   },
   power_plant: {
     rangeRadius: 20,
-    growthPenalty: 0.4,        // 電力供給なし時の成長ペナルティ（40%低下）
+    growthPenalty: 0.4, // 電力供給なし時の成長ペナルティ（40%低下）
   },
   water_treatment: {
     rangeRadius: 15,
-    growthPenalty: 0.7,        // 給水なし時の成長ペナルティ（70%低下）
-    diseaseMultiplier: 3,      // 給水なし時の病気発生倍率
+    growthPenalty: 0.7, // 給水なし時の成長ペナルティ（70%低下）
+    diseaseMultiplier: 3, // 給水なし時の病気発生倍率
   },
   station: {
     rangeRadius: 20,
-    growthBoost: 1.5,          // 周辺成長速度倍率
+    growthBoost: 1.5, // 周辺成長速度倍率
   },
   park: {
     rangeRadius: 15,
-    comfortBoost: 2,           // 快適度向上値
+    comfortBoost: 2, // 快適度向上値
   },
 };
 
@@ -224,23 +232,23 @@ export const INFRASTRUCTURE_EFFECTS = {
 export const LANDMARK_EFFECTS = {
   stadium: {
     rangeRadius: 40,
-    tourismBoost: 5,           // 年間観光度向上
-    commercialBonusMin: 500,   // L1商業地観光収入
-    commercialBonusMax: 3000,  // L4商業地観光収入
+    tourismBoost: 5, // 年間観光度向上
+    commercialBonusMin: 500, // L1商業地観光収入
+    commercialBonusMax: 3000, // L4商業地観光収入
   },
   airport: {
     rangeRadius: 50,
-    tourismBoost: 3,           // 年間観光度向上（スタジアムより少ない）
-    internationalBoost: 5,     // 年間国際化度向上
-    commercialBonusMin: 1000,  // L1商業地国際取引収入
-    commercialBonusMax: 5000,  // L4商業地国際取引収入
+    tourismBoost: 3, // 年間観光度向上（スタジアムより少ない）
+    internationalBoost: 5, // 年間国際化度向上
+    commercialBonusMin: 1000, // L1商業地国際取引収入
+    commercialBonusMax: 5000, // L4商業地国際取引収入
   },
 };
 
 // シナジー効果
 export const SYNERGY_EFFECTS = {
   police_school: {
-    distanceThreshold: 15,     // 15マス以内でシナジー発生
+    distanceThreshold: 15, // 15マス以内でシナジー発生
     securityBoost: 10,
     educationBoost: 10,
   },
@@ -260,8 +268,8 @@ export const SYNERGY_EFFECTS = {
 // 人口に対するインフラ必要数
 export const INFRASTRUCTURE_REQUIREMENTS = {
   police: {
-    populationPerUnit: 1000,        // 1,000人ごとに警察署1個必要
-    base: 1,                        // 最低1個必要
+    populationPerUnit: 1000, // 1,000人ごとに警察署1個必要
+    base: 1, // 最低1個必要
   },
   fire_station: {
     populationPerUnit: 1000,

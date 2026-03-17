@@ -1,15 +1,16 @@
-import { defineConfig } from 'vite'
+import { defineConfig } from "vite-plus";
 
 export default defineConfig({
-  base: '/easy-cities-2d/',
+  lint: { options: { typeAware: true, typeCheck: true } },
+  base: "/easy-cities-2d/",
   server: {
     port: 5173,
-    open: true
+    open: true,
   },
   build: {
-    outDir: 'dist',
+    outDir: "dist",
     sourcemap: false,
-    target: 'esnext',
+    target: "esnext",
     reportCompressedSize: false,
     rollupOptions: {
       output: {
@@ -17,8 +18,4 @@ export default defineConfig({
       },
     },
   },
-  esbuild: {
-    drop: ['console', 'debugger'],
-    target: 'esnext',
-  },
-})
+});

@@ -1,6 +1,6 @@
-import { GameState } from './engine';
+import { GameState } from "./engine";
 
-const STORAGE_KEY_PREFIX = 'easy-cities-2d-';
+const STORAGE_KEY_PREFIX = "easy-cities-2d-";
 const SAVE_SLOTS = 3;
 
 export class StorageManager {
@@ -19,7 +19,7 @@ export class StorageManager {
       console.log(`✅ Game saved to slot ${slotIndex}`);
       return true;
     } catch (e) {
-      console.error('Save failed:', e);
+      console.error("Save failed:", e);
       return false;
     }
   }
@@ -41,7 +41,7 @@ export class StorageManager {
       console.log(`✅ Game loaded from slot ${slotIndex}`);
       return parsed.state;
     } catch (e) {
-      console.error('Load failed:', e);
+      console.error("Load failed:", e);
       return null;
     }
   }
@@ -62,7 +62,7 @@ export class StorageManager {
         population: parsed.state.population,
         money: parsed.state.money,
       };
-    } catch (e) {
+    } catch {
       return null;
     }
   }
@@ -70,7 +70,7 @@ export class StorageManager {
   // JSONファイルにエクスポート
   exportToJSON(state: GameState): string {
     const exportData = {
-      version: '1.0.0',
+      version: "1.0.0",
       exportedAt: new Date().toISOString(),
       gameState: state,
     };
@@ -84,7 +84,7 @@ export class StorageManager {
       if (!data.gameState) return null;
       return data.gameState;
     } catch (e) {
-      console.error('Import failed:', e);
+      console.error("Import failed:", e);
       return null;
     }
   }
@@ -95,7 +95,7 @@ export class StorageManager {
     try {
       localStorage.setItem(key, JSON.stringify(settings));
     } catch (e) {
-      console.error('Settings save failed:', e);
+      console.error("Settings save failed:", e);
     }
   }
 
@@ -105,7 +105,7 @@ export class StorageManager {
     try {
       const data = localStorage.getItem(key);
       return data ? JSON.parse(data) : {};
-    } catch (e) {
+    } catch {
       return {};
     }
   }

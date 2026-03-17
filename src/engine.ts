@@ -1,8 +1,20 @@
-import { MapSize, MAP_SIZES, TileType, POPULATION_TABLE, TAX_REVENUE, MAINTENANCE_COSTS, BUILD_COSTS, BuildingCategory, BUILDING_SIZES, INITIAL_PARAMETERS, INFRASTRUCTURE_REQUIREMENTS } from './constants';
+import {
+  MapSize,
+  MAP_SIZES,
+  TileType,
+  POPULATION_TABLE,
+  TAX_REVENUE,
+  MAINTENANCE_COSTS,
+  BUILD_COSTS,
+  BuildingCategory,
+  BUILDING_SIZES,
+  INITIAL_PARAMETERS,
+  INFRASTRUCTURE_REQUIREMENTS,
+} from "./constants";
 
 // ゲーム設定インターフェース
 export interface GameSettings {
-  difficulty: 'easy' | 'normal' | 'hard';
+  difficulty: "easy" | "normal" | "hard";
   mapSize: MapSize;
   disastersEnabled: boolean;
   pollutionEnabled: boolean;
@@ -26,30 +38,30 @@ export interface GameState {
   // インフラシステム
   powerGrid: boolean[][];
   waterGrid: boolean[][];
-  fireMap: number[][];     // 火災レベル（0=なし、1-10=火の強さ）
-  diseaseMap: number[][];  // 病気レベル（0=なし、1-10=病気の強さ）
-  crimeMap: number[][];    // 犯罪率（0-100）
+  fireMap: number[][]; // 火災レベル（0=なし、1-10=火の強さ）
+  diseaseMap: number[][]; // 病気レベル（0=なし、1-10=病気の強さ）
+  crimeMap: number[][]; // 犯罪率（0-100）
   pollutionMap: number[][]; // 汚染度（0-100）
-  slumMap: number[][];     // スラム化レベル（0=なし、1-10=スラム化の強さ）
+  slumMap: number[][]; // スラム化レベル（0=なし、1-10=スラム化の強さ）
   // 詳細パラメータ
-  securityLevel: number;   // 治安度（0-100）
-  safetyLevel: number;     // 安全度（0-100）
-  educationLevel: number;  // 教育度（0-100）
-  medicalLevel: number;    // 医療度（0-100）
-  tourismLevel: number;    // 観光度（0-100）
+  securityLevel: number; // 治安度（0-100）
+  safetyLevel: number; // 安全度（0-100）
+  educationLevel: number; // 教育度（0-100）
+  medicalLevel: number; // 医療度（0-100）
+  tourismLevel: number; // 観光度（0-100）
   internationalLevel: number; // 国際化度（0-100）
   powerSupplyRate: number; // 電力供給率（％）
   waterSupplyRate: number; // 給水率（％）
-  pollutionLevel: number;  // 全体汚染度（0-100）
-  slumRate: number;        // スラム化率（0-100）
+  pollutionLevel: number; // 全体汚染度（0-100）
+  slumRate: number; // スラム化率（0-100）
   // 需要メータ
   residentialDemand: number; // 住宅地需要（0-100）
-  commercialDemand: number;  // 商業地需要（0-100）
-  industrialDemand: number;  // 工業地需要（0-100）
+  commercialDemand: number; // 商業地需要（0-100）
+  industrialDemand: number; // 工業地需要（0-100）
   showDemandMeters: boolean; // 需要メータ表示フラグ
   // ペナルティシステム
-  growthPenalty: number;   // 成長速度補正係数（1.0 = 通常、0.5 = 50%低下）
-  revenuePenalty: number;  // 税収補正係数（1.0 = 通常）
+  growthPenalty: number; // 成長速度補正係数（1.0 = 通常、0.5 = 50%低下）
+  revenuePenalty: number; // 税収補正係数（1.0 = 通常）
 }
 
 export class GameEngine {
@@ -60,8 +72,8 @@ export class GameEngine {
   private disasterRateMultiplier: number = 1.0;
 
   constructor(settings?: GameSettings) {
-    const mapSize = settings?.mapSize || 'medium';
-    const difficulty = settings?.difficulty || 'normal';
+    const mapSize = settings?.mapSize || "medium";
+    const difficulty = settings?.difficulty || "normal";
     this.gridSize = MAP_SIZES[mapSize].gridSize;
 
     // 難易度に応じた初期資金・維持費・災害率を設定
@@ -82,10 +94,10 @@ export class GameEngine {
       comfort: 50,
       month: 0,
       paused: false,
-      buildMode: 'road',
+      buildMode: "road",
       gridSize: this.gridSize,
-      selectedInfrastructure: 'station',
-      selectedLandmark: 'stadium',
+      selectedInfrastructure: "station",
+      selectedLandmark: "stadium",
       gameSpeed: 1,
       powerGrid: Array.from({ length: this.gridSize }, () => Array(this.gridSize).fill(false)),
       waterGrid: Array.from({ length: this.gridSize }, () => Array(this.gridSize).fill(false)),
@@ -111,8 +123,8 @@ export class GameEngine {
       growthPenalty: 1.0,
       revenuePenalty: 1.0,
       settings: settings || {
-        difficulty: 'normal',
-        mapSize: 'medium',
+        difficulty: "normal",
+        mapSize: "medium",
         disastersEnabled: false,
         pollutionEnabled: false,
         slumEnabled: false,
@@ -122,8 +134,10 @@ export class GameEngine {
     // 初期に中央に駅を配置
     const center = this.gridSize / 2;
     this.state.map[Math.floor(center)][Math.floor(center)] = TileType.STATION;
-    
-    console.log(`🎮 Game initialized - Difficulty: ${difficulty}, Initial Money: ${config.initialMoney}, Maintenance: ${config.maintenanceMultiplier}x, Disasters: ${config.disasterRateMultiplier}x`);
+
+    console.log(
+      `🎮 Game initialized - Difficulty: ${difficulty}, Initial Money: ${config.initialMoney}, Maintenance: ${config.maintenanceMultiplier}x, Disasters: ${config.disasterRateMultiplier}x`,
+    );
   }
 
   // 建設処理
@@ -131,25 +145,25 @@ export class GameEngine {
     if (x < 0 || y < 0 || x >= this.gridSize || y >= this.gridSize) return false;
 
     const cost = this.getCost(this.state.buildMode);
-    console.log('💰 Cost for', this.state.buildMode, ':', cost, 'Money:', this.state.money);
-    
+    console.log("💰 Cost for", this.state.buildMode, ":", cost, "Money:", this.state.money);
+
     // サンドボックスモードでない場合のみ資金チェック
     if (!this.state.settings.sandbox && this.state.money < cost) {
-      console.log('❌ Not enough money');
+      console.log("❌ Not enough money");
       return false;
     }
 
-    if (this.state.buildMode === 'demolish') {
+    if (this.state.buildMode === "demolish") {
       if (this.state.map[y][x] !== TileType.EMPTY) {
         const tileType = this.state.map[y][x];
-        
+
         // 複数マス占有建築物の場合、全体を削除
         if (BUILDING_SIZES[tileType]) {
           const size = BUILDING_SIZES[tileType];
           // 建築物の左上を探す（クリックされたタイルから推測）
           let startX = x;
           let startY = y;
-          
+
           // 同じタイプのタイルをスキャンして左上を見つける
           for (let sy = Math.max(0, y - size.height); sy <= Math.min(this.gridSize - 1, y); sy++) {
             for (let sx = Math.max(0, x - size.width); sx <= Math.min(this.gridSize - 1, x); sx++) {
@@ -159,7 +173,7 @@ export class GameEngine {
                 // 左上に同じタイプがないか確認
                 if (sx > 0 && this.state.map[sy][sx - 1] === tileType) isLeftTop = false;
                 if (sy > 0 && this.state.map[sy - 1][sx] === tileType) isLeftTop = false;
-                
+
                 if (isLeftTop) {
                   startX = sx;
                   startY = sy;
@@ -167,7 +181,7 @@ export class GameEngine {
               }
             }
           }
-          
+
           // 左上から始まる全タイルを削除
           for (let dy = 0; dy < size.height; dy++) {
             for (let dx = 0; dx < size.width; dx++) {
@@ -187,63 +201,63 @@ export class GameEngine {
     }
 
     if (this.state.map[y][x] !== TileType.EMPTY) {
-      console.log('❌ Tile not empty:', this.state.map[y][x]);
+      console.log("❌ Tile not empty:", this.state.map[y][x]);
       return false;
     }
 
     let tileType: TileType | null = null;
 
     switch (this.state.buildMode) {
-      case 'road':
+      case "road":
         tileType = TileType.ROAD;
         break;
-      case 'residential':
+      case "residential":
         tileType = TileType.RESIDENTIAL_L1;
         break;
-      case 'commercial':
+      case "commercial":
         tileType = TileType.COMMERCIAL_L1;
         break;
-      case 'industrial':
+      case "industrial":
         tileType = TileType.INDUSTRIAL_L1;
         break;
-      case 'infrastructure':
+      case "infrastructure":
         // 選択されたインフラストラクチャータイプに応じて設置
         switch (this.state.selectedInfrastructure) {
-          case 'station':
+          case "station":
             tileType = TileType.STATION;
             break;
-          case 'park':
+          case "park":
             tileType = TileType.PARK;
             break;
-          case 'police':
+          case "police":
             tileType = TileType.POLICE;
             break;
-          case 'fire_station':
+          case "fire_station":
             tileType = TileType.FIRE_STATION;
             break;
-          case 'hospital':
+          case "hospital":
             tileType = TileType.HOSPITAL;
             break;
-          case 'school':
+          case "school":
             tileType = TileType.SCHOOL;
             break;
-          case 'power_plant':
+          case "power_plant":
             tileType = TileType.POWER_PLANT;
             break;
-          case 'water_treatment':
+          case "water_treatment":
             tileType = TileType.WATER_TREATMENT;
             break;
           default:
             tileType = TileType.STATION;
         }
         break;
-      case 'landmark':
+      case "landmark":
         // 選択されたランドマークタイプに応じて設置
         switch (this.state.selectedLandmark) {
-          case 'stadium':
+          case "stadium":
             tileType = TileType.LANDMARK_STADIUM;
             break;
-          case 'airport':
+          case "airport":
             tileType = TileType.LANDMARK_AIRPORT;
             break;
           default:
@@ -255,14 +269,18 @@ export class GameEngine {
     if (tileType !== null) {
       // 建物のサイズを取得
       const size = BUILDING_SIZES[tileType] || { width: 1, height: 1 };
-      
+
       // 建物を配置可能か確認（複数マス占有対応）
       for (let dy = 0; dy < size.height; dy++) {
         for (let dx = 0; dx < size.width; dx++) {
           const nx = x + dx;
           const ny = y + dy;
-          if (nx >= this.gridSize || ny >= this.gridSize || this.state.map[ny][nx] !== TileType.EMPTY) {
-            console.log('❌ Not enough space for', tileType);
+          if (
+            nx >= this.gridSize ||
+            ny >= this.gridSize ||
+            this.state.map[ny][nx] !== TileType.EMPTY
+          ) {
+            console.log("❌ Not enough space for", tileType);
             return false;
           }
         }
@@ -277,17 +295,28 @@ export class GameEngine {
         }
       }
 
-      console.log('✅ Building placed, tileType:', tileType, 'size:', size, 'mode:', this.state.buildMode, 'infrastructure:', this.state.selectedInfrastructure, 'landmark:', this.state.selectedLandmark);
+      console.log(
+        "✅ Building placed, tileType:",
+        tileType,
+        "size:",
+        size,
+        "mode:",
+        this.state.buildMode,
+        "infrastructure:",
+        this.state.selectedInfrastructure,
+        "landmark:",
+        this.state.selectedLandmark,
+      );
       this.state.money -= cost;
       return true;
     }
 
-    console.log('❌ tileType is null');
+    console.log("❌ tileType is null");
     return false;
   }
 
   private getCost(mode: BuildingCategory): number {
-    if (mode === 'infrastructure') {
+    if (mode === "infrastructure") {
       // 選択されたインフラのコストを返す
       const costs: Record<string, number> = {
         station: 5000,
@@ -300,7 +329,7 @@ export class GameEngine {
         water_treatment: 12000,
       };
       return costs[this.state.selectedInfrastructure] || 5000;
-    } else if (mode === 'landmark') {
+    } else if (mode === "landmark") {
       // 選択されたランドマークのコストを返す
       const costs: Record<string, number> = {
         stadium: 50000,
@@ -322,11 +351,22 @@ export class GameEngine {
 
   // 隣接判定
   private hasAdjacent(x: number, y: number, condition: (tile: number) => boolean): boolean {
-    const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+    const dirs = [
+      [1, 0],
+      [-1, 0],
+      [0, 1],
+      [0, -1],
+    ];
     return dirs.some(([dx, dy]) => {
       const nx = x + dx;
       const ny = y + dy;
-      return nx >= 0 && ny >= 0 && nx < this.gridSize && ny < this.gridSize && condition(this.state.map[ny][nx]);
+      return (
+        nx >= 0 &&
+        ny >= 0 &&
+        nx < this.gridSize &&
+        ny < this.gridSize &&
+        condition(this.state.map[ny][nx])
+      );
     });
   }
 
@@ -337,7 +377,13 @@ export class GameEngine {
       for (let xx = -4; xx <= 4; xx++) {
         const nx = x + xx;
         const ny = y + yy;
-        if (nx >= 0 && ny >= 0 && nx < this.gridSize && ny < this.gridSize && this.state.map[ny][nx] === TileType.STATION) {
+        if (
+          nx >= 0 &&
+          ny >= 0 &&
+          nx < this.gridSize &&
+          ny < this.gridSize &&
+          this.state.map[ny][nx] === TileType.STATION
+        ) {
           boost = 1.5;
         }
       }
@@ -359,7 +405,7 @@ export class GameEngine {
       for (let y = 0; y < this.gridSize; y++) {
         for (let x = 0; x < this.gridSize; x++) {
           const bias = this.centerBias(x, y) * this.stationBoost(x, y);
-          
+
           // ローカルペナルティを計算（電力・給水供給があるか）
           let localPenalty = this.state.growthPenalty;
           if (!this.state.powerGrid[y][x]) localPenalty *= 0.6; // 電力なし：60%に低下
@@ -370,31 +416,38 @@ export class GameEngine {
           if (tile >= TileType.RESIDENTIAL_L1 && tile <= TileType.RESIDENTIAL_L4) {
             // 住宅地：需要が高いほどボーナス、低いほどペナルティ
             if (this.state.residentialDemand > 50) {
-              localPenalty *= (1 + (this.state.residentialDemand - 50) * 0.006); // 最大 +30%
+              localPenalty *= 1 + (this.state.residentialDemand - 50) * 0.006; // 最大 +30%
             } else if (this.state.residentialDemand < 10) {
               localPenalty *= 0.7; // -30%
             }
           } else if (tile >= TileType.COMMERCIAL_L1 && tile <= TileType.COMMERCIAL_L4) {
             // 商業地：需要が高いほどボーナス
             if (this.state.commercialDemand > 50) {
-              localPenalty *= (1 + (this.state.commercialDemand - 50) * 0.006);
+              localPenalty *= 1 + (this.state.commercialDemand - 50) * 0.006;
             } else if (this.state.commercialDemand < 10) {
               localPenalty *= 0.7;
             }
           } else if (tile >= TileType.INDUSTRIAL_L1 && tile <= TileType.INDUSTRIAL_L4) {
             // 工業地：需要が高いほどボーナス
             if (this.state.industrialDemand > 50) {
-              localPenalty *= (1 + (this.state.industrialDemand - 50) * 0.006);
+              localPenalty *= 1 + (this.state.industrialDemand - 50) * 0.006;
             } else if (this.state.industrialDemand < 10) {
               localPenalty *= 0.7;
             }
           }
 
           // 新規建設（道路隣接）
-          if (this.state.map[y][x] === TileType.EMPTY && this.hasAdjacent(x, y, (t) => t === TileType.ROAD)) {
+          if (
+            this.state.map[y][x] === TileType.EMPTY &&
+            this.hasAdjacent(x, y, (t) => t === TileType.ROAD)
+          ) {
             // 新規建設は全ゾーン需要の平均を参照
             let demandBonus = 1.0;
-            const avgDemand = (this.state.residentialDemand + this.state.commercialDemand + this.state.industrialDemand) / 3;
+            const avgDemand =
+              (this.state.residentialDemand +
+                this.state.commercialDemand +
+                this.state.industrialDemand) /
+              3;
             if (avgDemand > 50) {
               demandBonus = 1 + (avgDemand - 50) * 0.006;
             } else if (avgDemand < 10) {
@@ -406,9 +459,16 @@ export class GameEngine {
           }
 
           // 波及建設（0.2倍）- 他の建物に隣接していても成長
-          if (this.state.map[y][x] === TileType.EMPTY && this.hasAdjacent(x, y, (t) => t >= 1 && t <= 24)) {
+          if (
+            this.state.map[y][x] === TileType.EMPTY &&
+            this.hasAdjacent(x, y, (t) => t >= 1 && t <= 24)
+          ) {
             let demandBonus = 1.0;
-            const avgDemand = (this.state.residentialDemand + this.state.commercialDemand + this.state.industrialDemand) / 3;
+            const avgDemand =
+              (this.state.residentialDemand +
+                this.state.commercialDemand +
+                this.state.industrialDemand) /
+              3;
             if (avgDemand > 50) {
               demandBonus = 1 + (avgDemand - 50) * 0.006;
             } else if (avgDemand < 10) {
@@ -420,21 +480,30 @@ export class GameEngine {
           }
 
           // 高層化（最大Lv4）- 住宅のみ
-          if (this.state.map[y][x] >= TileType.RESIDENTIAL_L1 && this.state.map[y][x] < TileType.RESIDENTIAL_L4) {
+          if (
+            this.state.map[y][x] >= TileType.RESIDENTIAL_L1 &&
+            this.state.map[y][x] < TileType.RESIDENTIAL_L4
+          ) {
             if (Math.random() < this.growthRate * 0.4 * bias * localPenalty) {
               this.state.map[y][x]++;
             }
           }
 
           // 商業地の高層化
-          if (this.state.map[y][x] >= TileType.COMMERCIAL_L1 && this.state.map[y][x] < TileType.COMMERCIAL_L4) {
+          if (
+            this.state.map[y][x] >= TileType.COMMERCIAL_L1 &&
+            this.state.map[y][x] < TileType.COMMERCIAL_L4
+          ) {
             if (Math.random() < this.growthRate * 0.4 * bias * localPenalty) {
               this.state.map[y][x]++;
             }
           }
 
           // 工業地の高層化
-          if (this.state.map[y][x] >= TileType.INDUSTRIAL_L1 && this.state.map[y][x] < TileType.INDUSTRIAL_L4) {
+          if (
+            this.state.map[y][x] >= TileType.INDUSTRIAL_L1 &&
+            this.state.map[y][x] < TileType.INDUSTRIAL_L4
+          ) {
             if (Math.random() < this.growthRate * 0.4 * bias * localPenalty) {
               this.state.map[y][x]++;
             }
@@ -450,7 +519,7 @@ export class GameEngine {
 
     // インフラシステム更新
     this.updateInfrastructure();
-    
+
     // 災害処理
     this.updateDisasters();
 
@@ -477,22 +546,22 @@ export class GameEngine {
 
     // ペナルティを税収に適用
     revenue *= this.state.revenuePenalty;
-    
+
     // 教育度が高いと税収ボーナス（educationLevel >= 60 で +15%、さらに高いほどボーナス）
     if (this.state.educationLevel >= 60) {
-      const educationBonus = 0.15 + ((this.state.educationLevel - 60) * 0.0025); // 最大 +15% + (40 * 0.0025) = +16%
-      revenue *= (1 + educationBonus);
+      const educationBonus = 0.15 + (this.state.educationLevel - 60) * 0.0025; // 最大 +15% + (40 * 0.0025) = +16%
+      revenue *= 1 + educationBonus;
     }
-    
+
     // 観光度が商業収入に反映（観光度が高いほど商業地収入が増加）
     if (this.state.tourismLevel > 0 || this.state.internationalLevel > 0) {
-      const tourismBonus = (this.state.tourismLevel * 0.01) + (this.state.internationalLevel * 0.01);
-      revenue *= (1 + tourismBonus);
+      const tourismBonus = this.state.tourismLevel * 0.01 + this.state.internationalLevel * 0.01;
+      revenue *= 1 + tourismBonus;
     }
-    
+
     // ランドマーク商業ボーナス（スタジアム・空港周辺商業地への観光収入）
     revenue += this.calculateLandmarkCommercialBonus();
-    
+
     // サンドボックスモードでない場合のみ維持費を適用
     if (!this.state.settings.sandbox) {
       // 難易度に応じた維持費倍率を適用
@@ -502,12 +571,12 @@ export class GameEngine {
       // サンドボックスモード：税収のみ加算、維持費なし
       this.state.money += revenue;
     }
-    
+
     this.state.month++;
 
     // 破産判定（サンドボックスモードでは破産しない）
     if (!this.state.settings.sandbox && this.state.money < 0) {
-      alert('資金がなくなりました！ゲームオーバーです');
+      alert("資金がなくなりました！ゲームオーバーです");
       this.reset();
     }
   }
@@ -529,31 +598,31 @@ export class GameEngine {
     for (let y = 0; y < this.gridSize; y++) {
       for (let x = 0; x < this.gridSize; x++) {
         const tile = this.state.map[y][x];
-        
+
         // 警察署の効果
         if (tile === TileType.POLICE) {
-          this.applyEffectRadius(x, y, 30, 'security', 5);
+          this.applyEffectRadius(x, y, 30, "security", 5);
         }
         // 消防署の効果
         if (tile === TileType.FIRE_STATION) {
-          this.applyEffectRadius(x, y, 30, 'safety', 5);
+          this.applyEffectRadius(x, y, 30, "safety", 5);
         }
         // 学校の効果
         if (tile === TileType.SCHOOL) {
-          this.applyEffectRadius(x, y, 25, 'education', 3);
+          this.applyEffectRadius(x, y, 25, "education", 3);
         }
         // 病院の効果
         if (tile === TileType.HOSPITAL) {
-          this.applyEffectRadius(x, y, 25, 'medical', 4);
+          this.applyEffectRadius(x, y, 25, "medical", 4);
         }
         // スタジアムの効果
         if (tile === TileType.LANDMARK_STADIUM) {
-          this.applyEffectRadius(x, y, 40, 'tourism', 5);
+          this.applyEffectRadius(x, y, 40, "tourism", 5);
         }
         // 空港の効果
         if (tile === TileType.LANDMARK_AIRPORT) {
-          this.applyEffectRadius(x, y, 50, 'tourism', 3);
-          this.applyEffectRadius(x, y, 50, 'international', 5);
+          this.applyEffectRadius(x, y, 50, "tourism", 3);
+          this.applyEffectRadius(x, y, 50, "international", 5);
         }
       }
     }
@@ -577,29 +646,43 @@ export class GameEngine {
   }
 
   // 半径内に効果を適用
-  private applyEffectRadius(centerX: number, centerY: number, radius: number, effectType: string, value: number): void {
-    for (let y = Math.max(0, centerY - radius); y < Math.min(this.gridSize, centerY + radius); y++) {
-      for (let x = Math.max(0, centerX - radius); x < Math.min(this.gridSize, centerX + radius); x++) {
+  private applyEffectRadius(
+    centerX: number,
+    centerY: number,
+    radius: number,
+    effectType: string,
+    value: number,
+  ): void {
+    for (
+      let y = Math.max(0, centerY - radius);
+      y < Math.min(this.gridSize, centerY + radius);
+      y++
+    ) {
+      for (
+        let x = Math.max(0, centerX - radius);
+        x < Math.min(this.gridSize, centerX + radius);
+        x++
+      ) {
         const dist = Math.abs(x - centerX) + Math.abs(y - centerY); // マンハッタン距離
         if (dist <= radius) {
           const factor = 1 - (dist / radius) * 0.3; // 距離に応じて効果を減衰
           switch (effectType) {
-            case 'security':
+            case "security":
               this.state.securityLevel += value * factor;
               break;
-            case 'safety':
+            case "safety":
               this.state.safetyLevel += value * factor;
               break;
-            case 'education':
+            case "education":
               this.state.educationLevel += value * factor;
               break;
-            case 'medical':
+            case "medical":
               this.state.medicalLevel += value * factor;
               break;
-            case 'tourism':
+            case "tourism":
               this.state.tourismLevel += value * factor;
               break;
-            case 'international':
+            case "international":
               this.state.internationalLevel += value * factor;
               break;
           }
@@ -617,12 +700,12 @@ export class GameEngine {
     for (let y = 0; y < this.gridSize; y++) {
       for (let x = 0; x < this.gridSize; x++) {
         const tile = this.state.map[y][x];
-        
+
         // インフラ以外の建物をカウント
         if (tile !== TileType.EMPTY && tile < 0) continue;
         if (tile > 0) {
           totalBuildings++;
-          
+
           // 電力供給チェック
           if (this.state.powerGrid[y][x]) powerSupplied++;
           // 給水チェック
@@ -645,12 +728,12 @@ export class GameEngine {
     for (let y = 0; y < this.gridSize; y++) {
       for (let x = 0; x < this.gridSize; x++) {
         const tile = this.state.map[y][x];
-        
+
         // インフラ以外の建物のみカウント
         if (tile !== TileType.EMPTY && tile < 0) continue;
         if (tile !== TileType.EMPTY && tile > 0) {
           totalBuildable++;
-          
+
           if (tile >= TileType.RESIDENTIAL_L1 && tile <= TileType.RESIDENTIAL_L4) {
             residentialCount++;
           } else if (tile >= TileType.COMMERCIAL_L1 && tile <= TileType.COMMERCIAL_L4) {
@@ -689,7 +772,12 @@ export class GameEngine {
   // シナジー効果の計算
   private applySynergyEffects(): void {
     // 施設の位置を取得
-    const facilities = { police: [], school: [], hospital: [], station: [] };
+    const facilities: {
+      police: { x: number; y: number }[];
+      school: { x: number; y: number }[];
+      hospital: { x: number; y: number }[];
+      station: { x: number; y: number }[];
+    } = { police: [], school: [], hospital: [], station: [] };
 
     for (let y = 0; y < this.gridSize; y++) {
       for (let x = 0; x < this.gridSize; x++) {
@@ -767,7 +855,7 @@ export class GameEngine {
         for (let x = 0; x < this.gridSize; x++) {
           const tile = this.state.map[y][x];
           const dist = Math.abs(x - stadium.x) + Math.abs(y - stadium.y);
-          
+
           // スタジアムから40マス以内の商業地
           if (dist <= 40 && tile >= TileType.COMMERCIAL_L1 && tile <= TileType.COMMERCIAL_L4) {
             const level = tile - TileType.COMMERCIAL_L1 + 1; // 1～4
@@ -784,7 +872,7 @@ export class GameEngine {
         for (let x = 0; x < this.gridSize; x++) {
           const tile = this.state.map[y][x];
           const dist = Math.abs(x - airport.x) + Math.abs(y - airport.y);
-          
+
           // 空港から50マス以内の商業地
           if (dist <= 50 && tile >= TileType.COMMERCIAL_L1 && tile <= TileType.COMMERCIAL_L4) {
             const level = tile - TileType.COMMERCIAL_L1 + 1; // 1～4
@@ -823,28 +911,46 @@ export class GameEngine {
     const population = this.state.population;
 
     // 必要インフラ数を計算
-    const requiredPolice = Math.max(INFRASTRUCTURE_REQUIREMENTS.police.base, Math.ceil(population / INFRASTRUCTURE_REQUIREMENTS.police.populationPerUnit));
-    const requiredFire = Math.max(INFRASTRUCTURE_REQUIREMENTS.fire_station.base, Math.ceil(population / INFRASTRUCTURE_REQUIREMENTS.fire_station.populationPerUnit));
-    const requiredSchool = Math.max(INFRASTRUCTURE_REQUIREMENTS.school.base, Math.ceil(population / INFRASTRUCTURE_REQUIREMENTS.school.populationPerUnit));
-    const requiredHospital = Math.max(INFRASTRUCTURE_REQUIREMENTS.hospital.base, Math.ceil(population / INFRASTRUCTURE_REQUIREMENTS.hospital.populationPerUnit));
-    const requiredPower = Math.max(INFRASTRUCTURE_REQUIREMENTS.power_plant.base, Math.ceil(population / INFRASTRUCTURE_REQUIREMENTS.power_plant.populationPerUnit));
-    const requiredWater = Math.max(INFRASTRUCTURE_REQUIREMENTS.water_treatment.base, Math.ceil(population / INFRASTRUCTURE_REQUIREMENTS.water_treatment.populationPerUnit));
+    const requiredPolice = Math.max(
+      INFRASTRUCTURE_REQUIREMENTS.police.base,
+      Math.ceil(population / INFRASTRUCTURE_REQUIREMENTS.police.populationPerUnit),
+    );
+    const requiredFire = Math.max(
+      INFRASTRUCTURE_REQUIREMENTS.fire_station.base,
+      Math.ceil(population / INFRASTRUCTURE_REQUIREMENTS.fire_station.populationPerUnit),
+    );
+    const requiredSchool = Math.max(
+      INFRASTRUCTURE_REQUIREMENTS.school.base,
+      Math.ceil(population / INFRASTRUCTURE_REQUIREMENTS.school.populationPerUnit),
+    );
+    const requiredHospital = Math.max(
+      INFRASTRUCTURE_REQUIREMENTS.hospital.base,
+      Math.ceil(population / INFRASTRUCTURE_REQUIREMENTS.hospital.populationPerUnit),
+    );
+    const requiredPower = Math.max(
+      INFRASTRUCTURE_REQUIREMENTS.power_plant.base,
+      Math.ceil(population / INFRASTRUCTURE_REQUIREMENTS.power_plant.populationPerUnit),
+    );
+    const requiredWater = Math.max(
+      INFRASTRUCTURE_REQUIREMENTS.water_treatment.base,
+      Math.ceil(population / INFRASTRUCTURE_REQUIREMENTS.water_treatment.populationPerUnit),
+    );
 
     // 人口に対するインフラ不足率を計算
-    const policeDeficit = Math.max(0, 1 - (policeCount / requiredPolice));
-    const fireDeficit = Math.max(0, 1 - (fireCount / requiredFire));
-    const schoolDeficit = Math.max(0, 1 - (schoolCount / requiredSchool));
-    const hospitalDeficit = Math.max(0, 1 - (hospitalCount / requiredHospital));
-    const powerDeficit = Math.max(0, 1 - (powerCount / requiredPower));
-    const waterDeficit = Math.max(0, 1 - (waterCount / requiredWater));
+    const policeDeficit = Math.max(0, 1 - policeCount / requiredPolice);
+    const fireDeficit = Math.max(0, 1 - fireCount / requiredFire);
+    const schoolDeficit = Math.max(0, 1 - schoolCount / requiredSchool);
+    const hospitalDeficit = Math.max(0, 1 - hospitalCount / requiredHospital);
+    const powerDeficit = Math.max(0, 1 - powerCount / requiredPower);
+    const waterDeficit = Math.max(0, 1 - waterCount / requiredWater);
 
     // パラメータを不足率に応じて減衰
-    this.state.securityLevel *= (1 - policeDeficit * 0.5);    // 不足で最大50%低下
-    this.state.safetyLevel *= (1 - fireDeficit * 0.5);
-    this.state.educationLevel *= (1 - schoolDeficit * 0.5);
-    this.state.medicalLevel *= (1 - hospitalDeficit * 0.5);
-    this.state.powerSupplyRate *= (1 - powerDeficit * 0.3);   // 電力供給率低下
-    this.state.waterSupplyRate *= (1 - waterDeficit * 0.3);
+    this.state.securityLevel *= 1 - policeDeficit * 0.5; // 不足で最大50%低下
+    this.state.safetyLevel *= 1 - fireDeficit * 0.5;
+    this.state.educationLevel *= 1 - schoolDeficit * 0.5;
+    this.state.medicalLevel *= 1 - hospitalDeficit * 0.5;
+    this.state.powerSupplyRate *= 1 - powerDeficit * 0.3; // 電力供給率低下
+    this.state.waterSupplyRate *= 1 - waterDeficit * 0.3;
   }
 
   // インフラ不足ペナルティ計算
@@ -864,7 +970,7 @@ export class GameEngine {
       const shortage = (50 - this.state.waterSupplyRate) / 50;
       growthPenalty *= Math.max(0.3, 1 - shortage * 0.7); // 最大70%低下
       revenuePenalty *= Math.max(0.7, 1 - shortage * 0.3); // 最大30%低下
-      
+
       // 給水不足で病気発生倍率が3倍
       for (let y = 0; y < this.gridSize; y++) {
         for (let x = 0; x < this.gridSize; x++) {
@@ -884,11 +990,11 @@ export class GameEngine {
     // 安全度不足ペナルティ（火災増加）
     if (this.state.safetyLevel < 40) {
       const deficit = (40 - this.state.safetyLevel) / 40;
-      // 火災発生確率を2倍に
+      // 火災発生確率をdeficitに応じて増加（最大2倍）
       for (let y = 0; y < this.gridSize; y++) {
         for (let x = 0; x < this.gridSize; x++) {
           if (this.state.fireMap[y][x] > 0) {
-            this.state.fireMap[y][x] = Math.min(10, this.state.fireMap[y][x] * 1.2);
+            this.state.fireMap[y][x] = Math.min(10, this.state.fireMap[y][x] * (1 + deficit));
           }
         }
       }
@@ -904,11 +1010,14 @@ export class GameEngine {
     // 医療度不足ペナルティ（病気増加、人口流出）
     if (this.state.medicalLevel < 40) {
       const deficit = (40 - this.state.medicalLevel) / 40;
-      // 病気発生倍率が2倍
+      // 病気発生倍率がdeficitに応じて増加（最大1.5倍）
       for (let y = 0; y < this.gridSize; y++) {
         for (let x = 0; x < this.gridSize; x++) {
           if (this.state.diseaseMap[y][x] > 0) {
-            this.state.diseaseMap[y][x] = Math.min(10, this.state.diseaseMap[y][x] * 1.15);
+            this.state.diseaseMap[y][x] = Math.min(
+              10,
+              this.state.diseaseMap[y][x] * (1 + deficit * 0.5),
+            );
           }
         }
       }
@@ -958,7 +1067,7 @@ export class GameEngine {
     const transportScore = Math.min(stationCount * 5, 100);
 
     // 3. 人口密度スコア（過密を避ける）
-    const densityScore = Math.max(0, 100 - (this.state.population / 50));
+    const densityScore = Math.max(0, 100 - this.state.population / 50);
 
     // 4. 資金状況反映
     const fundScore = Math.min((this.state.money / 250000) * 100, 100);
@@ -992,10 +1101,10 @@ export class GameEngine {
       comfort: 50,
       month: 0,
       paused: false,
-      buildMode: 'road',
+      buildMode: "road",
       gridSize: this.gridSize,
-      selectedInfrastructure: 'station',
-      selectedLandmark: 'stadium',
+      selectedInfrastructure: "station",
+      selectedLandmark: "stadium",
       gameSpeed: 1,
       powerGrid: Array.from({ length: this.gridSize }, () => Array(this.gridSize).fill(false)),
       waterGrid: Array.from({ length: this.gridSize }, () => Array(this.gridSize).fill(false)),
@@ -1134,7 +1243,7 @@ export class GameEngine {
 
     // 全体汚染度を計算
     const totalCells = this.gridSize * this.gridSize;
-    const pollutedCells = this.state.pollutionMap.flat().filter(p => p > 0).length;
+    const pollutedCells = this.state.pollutionMap.flat().filter((p) => p > 0).length;
     this.state.pollutionLevel = Math.round((pollutedCells / totalCells) * 100);
 
     // 汚染が高いと快適度低下（基準を緩和）
@@ -1171,7 +1280,12 @@ export class GameEngine {
           localPollution /= 121;
 
           // スラム化条件：高汚染＋低治安＋近くのスラム
-          const slumChance = 0.01 * (localPollution / 100) * (1 - localSecurity / 100) * (1 + localSlum / 10) * this.state.gameSpeed;
+          const slumChance =
+            0.01 *
+            (localPollution / 100) *
+            (1 - localSecurity / 100) *
+            (1 + localSlum / 10) *
+            this.state.gameSpeed;
           if (Math.random() < slumChance) {
             this.state.slumMap[y][x] = Math.min(10, this.state.slumMap[y][x] + 1);
           }
@@ -1192,7 +1306,7 @@ export class GameEngine {
     }
 
     // 全体スラム化率を計算
-    const slummedCells = this.state.slumMap.flat().filter(s => s > 0).length;
+    const slummedCells = this.state.slumMap.flat().filter((s) => s > 0).length;
     this.state.slumRate = Math.round((slummedCells / (this.gridSize * this.gridSize)) * 100);
 
     // スラム化が高いと快適度低下・人口流出
@@ -1201,7 +1315,7 @@ export class GameEngine {
       this.state.population *= 0.98;
     }
     if (this.state.slumRate > 20) {
-      this.state.comfort *= 0.90;
+      this.state.comfort *= 0.9;
       this.state.population *= 0.95;
     }
   }
@@ -1210,7 +1324,7 @@ export class GameEngine {
     // 難易度に応じた火災発生率を調整
     const fireChance = 0.0002 * this.state.gameSpeed * this.disasterRateMultiplier;
     const sampleRate = Math.max(1, Math.floor(this.gridSize / 64));
-    
+
     for (let y = 0; y < this.gridSize; y += sampleRate) {
       for (let x = 0; x < this.gridSize; x += sampleRate) {
         if (this.state.map[y][x] !== TileType.EMPTY && Math.random() < fireChance) {
@@ -1220,17 +1334,23 @@ export class GameEngine {
     }
 
     // 火災の波及（アクティブな火災のみ処理）
-    const newFireMap = this.state.fireMap.map(row => [...row]);
+    const newFireMap = this.state.fireMap.map((row) => [...row]);
     for (let y = 0; y < this.gridSize; y++) {
       for (let x = 0; x < this.gridSize; x++) {
         if (this.state.fireMap[y][x] > 0) {
           // 隣接タイルに波及
-          const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+          const dirs = [
+            [1, 0],
+            [-1, 0],
+            [0, 1],
+            [0, -1],
+          ];
           dirs.forEach(([dx, dy]) => {
             const nx = x + dx;
             const ny = y + dy;
             if (nx >= 0 && ny >= 0 && nx < this.gridSize && ny < this.gridSize) {
-              if (this.state.map[ny][nx] !== TileType.EMPTY && Math.random() < 0.01) { // 0.02 → 0.01
+              if (this.state.map[ny][nx] !== TileType.EMPTY && Math.random() < 0.01) {
+                // 0.02 → 0.01
                 newFireMap[ny][nx] = Math.min(10, newFireMap[ny][nx] + 1);
               }
             }
@@ -1272,11 +1392,12 @@ export class GameEngine {
   private updateDiseases(): void {
     // 難易度に応じた病気発生率を調整
     const sampleRate = Math.max(1, Math.floor(this.gridSize / 64));
-    
+
     for (let y = 0; y < this.gridSize; y += sampleRate) {
       for (let x = 0; x < this.gridSize; x += sampleRate) {
         const density = this.getLocalDensity(x, y);
-        const diseaseChance = 0.01 * (1 + density / 10) * this.state.gameSpeed * this.disasterRateMultiplier;
+        const diseaseChance =
+          0.01 * (1 + density / 10) * this.state.gameSpeed * this.disasterRateMultiplier;
         if (this.state.map[y][x] !== TileType.EMPTY && Math.random() < diseaseChance) {
           this.state.diseaseMap[y][x] = Math.min(10, this.state.diseaseMap[y][x] + 5);
         }
@@ -1284,7 +1405,7 @@ export class GameEngine {
     }
 
     // 病気の波及（アクティブな病気のみ処理）
-    const newDiseaseMap = this.state.diseaseMap.map(row => [...row]);
+    const newDiseaseMap = this.state.diseaseMap.map((row) => [...row]);
     for (let y = 0; y < this.gridSize; y++) {
       for (let x = 0; x < this.gridSize; x++) {
         if (this.state.diseaseMap[y][x] > 0) {

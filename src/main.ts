@@ -1,33 +1,33 @@
-import './style.css';
-import { GameEngine, GameSettings } from './engine';
-import { Renderer } from './renderer';
-import { StorageManager } from './storage';
-import { UIManager } from './ui';
-import { MapSize, setMapSize, getCanvasSize, getTileSize, GAME_VERSION } from './constants';
+import "./style.css";
+import { GameEngine, GameSettings } from "./engine";
+import { Renderer } from "./renderer";
+import { StorageManager } from "./storage";
+import { UIManager } from "./ui";
+import { setMapSize, getCanvasSize, getTileSize, GAME_VERSION } from "./constants";
 
 // ページタイトルを動的に更新
 document.title = `Easy Cities 2D (ver.${GAME_VERSION})`;
-const titleElement = document.getElementById('app-title');
+const titleElement = document.getElementById("app-title");
 if (titleElement) {
   titleElement.textContent = `Easy Cities 2D (ver.${GAME_VERSION})`;
 }
 
 console.log(`🎮 Easy Cities 2D (ver.${GAME_VERSION}) - Initializing...`);
 
-const canvas = document.getElementById('gameCanvas') as HTMLCanvasElement;
+const canvas = document.getElementById("gameCanvas") as HTMLCanvasElement;
 if (!canvas) {
-  console.error('❌ Canvas element not found!');
-  throw new Error('Canvas element not found');
+  console.error("❌ Canvas element not found!");
+  throw new Error("Canvas element not found");
 }
 
-console.log('✅ Canvas found:', canvas);
+console.log("✅ Canvas found:", canvas);
 
 // ゲーム開始前の設定画面
 function showInitialSettings(): Promise<GameSettings> {
   return new Promise((resolve) => {
-    const modal = document.createElement('div');
-    modal.className = 'modal';
-    modal.style.zIndex = '10000';
+    const modal = document.createElement("div");
+    modal.className = "modal";
+    modal.style.zIndex = "10000";
     modal.innerHTML = `
       <div class="modal-content" style="min-width: min(450px, 90vw);">
         <h2>🎮 Easy Cities 2D (ver.${GAME_VERSION})</h2>
@@ -63,16 +63,22 @@ function showInitialSettings(): Promise<GameSettings> {
 
     document.body.appendChild(modal);
 
-    document.getElementById('btn-start-game')?.addEventListener('click', () => {
-      const mapSize = (document.querySelector('input[name="mapsize"]:checked') as HTMLInputElement)?.value || 'medium';
-      const difficulty = (document.querySelector('input[name="difficulty"]:checked') as HTMLInputElement)?.value || 'normal';
+    document.getElementById("btn-start-game")?.addEventListener("click", () => {
+      const mapSize =
+        (document.querySelector('input[name="mapsize"]:checked') as HTMLInputElement)?.value ||
+        "medium";
+      const difficulty =
+        (document.querySelector('input[name="difficulty"]:checked') as HTMLInputElement)?.value ||
+        "normal";
       const settings: GameSettings = {
         mapSize: mapSize as any,
         difficulty: difficulty as any,
-        sandbox: (document.getElementById('init-sandbox') as HTMLInputElement)?.checked || false,
-        disastersEnabled: (document.getElementById('init-disasters') as HTMLInputElement)?.checked || false,
-        pollutionEnabled: (document.getElementById('init-pollution') as HTMLInputElement)?.checked || false,
-        slumEnabled: (document.getElementById('init-slum') as HTMLInputElement)?.checked || false,
+        sandbox: (document.getElementById("init-sandbox") as HTMLInputElement)?.checked || false,
+        disastersEnabled:
+          (document.getElementById("init-disasters") as HTMLInputElement)?.checked || false,
+        pollutionEnabled:
+          (document.getElementById("init-pollution") as HTMLInputElement)?.checked || false,
+        slumEnabled: (document.getElementById("init-slum") as HTMLInputElement)?.checked || false,
       };
       modal.remove();
       resolve(settings);
@@ -81,7 +87,12 @@ function showInitialSettings(): Promise<GameSettings> {
 }
 
 // Bresenhamのラインアルゴリズム: 2点間の直線上のタイルを取得
-function bresenhamLine(x0: number, y0: number, x1: number, y1: number): Array<{ x: number; y: number }> {
+function bresenhamLine(
+  x0: number,
+  y0: number,
+  x1: number,
+  y1: number,
+): Array<{ x: number; y: number }> {
   const points: Array<{ x: number; y: number }> = [];
   const dx = Math.abs(x1 - x0);
   const dy = Math.abs(y1 - y0);
@@ -132,7 +143,7 @@ async function initializeGame(): Promise<void> {
     const storage = new StorageManager();
     const uiManager = new UIManager(engine, storage);
 
-    console.log('✅ Game engine initialized with settings:', settings);
+    console.log("✅ Game engine initialized with settings:", settings);
 
     let monthCounter = 0;
     let isMouseDown = false;
@@ -146,7 +157,7 @@ async function initializeGame(): Promise<void> {
     // 'idle': 何もしていない
     // 'building': 1本指で建設中
     // 'panning': 2本指でパン・ピンチ中
-    let touchMode: 'idle' | 'building' | 'panning' = 'idle';
+    let touchMode: "idle" | "building" | "panning" = "idle";
     let pinchLastDist = 0;
 
     // ゲームループ
@@ -176,13 +187,16 @@ async function initializeGame(): Promise<void> {
 
         requestAnimationFrame(gameLoop);
       } catch (e) {
-        console.error('❌ Game loop error:', e);
+        console.error("❌ Game loop error:", e);
       }
     }
 
     // スクリーン座標を取得（マウス/タッチ両対応）
-    function getClientCoordinates(e: MouseEvent | TouchEvent): { clientX: number; clientY: number } {
-      if ('touches' in e && e.touches.length > 0) {
+    function getClientCoordinates(e: MouseEvent | TouchEvent): {
+      clientX: number;
+      clientY: number;
+    } {
+      if ("touches" in e && e.touches.length > 0) {
         return { clientX: e.touches[0].clientX, clientY: e.touches[0].clientY };
       } else if (e instanceof MouseEvent) {
         return { clientX: e.clientX, clientY: e.clientY };
@@ -229,18 +243,22 @@ async function initializeGame(): Promise<void> {
         if (x >= 0 && x < gridSize && y >= 0 && y < gridSize) {
           if (engine.build(x, y)) {
             uiManager.updateDisplay();
-          } else if (engine.state.buildMode === 'demolish') {
+          } else if (engine.state.buildMode === "demolish") {
             engine.build(x, y);
             uiManager.updateDisplay();
           }
         }
       } catch (e) {
-        console.error('❌ Build error:', e);
+        console.error("❌ Build error:", e);
       }
     }
 
     // ポインターダウン処理（マウス用）
-    function handlePointerDown(clientX: number, clientY: number, isRightClick: boolean = false): void {
+    function handlePointerDown(
+      clientX: number,
+      clientY: number,
+      isRightClick: boolean = false,
+    ): void {
       isMouseDown = true;
       dragStartX = clientX;
       dragStartY = clientY;
@@ -270,7 +288,7 @@ async function initializeGame(): Promise<void> {
         renderer.cameraOffsetX = lastCameraOffsetX + deltaX;
         renderer.cameraOffsetY = lastCameraOffsetY + deltaY;
         clampCamera();
-      } else if (isMouseDown && engine.state.buildMode !== 'demolish') {
+      } else if (isMouseDown && engine.state.buildMode !== "demolish") {
         // 左ドラッグ: 線を引いて敷設
         const currentScreenX = (clientX - rect.left) * scaleX;
         const currentScreenY = (clientY - rect.top) * scaleY;
@@ -307,23 +325,23 @@ async function initializeGame(): Promise<void> {
     }
 
     // マウスイベント
-    canvas.addEventListener('mousedown', (e) => {
+    canvas.addEventListener("mousedown", (e) => {
       const coords = getClientCoordinates(e);
       handlePointerDown(coords.clientX, coords.clientY, e.button === 2);
       e.preventDefault();
     });
 
-    canvas.addEventListener('mousemove', (e) => {
+    canvas.addEventListener("mousemove", (e) => {
       const coords = getClientCoordinates(e);
       handlePointerMove(coords.clientX, coords.clientY);
       e.preventDefault();
     });
 
-    canvas.addEventListener('mouseup', (e) => {
+    canvas.addEventListener("mouseup", () => {
       handlePointerUp();
     });
 
-    canvas.addEventListener('mouseleave', () => {
+    canvas.addEventListener("mouseleave", () => {
       handlePointerUp();
     });
 
@@ -335,7 +353,7 @@ async function initializeGame(): Promise<void> {
     function getTouchDist(touches: TouchList): number {
       return Math.hypot(
         touches[1].clientX - touches[0].clientX,
-        touches[1].clientY - touches[0].clientY
+        touches[1].clientY - touches[0].clientY,
       );
     }
 
@@ -346,184 +364,202 @@ async function initializeGame(): Promise<void> {
       };
     }
 
-    canvas.addEventListener('touchstart', (e) => {
-      e.preventDefault();
+    canvas.addEventListener(
+      "touchstart",
+      (e) => {
+        e.preventDefault();
 
-      if (e.touches.length === 1) {
-        // 1本指: 建設モード開始
-        touchMode = 'building';
-        const touch = e.touches[0];
-        isMouseDown = true;
-        dragStartX = touch.clientX;
-        dragStartY = touch.clientY;
-        lastCameraOffsetX = renderer.cameraOffsetX;
-        lastCameraOffsetY = renderer.cameraOffsetY;
-        buildAtMouse(touch.clientX, touch.clientY);
+        if (e.touches.length === 1) {
+          // 1本指: 建設モード開始
+          touchMode = "building";
+          const touch = e.touches[0];
+          isMouseDown = true;
+          dragStartX = touch.clientX;
+          dragStartY = touch.clientY;
+          lastCameraOffsetX = renderer.cameraOffsetX;
+          lastCameraOffsetY = renderer.cameraOffsetY;
+          buildAtMouse(touch.clientX, touch.clientY);
+        } else if (e.touches.length === 2) {
+          // 2本指: パン＋ピンチモード開始（建設キャンセル）
+          touchMode = "panning";
+          isMouseDown = false;
 
-      } else if (e.touches.length === 2) {
-        // 2本指: パン＋ピンチモード開始（建設キャンセル）
-        touchMode = 'panning';
-        isMouseDown = false;
-
-        const center = getTouchCenter(e.touches);
-        pinchLastDist = getTouchDist(e.touches);
-        dragStartX = center.x;
-        dragStartY = center.y;
-        lastCameraOffsetX = renderer.cameraOffsetX;
-        lastCameraOffsetY = renderer.cameraOffsetY;
-      }
-    }, { passive: false });
-
-    canvas.addEventListener('touchmove', (e) => {
-      e.preventDefault();
-
-      if (touchMode === 'building' && e.touches.length === 1) {
-        // 1本指ドラッグ: Bresenhamで連続建設
-        const touch = e.touches[0];
-        if (engine.state.buildMode !== 'demolish') {
-          const rect = canvas.getBoundingClientRect();
-          const { scaleX, scaleY } = getCanvasScale();
-
-          const startScreenX = (dragStartX - rect.left) * scaleX;
-          const startScreenY = (dragStartY - rect.top) * scaleY;
-          const currentScreenX = (touch.clientX - rect.left) * scaleX;
-          const currentScreenY = (touch.clientY - rect.top) * scaleY;
-
-          const startWorld = renderer.screenToWorld(startScreenX, startScreenY);
-          const currentWorld = renderer.screenToWorld(currentScreenX, currentScreenY);
-
-          const tileSize = getTileSize();
-          const startTileX = Math.floor(startWorld.x / tileSize);
-          const startTileY = Math.floor(startWorld.y / tileSize);
-          const endTileX = Math.floor(currentWorld.x / tileSize);
-          const endTileY = Math.floor(currentWorld.y / tileSize);
-
-          const gridSize = engine.state.gridSize;
-          bresenhamLine(startTileX, startTileY, endTileX, endTileY).forEach(({ x, y }) => {
-            if (x >= 0 && x < gridSize && y >= 0 && y < gridSize) {
-              engine.build(x, y);
-            }
-          });
-          uiManager.updateDisplay();
+          const center = getTouchCenter(e.touches);
+          pinchLastDist = getTouchDist(e.touches);
+          dragStartX = center.x;
+          dragStartY = center.y;
+          lastCameraOffsetX = renderer.cameraOffsetX;
+          lastCameraOffsetY = renderer.cameraOffsetY;
         }
-        dragStartX = touch.clientX;
-        dragStartY = touch.clientY;
+      },
+      { passive: false },
+    );
 
-      } else if (touchMode === 'panning' && e.touches.length === 2) {
-        // 2本指: パン + ピンチズーム
-        const center = getTouchCenter(e.touches);
-        const currentDist = getTouchDist(e.touches);
+    canvas.addEventListener(
+      "touchmove",
+      (e) => {
+        e.preventDefault();
 
-        // パン（中心点の移動量）
-        const deltaX = center.x - dragStartX;
-        const deltaY = center.y - dragStartY;
-        renderer.cameraOffsetX = lastCameraOffsetX + deltaX * getCanvasScale().scaleX;
-        renderer.cameraOffsetY = lastCameraOffsetY + deltaY * getCanvasScale().scaleY;
+        if (touchMode === "building" && e.touches.length === 1) {
+          // 1本指ドラッグ: Bresenhamで連続建設
+          const touch = e.touches[0];
+          if (engine.state.buildMode !== "demolish") {
+            const rect = canvas.getBoundingClientRect();
+            const { scaleX, scaleY } = getCanvasScale();
 
-        // ピンチズーム（距離の変化比率でズーム倍率を調整）
-        if (pinchLastDist > 0) {
-          const distRatio = currentDist / pinchLastDist;
-          const oldZoom = renderer.zoomLevel;
-          const newZoom = Math.max(1.0, Math.min(3.0, oldZoom * distRatio));
+            const startScreenX = (dragStartX - rect.left) * scaleX;
+            const startScreenY = (dragStartY - rect.top) * scaleY;
+            const currentScreenX = (touch.clientX - rect.left) * scaleX;
+            const currentScreenY = (touch.clientY - rect.top) * scaleY;
 
-          // ピンチ中心を基点にズーム
-          const rect = canvas.getBoundingClientRect();
-          const { scaleX, scaleY } = getCanvasScale();
-          const cx = (center.x - rect.left) * scaleX;
-          const cy = (center.y - rect.top) * scaleY;
-          const zoomChange = newZoom - oldZoom;
-          renderer.cameraOffsetX -= cx * zoomChange / oldZoom;
-          renderer.cameraOffsetY -= cy * zoomChange / oldZoom;
-          renderer.zoomLevel = newZoom;
+            const startWorld = renderer.screenToWorld(startScreenX, startScreenY);
+            const currentWorld = renderer.screenToWorld(currentScreenX, currentScreenY);
+
+            const tileSize = getTileSize();
+            const startTileX = Math.floor(startWorld.x / tileSize);
+            const startTileY = Math.floor(startWorld.y / tileSize);
+            const endTileX = Math.floor(currentWorld.x / tileSize);
+            const endTileY = Math.floor(currentWorld.y / tileSize);
+
+            const gridSize = engine.state.gridSize;
+            bresenhamLine(startTileX, startTileY, endTileX, endTileY).forEach(({ x, y }) => {
+              if (x >= 0 && x < gridSize && y >= 0 && y < gridSize) {
+                engine.build(x, y);
+              }
+            });
+            uiManager.updateDisplay();
+          }
+          dragStartX = touch.clientX;
+          dragStartY = touch.clientY;
+        } else if (touchMode === "panning" && e.touches.length === 2) {
+          // 2本指: パン + ピンチズーム
+          const center = getTouchCenter(e.touches);
+          const currentDist = getTouchDist(e.touches);
+
+          // パン（中心点の移動量）
+          const deltaX = center.x - dragStartX;
+          const deltaY = center.y - dragStartY;
+          renderer.cameraOffsetX = lastCameraOffsetX + deltaX * getCanvasScale().scaleX;
+          renderer.cameraOffsetY = lastCameraOffsetY + deltaY * getCanvasScale().scaleY;
+
+          // ピンチズーム（距離の変化比率でズーム倍率を調整）
+          if (pinchLastDist > 0) {
+            const distRatio = currentDist / pinchLastDist;
+            const oldZoom = renderer.zoomLevel;
+            const newZoom = Math.max(1.0, Math.min(3.0, oldZoom * distRatio));
+
+            // ピンチ中心を基点にズーム
+            const rect = canvas.getBoundingClientRect();
+            const { scaleX, scaleY } = getCanvasScale();
+            const cx = (center.x - rect.left) * scaleX;
+            const cy = (center.y - rect.top) * scaleY;
+            const zoomChange = newZoom - oldZoom;
+            renderer.cameraOffsetX -= (cx * zoomChange) / oldZoom;
+            renderer.cameraOffsetY -= (cy * zoomChange) / oldZoom;
+            renderer.zoomLevel = newZoom;
+          }
+
+          pinchLastDist = currentDist;
+          // 次フレーム用に基準点を更新
+          lastCameraOffsetX = renderer.cameraOffsetX;
+          lastCameraOffsetY = renderer.cameraOffsetY;
+          dragStartX = center.x;
+          dragStartY = center.y;
+
+          clampCamera();
         }
+      },
+      { passive: false },
+    );
 
-        pinchLastDist = currentDist;
-        // 次フレーム用に基準点を更新
-        lastCameraOffsetX = renderer.cameraOffsetX;
-        lastCameraOffsetY = renderer.cameraOffsetY;
-        dragStartX = center.x;
-        dragStartY = center.y;
+    canvas.addEventListener(
+      "touchend",
+      (e) => {
+        e.preventDefault();
+        if (e.touches.length === 0) {
+          // 全指が離れた: 状態リセット
+          touchMode = "idle";
+          isMouseDown = false;
+        } else if (e.touches.length === 1 && touchMode === "panning") {
+          // 2本指→1本指: パンモードを維持してビルドしない
+          touchMode = "idle";
+          isMouseDown = false;
+        }
+      },
+      { passive: false },
+    );
 
-        clampCamera();
-      }
-    }, { passive: false });
-
-    canvas.addEventListener('touchend', (e) => {
-      e.preventDefault();
-      if (e.touches.length === 0) {
-        // 全指が離れた: 状態リセット
-        touchMode = 'idle';
+    canvas.addEventListener(
+      "touchcancel",
+      (e) => {
+        e.preventDefault();
+        touchMode = "idle";
         isMouseDown = false;
-      } else if (e.touches.length === 1 && touchMode === 'panning') {
-        // 2本指→1本指: パンモードを維持してビルドしない
-        touchMode = 'idle';
-        isMouseDown = false;
-      }
-    }, { passive: false });
-
-    canvas.addEventListener('touchcancel', (e) => {
-      e.preventDefault();
-      touchMode = 'idle';
-      isMouseDown = false;
-    }, { passive: false });
+      },
+      { passive: false },
+    );
 
     // マウスホイール: ズーム
-    canvas.addEventListener('wheel', (e) => {
-      e.preventDefault();
+    canvas.addEventListener(
+      "wheel",
+      (e) => {
+        e.preventDefault();
 
-      const zoomSpeed = 0.1;
-      const oldZoom = renderer.zoomLevel;
-      renderer.zoomLevel += e.deltaY > 0 ? -zoomSpeed : zoomSpeed;
-      renderer.zoomLevel = Math.max(1.0, Math.min(3, renderer.zoomLevel));
+        const zoomSpeed = 0.1;
+        const oldZoom = renderer.zoomLevel;
+        renderer.zoomLevel += e.deltaY > 0 ? -zoomSpeed : zoomSpeed;
+        renderer.zoomLevel = Math.max(1.0, Math.min(3, renderer.zoomLevel));
 
-      const rect = canvas.getBoundingClientRect();
-      const { scaleX, scaleY } = getCanvasScale();
-      const mouseX = (e.clientX - rect.left) * scaleX;
-      const mouseY = (e.clientY - rect.top) * scaleY;
+        const rect = canvas.getBoundingClientRect();
+        const { scaleX, scaleY } = getCanvasScale();
+        const mouseX = (e.clientX - rect.left) * scaleX;
+        const mouseY = (e.clientY - rect.top) * scaleY;
 
-      const zoomChange = renderer.zoomLevel - oldZoom;
-      renderer.cameraOffsetX -= mouseX * zoomChange / oldZoom;
-      renderer.cameraOffsetY -= mouseY * zoomChange / oldZoom;
+        const zoomChange = renderer.zoomLevel - oldZoom;
+        renderer.cameraOffsetX -= (mouseX * zoomChange) / oldZoom;
+        renderer.cameraOffsetY -= (mouseY * zoomChange) / oldZoom;
 
-      clampCamera();
-    }, { passive: false });
+        clampCamera();
+      },
+      { passive: false },
+    );
 
     // キーボード操作
-    document.addEventListener('keydown', (e) => {
+    document.addEventListener("keydown", (e) => {
       switch (e.key.toLowerCase()) {
-        case 'r':
-          engine.state.buildMode = 'road';
+        case "r":
+          engine.state.buildMode = "road";
           break;
-        case 's':
-          engine.state.buildMode = 'residential';
+        case "s":
+          engine.state.buildMode = "residential";
           break;
-        case 'c':
-          engine.state.buildMode = 'commercial';
+        case "c":
+          engine.state.buildMode = "commercial";
           break;
-        case 'i':
-          engine.state.buildMode = 'industrial';
+        case "i":
+          engine.state.buildMode = "industrial";
           break;
-        case 'u':
-          engine.state.buildMode = 'infrastructure';
+        case "u":
+          engine.state.buildMode = "infrastructure";
           break;
-        case 'd':
-          engine.state.buildMode = 'demolish';
+        case "d":
+          engine.state.buildMode = "demolish";
           break;
       }
     });
 
     // 右クリックメニューを無効化
-    canvas.addEventListener('contextmenu', (e) => {
+    canvas.addEventListener("contextmenu", (e) => {
       e.preventDefault();
     });
 
     // ゲーム開始
-    console.log('🚀 Game loop started');
+    console.log("🚀 Game loop started");
     gameLoop();
   } catch (e) {
-    console.error('❌ Initialization error:', e);
-    alert('ゲームの初期化に失敗しました。ブラウザのコンソールを確認してください。');
+    console.error("❌ Initialization error:", e);
+    alert("ゲームの初期化に失敗しました。ブラウザのコンソールを確認してください。");
   }
 }
 
-initializeGame();
+void initializeGame();

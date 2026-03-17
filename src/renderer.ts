@@ -1,5 +1,5 @@
-import { getTileSize, TileType } from './constants';
-import { GameEngine } from './engine';
+import { getTileSize, TileType } from "./constants";
+import { GameEngine } from "./engine";
 
 export class Renderer {
   private canvas: HTMLCanvasElement;
@@ -14,7 +14,7 @@ export class Renderer {
 
   constructor(canvas: HTMLCanvasElement, engine: GameEngine) {
     this.canvas = canvas;
-    this.ctx = canvas.getContext('2d')!;
+    this.ctx = canvas.getContext("2d")!;
     this.engine = engine;
     this.gridSize = engine.state.gridSize;
     this.tileSize = getTileSize();
@@ -84,7 +84,7 @@ export class Renderer {
         }
 
         // グリッド線
-        this.ctx.strokeStyle = '#1a1a1a';
+        this.ctx.strokeStyle = "#1a1a1a";
         this.ctx.lineWidth = 0.5;
         this.ctx.strokeRect(x * this.tileSize, y * this.tileSize, this.tileSize, this.tileSize);
       }
@@ -110,60 +110,59 @@ export class Renderer {
   private getTileColor(tile: number): string {
     switch (tile) {
       case TileType.EMPTY:
-        return '#0a0a0a';
+        return "#0a0a0a";
       case TileType.ROAD:
-        return '#444444';      // より濃いグレー（視認性向上）
+        return "#444444"; // より濃いグレー（視認性向上）
       case TileType.STATION:
-        return '#ffaa00';      // オレンジ（鉄道）
+        return "#ffaa00"; // オレンジ（鉄道）
       case TileType.PARK:
-        return '#22dd22';      // 明るい緑
+        return "#22dd22"; // 明るい緑
       case TileType.POLICE:
-        return '#0066ff';      // 青（警察）
+        return "#0066ff"; // 青（警察）
       case TileType.FIRE_STATION:
-        return '#ff3333';      // 赤（消防）
+        return "#ff3333"; // 赤（消防）
       case TileType.HOSPITAL:
-        return '#ff69b4';      // ホットピンク（医療）
+        return "#ff69b4"; // ホットピンク（医療）
       case TileType.SCHOOL:
-        return '#ffbb33';      // オレンジ黄（教育）
+        return "#ffbb33"; // オレンジ黄（教育）
       case TileType.POWER_PLANT:
-        return '#ffff00';      // イエロー（電力）
+        return "#ffff00"; // イエロー（電力）
       case TileType.WATER_TREATMENT:
-        return '#00ffff';      // シアン（水道）
+        return "#00ffff"; // シアン（水道）
       // 住宅（青系）
       case TileType.RESIDENTIAL_L1:
-        return '#5599ff';      // 薄い青
+        return "#5599ff"; // 薄い青
       case TileType.RESIDENTIAL_L2:
-        return '#3366ff';      // 青
+        return "#3366ff"; // 青
       case TileType.RESIDENTIAL_L3:
-        return '#1144cc';      // 濃い青
+        return "#1144cc"; // 濃い青
       case TileType.RESIDENTIAL_L4:
-        return '#002299';      // 深い青
+        return "#002299"; // 深い青
       // 商業（緑系）
       case TileType.COMMERCIAL_L1:
-        return '#99ff66';      // 薄い緑黄
+        return "#99ff66"; // 薄い緑黄
       case TileType.COMMERCIAL_L2:
-        return '#66dd00';      // 緑黄
+        return "#66dd00"; // 緑黄
       case TileType.COMMERCIAL_L3:
-        return '#44bb00';      // 濃い緑黄
+        return "#44bb00"; // 濃い緑黄
       case TileType.COMMERCIAL_L4:
-        return '#228800';      // 深い緑黄
+        return "#228800"; // 深い緑黄
       // 工業（オレンジ系）
       case TileType.INDUSTRIAL_L1:
-        return '#ffcc66';      // 薄いオレンジ
+        return "#ffcc66"; // 薄いオレンジ
       case TileType.INDUSTRIAL_L2:
-        return '#ffbb33';      // オレンジ
+        return "#ffbb33"; // オレンジ
       case TileType.INDUSTRIAL_L3:
-        return '#ff9900';      // 濃いオレンジ
+        return "#ff9900"; // 濃いオレンジ
       case TileType.INDUSTRIAL_L4:
-        return '#dd6600';      // 深いオレンジ
+        return "#dd6600"; // 深いオレンジ
       // ランドマーク
       case TileType.LANDMARK_STADIUM:
-        return '#ff1493';      // 深いピンク（スタジアム）
+        return "#ff1493"; // 深いピンク（スタジアム）
       case TileType.LANDMARK_AIRPORT:
-        return '#9932cc';      // 暗い紫（空港）
+        return "#9932cc"; // 暗い紫（空港）
       default:
-        return '#0a0a0a';
+        return "#0a0a0a";
     }
   }
-
 }
