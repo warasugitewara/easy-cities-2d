@@ -2,7 +2,7 @@ import { defineConfig } from "vite-plus";
 
 export default defineConfig({
   lint: { options: { typeAware: true, typeCheck: true } },
-  base: "/easy-cities-2d/",
+  base: "/",
   server: {
     port: 5173,
     open: true,
