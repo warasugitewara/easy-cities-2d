@@ -34,6 +34,7 @@ body {
   image-rendering: crisp-edges;
   max-width: 1024px;
   max-height: 1024px;
+  touch-action: none; /* タッチイベントをブラウザに横取りさせない */
 }
 
 #ui-container {
@@ -746,6 +747,7 @@ body {
     display: block;
     image-rendering: pixelated;
     image-rendering: crisp-edges;
+    touch-action: none; /* モバイルでタッチ操作を確実に取得 */
   }
 
   #ui-container {
@@ -780,6 +782,7 @@ body {
     height: 95vw;
     max-width: 48vh;
     max-height: 48vh;
+    touch-action: none;
   }
 
   #ui-container {

@@ -29,7 +29,7 @@ function showInitialSettings(): Promise<GameSettings> {
     modal.className = 'modal';
     modal.style.zIndex = '10000';
     modal.innerHTML = `
-      <div class="modal-content" style="min-width: 450px;">
+      <div class="modal-content" style="min-width: min(450px, 90vw);">
         <h2>🎮 Easy Cities 2D (ver.${GAME_VERSION})</h2>
         <p>ゲーム設定を選択してください</p>
         
@@ -119,16 +119,12 @@ async function initializeGame(): Promise<void> {
   setMapSize(settings.mapSize);
   const canvasSize = getCanvasSize();
 
-  // キャンバスをDOM に挿入後、実際のCSS サイズを取得
-  const canvasRect = canvas.getBoundingClientRect();
-  const actualWidth = canvasRect.width || canvasSize;
-  const actualHeight = canvasRect.height || canvasSize;
-  
-  // キャンバスの内部サイズを実際のCSS サイズに合わせる
-  canvas.width = Math.floor(actualWidth);
-  canvas.height = Math.floor(actualHeight);
+  // キャンバスの内部解像度をゲームの論理サイズに固定する
+  // （CSSで表示サイズを調整し、タッチ座標はscaleX/Yで変換する）
+  canvas.width = canvasSize;
+  canvas.height = canvasSize;
 
-  console.log(`✅ Canvas setup: ${canvas.width}x${canvas.height}px (CSS: ${actualWidth}x${actualHeight}px)`);
+  console.log(`✅ Canvas setup: ${canvas.width}x${canvas.height}px (logical game size)`);
 
   try {
     const engine = new GameEngine(settings);
@@ -145,6 +141,13 @@ async function initializeGame(): Promise<void> {
     let dragStartY = 0;
     let lastCameraOffsetX = 0;
     let lastCameraOffsetY = 0;
+
+    // タッチ操作用の状態
+    // 'idle': 何もしていない
+    // 'building': 1本指で建設中
+    // 'panning': 2本指でパン・ピンチ中
+    let touchMode: 'idle' | 'building' | 'panning' = 'idle';
+    let pinchLastDist = 0;
 
     // ゲームループ
     function gameLoop(): void {
@@ -187,47 +190,56 @@ async function initializeGame(): Promise<void> {
       return { clientX: 0, clientY: 0 };
     }
 
+    // CSSピクセル座標をキャンバス内部ピクセルに変換するスケール比を計算
+    function getCanvasScale(): { scaleX: number; scaleY: number } {
+      const rect = canvas.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) return { scaleX: 1, scaleY: 1 };
+      return {
+        scaleX: canvas.width / rect.width,
+        scaleY: canvas.height / rect.height,
+      };
+    }
+
+    // カメラ位置をマップ範囲内にクランプする共通関数
+    function clampCamera(): void {
+      const gridSize = engine.state.gridSize;
+      const tileSize = getTileSize();
+      const mapWidth = gridSize * tileSize * renderer.zoomLevel;
+      const mapHeight = gridSize * tileSize * renderer.zoomLevel;
+      const cs = canvas.width; // キャンバス内部解像度を使用
+      renderer.cameraOffsetX = Math.max(-(mapWidth - cs), Math.min(0, renderer.cameraOffsetX));
+      renderer.cameraOffsetY = Math.max(-(mapHeight - cs), Math.min(0, renderer.cameraOffsetY));
+    }
+
     // 敷設処理（共通）
     function buildAtMouse(clientX: number, clientY: number): void {
       try {
-        console.log('🎯 buildAtMouse called - buildMode:', engine.state.buildMode);
-        
         const rect = canvas.getBoundingClientRect();
-        const screenX = clientX - rect.left;
-        const screenY = clientY - rect.top;
+        const { scaleX, scaleY } = getCanvasScale();
+        // CSSピクセル → キャンバス内部ピクセルに変換
+        const screenX = (clientX - rect.left) * scaleX;
+        const screenY = (clientY - rect.top) * scaleY;
 
-        // スクリーン座標をワールド座標に変換
         const worldCoords = renderer.screenToWorld(screenX, screenY);
         const tileSize = getTileSize();
-        // 0.5タイル分のオフセットを加えて中心ベースで計算
         const x = Math.floor((worldCoords.x + tileSize * 0.5) / tileSize);
         const y = Math.floor((worldCoords.y + tileSize * 0.5) / tileSize);
 
-        console.log('🎯 World coords:', worldCoords.x.toFixed(1), worldCoords.y.toFixed(1));
-        console.log('🎯 Tile:', x, y, 'gridSize:', engine.state.gridSize);
-
         const gridSize = engine.state.gridSize;
         if (x >= 0 && x < gridSize && y >= 0 && y < gridSize) {
-          console.log('🎯 Within bounds, attempting build...');
           if (engine.build(x, y)) {
-            console.log('✅ Build succeeded');
             uiManager.updateDisplay();
           } else if (engine.state.buildMode === 'demolish') {
-            console.log('🎯 Demolish mode');
             engine.build(x, y);
             uiManager.updateDisplay();
-          } else {
-            console.log('❌ Build failed');
           }
-        } else {
-          console.log('❌ Out of bounds');
         }
       } catch (e) {
         console.error('❌ Build error:', e);
       }
     }
 
-    // ポインターダウン処理（マウス＆タッチ共用）
+    // ポインターダウン処理（マウス用）
     function handlePointerDown(clientX: number, clientY: number, isRightClick: boolean = false): void {
       isMouseDown = true;
       dragStartX = clientX;
@@ -235,7 +247,7 @@ async function initializeGame(): Promise<void> {
       lastCameraOffsetX = renderer.cameraOffsetX;
       lastCameraOffsetY = renderer.cameraOffsetY;
 
-      // 右クリック: ドラッグ開始フラグ
+      // 右クリック: カメラドラッグ開始
       if (isRightClick) {
         isDragging = true;
         return;
@@ -245,33 +257,27 @@ async function initializeGame(): Promise<void> {
       buildAtMouse(clientX, clientY);
     }
 
-    // ポインタームーブ処理（マウス＆タッチ共用）
+    // ポインタームーブ処理（マウス用）
     function handlePointerMove(clientX: number, clientY: number): void {
+      const rect = canvas.getBoundingClientRect();
+      const { scaleX, scaleY } = getCanvasScale();
+
       if (isDragging) {
-        // ドラッグ中: カメラ移動
-        const deltaX = clientX - dragStartX;
-        const deltaY = clientY - dragStartY;
+        // 右ドラッグ: カメラ移動
+        // マウス移動量はCSSピクセルだが、キャンバス座標系に合わせてスケール
+        const deltaX = (clientX - dragStartX) * scaleX;
+        const deltaY = (clientY - dragStartY) * scaleY;
         renderer.cameraOffsetX = lastCameraOffsetX + deltaX;
         renderer.cameraOffsetY = lastCameraOffsetY + deltaY;
-
-        // カメラをクランプして、マップが画面外に出ないようにする
-        const gridSize = engine.state.gridSize;
-        const tileSize = getTileSize();
-        const mapWidth = gridSize * tileSize * renderer.zoomLevel;
-        const mapHeight = gridSize * tileSize * renderer.zoomLevel;
-        const canvasSize = getCanvasSize();
-        const maxOffsetX = mapWidth - canvasSize;
-        const maxOffsetY = mapHeight - canvasSize;
-
-        renderer.cameraOffsetX = Math.max(-maxOffsetX, Math.min(0, renderer.cameraOffsetX));
-        renderer.cameraOffsetY = Math.max(-maxOffsetY, Math.min(0, renderer.cameraOffsetY));
+        clampCamera();
       } else if (isMouseDown && engine.state.buildMode !== 'demolish') {
-        // 左ドラッグ敷設
-        const rect = canvas.getBoundingClientRect();
-        const currentScreenX = clientX - rect.left;
-        const currentScreenY = clientY - rect.top;
+        // 左ドラッグ: 線を引いて敷設
+        const currentScreenX = (clientX - rect.left) * scaleX;
+        const currentScreenY = (clientY - rect.top) * scaleY;
+        const startScreenX = (dragStartX - rect.left) * scaleX;
+        const startScreenY = (dragStartY - rect.top) * scaleY;
 
-        const startWorldCoords = renderer.screenToWorld(dragStartX - rect.left, dragStartY - rect.top);
+        const startWorldCoords = renderer.screenToWorld(startScreenX, startScreenY);
         const currentWorldCoords = renderer.screenToWorld(currentScreenX, currentScreenY);
 
         const tileSize = getTileSize();
@@ -294,7 +300,7 @@ async function initializeGame(): Promise<void> {
       }
     }
 
-    // ポインターアップ処理
+    // ポインターアップ処理（マウス用）
     function handlePointerUp(): void {
       isDragging = false;
       isMouseDown = false;
@@ -321,28 +327,145 @@ async function initializeGame(): Promise<void> {
       handlePointerUp();
     });
 
-    // タッチイベント
+    // タッチイベント（モバイル専用・全面改修）
+    // 1本指タップ/ドラッグ: 建設・連続描画
+    // 2本指ドラッグ: カメラ移動（パン）
+    // 2本指ピンチ: ズームイン/アウト
+
+    function getTouchDist(touches: TouchList): number {
+      return Math.hypot(
+        touches[1].clientX - touches[0].clientX,
+        touches[1].clientY - touches[0].clientY
+      );
+    }
+
+    function getTouchCenter(touches: TouchList): { x: number; y: number } {
+      return {
+        x: (touches[0].clientX + touches[1].clientX) / 2,
+        y: (touches[0].clientY + touches[1].clientY) / 2,
+      };
+    }
+
     canvas.addEventListener('touchstart', (e) => {
-      const coords = getClientCoordinates(e);
-      handlePointerDown(coords.clientX, coords.clientY, false);
       e.preventDefault();
-    });
+
+      if (e.touches.length === 1) {
+        // 1本指: 建設モード開始
+        touchMode = 'building';
+        const touch = e.touches[0];
+        isMouseDown = true;
+        dragStartX = touch.clientX;
+        dragStartY = touch.clientY;
+        lastCameraOffsetX = renderer.cameraOffsetX;
+        lastCameraOffsetY = renderer.cameraOffsetY;
+        buildAtMouse(touch.clientX, touch.clientY);
+
+      } else if (e.touches.length === 2) {
+        // 2本指: パン＋ピンチモード開始（建設キャンセル）
+        touchMode = 'panning';
+        isMouseDown = false;
+
+        const center = getTouchCenter(e.touches);
+        pinchLastDist = getTouchDist(e.touches);
+        dragStartX = center.x;
+        dragStartY = center.y;
+        lastCameraOffsetX = renderer.cameraOffsetX;
+        lastCameraOffsetY = renderer.cameraOffsetY;
+      }
+    }, { passive: false });
 
     canvas.addEventListener('touchmove', (e) => {
-      const coords = getClientCoordinates(e);
-      handlePointerMove(coords.clientX, coords.clientY);
       e.preventDefault();
-    });
+
+      if (touchMode === 'building' && e.touches.length === 1) {
+        // 1本指ドラッグ: Bresenhamで連続建設
+        const touch = e.touches[0];
+        if (engine.state.buildMode !== 'demolish') {
+          const rect = canvas.getBoundingClientRect();
+          const { scaleX, scaleY } = getCanvasScale();
+
+          const startScreenX = (dragStartX - rect.left) * scaleX;
+          const startScreenY = (dragStartY - rect.top) * scaleY;
+          const currentScreenX = (touch.clientX - rect.left) * scaleX;
+          const currentScreenY = (touch.clientY - rect.top) * scaleY;
+
+          const startWorld = renderer.screenToWorld(startScreenX, startScreenY);
+          const currentWorld = renderer.screenToWorld(currentScreenX, currentScreenY);
+
+          const tileSize = getTileSize();
+          const startTileX = Math.floor(startWorld.x / tileSize);
+          const startTileY = Math.floor(startWorld.y / tileSize);
+          const endTileX = Math.floor(currentWorld.x / tileSize);
+          const endTileY = Math.floor(currentWorld.y / tileSize);
+
+          const gridSize = engine.state.gridSize;
+          bresenhamLine(startTileX, startTileY, endTileX, endTileY).forEach(({ x, y }) => {
+            if (x >= 0 && x < gridSize && y >= 0 && y < gridSize) {
+              engine.build(x, y);
+            }
+          });
+          uiManager.updateDisplay();
+        }
+        dragStartX = touch.clientX;
+        dragStartY = touch.clientY;
+
+      } else if (touchMode === 'panning' && e.touches.length === 2) {
+        // 2本指: パン + ピンチズーム
+        const center = getTouchCenter(e.touches);
+        const currentDist = getTouchDist(e.touches);
+
+        // パン（中心点の移動量）
+        const deltaX = center.x - dragStartX;
+        const deltaY = center.y - dragStartY;
+        renderer.cameraOffsetX = lastCameraOffsetX + deltaX * getCanvasScale().scaleX;
+        renderer.cameraOffsetY = lastCameraOffsetY + deltaY * getCanvasScale().scaleY;
+
+        // ピンチズーム（距離の変化比率でズーム倍率を調整）
+        if (pinchLastDist > 0) {
+          const distRatio = currentDist / pinchLastDist;
+          const oldZoom = renderer.zoomLevel;
+          const newZoom = Math.max(1.0, Math.min(3.0, oldZoom * distRatio));
+
+          // ピンチ中心を基点にズーム
+          const rect = canvas.getBoundingClientRect();
+          const { scaleX, scaleY } = getCanvasScale();
+          const cx = (center.x - rect.left) * scaleX;
+          const cy = (center.y - rect.top) * scaleY;
+          const zoomChange = newZoom - oldZoom;
+          renderer.cameraOffsetX -= cx * zoomChange / oldZoom;
+          renderer.cameraOffsetY -= cy * zoomChange / oldZoom;
+          renderer.zoomLevel = newZoom;
+        }
+
+        pinchLastDist = currentDist;
+        // 次フレーム用に基準点を更新
+        lastCameraOffsetX = renderer.cameraOffsetX;
+        lastCameraOffsetY = renderer.cameraOffsetY;
+        dragStartX = center.x;
+        dragStartY = center.y;
+
+        clampCamera();
+      }
+    }, { passive: false });
 
     canvas.addEventListener('touchend', (e) => {
-      handlePointerUp();
       e.preventDefault();
-    });
+      if (e.touches.length === 0) {
+        // 全指が離れた: 状態リセット
+        touchMode = 'idle';
+        isMouseDown = false;
+      } else if (e.touches.length === 1 && touchMode === 'panning') {
+        // 2本指→1本指: パンモードを維持してビルドしない
+        touchMode = 'idle';
+        isMouseDown = false;
+      }
+    }, { passive: false });
 
     canvas.addEventListener('touchcancel', (e) => {
-      handlePointerUp();
       e.preventDefault();
-    });
+      touchMode = 'idle';
+      isMouseDown = false;
+    }, { passive: false });
 
     // マウスホイール: ズーム
     canvas.addEventListener('wheel', (e) => {
@@ -351,30 +474,19 @@ async function initializeGame(): Promise<void> {
       const zoomSpeed = 0.1;
       const oldZoom = renderer.zoomLevel;
       renderer.zoomLevel += e.deltaY > 0 ? -zoomSpeed : zoomSpeed;
-
       renderer.zoomLevel = Math.max(1.0, Math.min(3, renderer.zoomLevel));
 
       const rect = canvas.getBoundingClientRect();
-      const mouseX = e.clientX - rect.left;
-      const mouseY = e.clientY - rect.top;
+      const { scaleX, scaleY } = getCanvasScale();
+      const mouseX = (e.clientX - rect.left) * scaleX;
+      const mouseY = (e.clientY - rect.top) * scaleY;
 
       const zoomChange = renderer.zoomLevel - oldZoom;
       renderer.cameraOffsetX -= mouseX * zoomChange / oldZoom;
       renderer.cameraOffsetY -= mouseY * zoomChange / oldZoom;
 
-      const gridSize = engine.state.gridSize;
-      const tileSize = getTileSize();
-      const mapWidth = gridSize * tileSize * renderer.zoomLevel;
-      const mapHeight = gridSize * tileSize * renderer.zoomLevel;
-      const canvasSize = getCanvasSize();
-      const maxOffsetX = mapWidth - canvasSize;
-      const maxOffsetY = mapHeight - canvasSize;
-
-      renderer.cameraOffsetX = Math.max(-maxOffsetX, Math.min(0, renderer.cameraOffsetX));
-      renderer.cameraOffsetY = Math.max(-maxOffsetY, Math.min(0, renderer.cameraOffsetY));
-
-      console.log(`🔍 Zoom: ${renderer.zoomLevel.toFixed(2)}x`);
-    });
+      clampCamera();
+    }, { passive: false });
 
     // キーボード操作
     document.addEventListener('keydown', (e) => {
