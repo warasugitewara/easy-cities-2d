@@ -160,9 +160,15 @@ async function initializeGame(): Promise<void> {
     let touchMode: "idle" | "building" | "panning" = "idle";
     let pinchLastDist = 0;
 
+    // dev専用パフォーマンス計測（本番ビルドでは import.meta.env.DEV が false になり無効化される）
+    let devLastFrameTime = 0;
+    let devLastLogTime = 0;
+
     // ゲームループ
     function gameLoop(): void {
       try {
+        const __frameNow = import.meta.env.DEV ? performance.now() : 0;
+
         // ポーズ状態でない場合のみ成長処理
         if (!engine.state.paused && engine.state.gameSpeed > 0) {
           // 成長処理（毎フレーム）
@@ -184,6 +190,23 @@ async function initializeGame(): Promise<void> {
 
         // UI更新
         uiManager.updateDisplay();
+
+        // dev専用: 1秒に1回、fps/grow/monthlyの計測値をログ出力（本番ビルドでは到達しない）
+        if (import.meta.env.DEV) {
+          const frameDelta = devLastFrameTime > 0 ? __frameNow - devLastFrameTime : 0;
+          devLastFrameTime = __frameNow;
+
+          if (devLastLogTime === 0) {
+            devLastLogTime = __frameNow;
+          } else if (__frameNow - devLastLogTime >= 1000) {
+            const fps = frameDelta > 0 ? Math.round(1000 / frameDelta) : 0;
+            const profile = engine.getProfile();
+            console.log(
+              `[perf] fps≈${fps} grow≈${profile.growMs.toFixed(2)}ms monthly≈${profile.monthlyMs.toFixed(2)}ms`,
+            );
+            devLastLogTime = __frameNow;
+          }
+        }
 
         requestAnimationFrame(gameLoop);
       } catch (e) {

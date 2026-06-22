@@ -65,11 +65,36 @@ export interface GameState {
 }
 
 export class GameEngine {
-  state: GameState;
+  private _state: GameState;
   private growthRate: number = 0.02;
   private gridSize: number;
   private maintenanceMultiplier: number = 1.0;
   private disasterRateMultiplier: number = 1.0;
+
+  // --- grow() 高速化用キャッシュ（GameStateには含めない: 派生値のため） ---
+  private biasMap: Float64Array | null = null;
+  private boostMap: Float32Array | null = null;
+
+  // --- dev計測用（GameStateには含めない: セーブデータを汚染しないため） ---
+  private static readonly PROFILE_SAMPLE_SIZE = 60;
+  private growSamples: number[] = [];
+  private monthlySamples: number[] = [];
+
+  // state へのアクセスは getter/setter 経由（setter はキャッシュ無効化のフックを持つ）
+  get state(): GameState {
+    return this._state;
+  }
+
+  set state(value: GameState) {
+    this._state = value;
+    this.invalidateCaches();
+  }
+
+  // state 差し替え時に再構築が必要なキャッシュを無効化する
+  private invalidateCaches(): void {
+    this.biasMap = null;
+    this.boostMap = null;
+  }
 
   constructor(settings?: GameSettings) {
     const mapSize = settings?.mapSize || "medium";
@@ -87,7 +112,7 @@ export class GameEngine {
     this.maintenanceMultiplier = config.maintenanceMultiplier;
     this.disasterRateMultiplier = config.disasterRateMultiplier;
 
-    this.state = {
+    this._state = {
       map: Array.from({ length: this.gridSize }, () => Array(this.gridSize).fill(TileType.EMPTY)),
       population: 0,
       money: config.initialMoney,
@@ -156,6 +181,10 @@ export class GameEngine {
     if (this.state.buildMode === "demolish") {
       if (this.state.map[y][x] !== TileType.EMPTY) {
         const tileType = this.state.map[y][x];
+
+        if (tileType === TileType.STATION) {
+          this.boostMap = null;
+        }
 
         // 複数マス占有建築物の場合、全体を削除
         if (BUILDING_SIZES[tileType]) {
@@ -295,6 +324,10 @@ export class GameEngine {
         }
       }
 
+      if (tileType === TileType.STATION) {
+        this.boostMap = null;
+      }
+
       console.log(
         "✅ Building placed, tileType:",
         tileType,
@@ -340,13 +373,23 @@ export class GameEngine {
     return BUILD_COSTS[mode] || 0;
   }
 
-  // 都心バイアス
-  private centerBias(x: number, y: number): number {
+  // 都心バイアスの lookup table を構築（未構築時のみ）。grow() から参照。
+  private ensureBiasMap(): Float64Array {
+    const cached = this.biasMap;
+    if (cached !== null) return cached;
+
+    const map = new Float64Array(this.gridSize * this.gridSize);
     const center = this.gridSize / 2;
-    const dx = x - center;
-    const dy = y - center;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-    return Math.max(0.3, 1 - dist / center);
+    for (let y = 0; y < this.gridSize; y++) {
+      for (let x = 0; x < this.gridSize; x++) {
+        const dx = x - center;
+        const dy = y - center;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        map[y * this.gridSize + x] = Math.max(0.3, 1 - dist / center);
+      }
+    }
+    this.biasMap = map;
+    return map;
   }
 
   // 隣接判定
@@ -370,41 +413,52 @@ export class GameEngine {
     });
   }
 
-  // 駅ブースト
-  private stationBoost(x: number, y: number): number {
-    let boost = 1;
-    for (let yy = -4; yy <= 4; yy++) {
-      for (let xx = -4; xx <= 4; xx++) {
-        const nx = x + xx;
-        const ny = y + yy;
-        if (
-          nx >= 0 &&
-          ny >= 0 &&
-          nx < this.gridSize &&
-          ny < this.gridSize &&
-          this.state.map[ny][nx] === TileType.STATION
-        ) {
-          boost = 1.5;
+  // 駅ブーストの lookup table を構築（未構築時のみ）。grow() から参照。
+  // 各 STATION タイルの ±4 チェビシェフ矩形を 1.5 で塗る（個別判定と数学的に等価）。
+  private ensureBoostMap(): Float32Array {
+    const cached = this.boostMap;
+    if (cached !== null) return cached;
+
+    const map = new Float32Array(this.gridSize * this.gridSize).fill(1.0);
+    for (let y = 0; y < this.gridSize; y++) {
+      for (let x = 0; x < this.gridSize; x++) {
+        if (this.state.map[y][x] === TileType.STATION) {
+          const yMin = Math.max(0, y - 4);
+          const yMax = Math.min(this.gridSize - 1, y + 4);
+          const xMin = Math.max(0, x - 4);
+          const xMax = Math.min(this.gridSize - 1, x + 4);
+          for (let ny = yMin; ny <= yMax; ny++) {
+            for (let nx = xMin; nx <= xMax; nx++) {
+              map[ny * this.gridSize + nx] = 1.5;
+            }
+          }
         }
       }
     }
-    return boost;
+    this.boostMap = map;
+    return map;
   }
 
   // 成長処理
   grow(): void {
     if (this.state.paused || this.state.gameSpeed === 0) return;
 
+    const __growStart = performance.now();
+
     // gameSpeed に応じた処理回数
     const iterations = this.state.gameSpeed >= 1 ? Math.floor(this.state.gameSpeed) : 1;
     const probability = this.state.gameSpeed < 1 ? this.state.gameSpeed : 1;
+
+    const biasMap = this.ensureBiasMap();
+    const boostMap = this.ensureBoostMap();
 
     for (let iter = 0; iter < iterations; iter++) {
       if (this.state.gameSpeed < 1 && Math.random() > probability) continue;
 
       for (let y = 0; y < this.gridSize; y++) {
         for (let x = 0; x < this.gridSize; x++) {
-          const bias = this.centerBias(x, y) * this.stationBoost(x, y);
+          const idx = y * this.gridSize + x;
+          const bias = biasMap[idx] * boostMap[idx];
 
           // ローカルペナルティを計算（電力・給水供給があるか）
           let localPenalty = this.state.growthPenalty;
@@ -511,11 +565,15 @@ export class GameEngine {
         }
       }
     }
+
+    this.recordSample(this.growSamples, performance.now() - __growStart);
   }
 
   // 月次更新（税収・維持費）
   monthlyUpdate(): void {
     if (this.state.paused) return;
+
+    const __monthlyStart = performance.now();
 
     // インフラシステム更新
     this.updateInfrastructure();
@@ -579,6 +637,26 @@ export class GameEngine {
       alert("資金がなくなりました！ゲームオーバーです");
       this.reset();
     }
+
+    this.recordSample(this.monthlySamples, performance.now() - __monthlyStart);
+  }
+
+  // dev計測用: サンプルをリングバッファ的に保持（直近 PROFILE_SAMPLE_SIZE 件）
+  private recordSample(samples: number[], value: number): void {
+    samples.push(value);
+    if (samples.length > GameEngine.PROFILE_SAMPLE_SIZE) {
+      samples.shift();
+    }
+  }
+
+  // dev計測用: grow()/monthlyUpdate() の直近実行時間の平均(ms)を返す
+  getProfile(): { growMs: number; monthlyMs: number } {
+    const average = (samples: number[]): number =>
+      samples.length === 0 ? 0 : samples.reduce((sum, v) => sum + v, 0) / samples.length;
+    return {
+      growMs: average(this.growSamples),
+      monthlyMs: average(this.monthlySamples),
+    };
   }
 
   // インフラ効果の計算・反映
