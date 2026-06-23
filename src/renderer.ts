@@ -12,6 +12,12 @@ export class Renderer {
   private tileSize: number;
   private mapSize: number; // ピクセル単位のマップサイズ
 
+  private static readonly QUANT_LEVELS = 32;
+  private readonly fireColors: string[];
+  private readonly diseaseColors: string[];
+  private readonly pollutionColors: string[];
+  private readonly slumColors: string[];
+
   constructor(canvas: HTMLCanvasElement, engine: GameEngine) {
     this.canvas = canvas;
     this.ctx = canvas.getContext("2d")!;
@@ -19,6 +25,27 @@ export class Renderer {
     this.gridSize = engine.state.gridSize;
     this.tileSize = getTileSize();
     this.mapSize = this.gridSize * this.tileSize;
+
+    this.fireColors = this.buildOverlayColors(255, 50, 50, 0.3, 0.5);
+    this.diseaseColors = this.buildOverlayColors(255, 255, 50, 0.2, 0.4);
+    this.pollutionColors = this.buildOverlayColors(150, 100, 50, 0.2, 0.4);
+    this.slumColors = this.buildOverlayColors(100, 50, 100, 0.2, 0.4);
+  }
+
+  // 量子化されたオーバーレイ用 rgba 文字列を事前生成する
+  private buildOverlayColors(
+    r: number,
+    g: number,
+    b: number,
+    baseAlpha: number,
+    alphaScale: number,
+  ): string[] {
+    const colors: string[] = [];
+    for (let q = 0; q <= Renderer.QUANT_LEVELS; q++) {
+      const alpha = baseAlpha + (q / Renderer.QUANT_LEVELS) * alphaScale;
+      colors.push(`rgba(${r}, ${g}, ${b}, ${alpha})`);
+    }
+    return colors;
   }
 
   draw(): void {
@@ -58,37 +85,52 @@ export class Renderer {
         // 火災のビジュアル表示（赤でハイライト）
         if (fireMap[y][x] > 0) {
           const intensity = Math.min(1, fireMap[y][x] / 10);
-          this.ctx.fillStyle = `rgba(255, 50, 50, ${0.3 + intensity * 0.5})`;
+          const q = Math.round(intensity * Renderer.QUANT_LEVELS);
+          this.ctx.fillStyle = this.fireColors[q];
           this.ctx.fillRect(x * this.tileSize, y * this.tileSize, this.tileSize, this.tileSize);
         }
 
         // 病気のビジュアル表示（黄でハイライト）
         if (diseaseMap[y][x] > 0) {
           const intensity = Math.min(1, diseaseMap[y][x] / 10);
-          this.ctx.fillStyle = `rgba(255, 255, 50, ${0.2 + intensity * 0.4})`;
+          const q = Math.round(intensity * Renderer.QUANT_LEVELS);
+          this.ctx.fillStyle = this.diseaseColors[q];
           this.ctx.fillRect(x * this.tileSize, y * this.tileSize, this.tileSize, this.tileSize);
         }
 
         // 公害のビジュアル表示（茶色でハイライト）
         if (pollutionMap[y][x] > 0) {
           const intensity = Math.min(1, pollutionMap[y][x] / 100);
-          this.ctx.fillStyle = `rgba(150, 100, 50, ${0.2 + intensity * 0.4})`;
+          const q = Math.round(intensity * Renderer.QUANT_LEVELS);
+          this.ctx.fillStyle = this.pollutionColors[q];
           this.ctx.fillRect(x * this.tileSize, y * this.tileSize, this.tileSize, this.tileSize);
         }
 
         // スラム化のビジュアル表示（暗い紫でハイライト）
         if (slumMap[y][x] > 0) {
           const intensity = Math.min(1, slumMap[y][x] / 10);
-          this.ctx.fillStyle = `rgba(100, 50, 100, ${0.2 + intensity * 0.4})`;
+          const q = Math.round(intensity * Renderer.QUANT_LEVELS);
+          this.ctx.fillStyle = this.slumColors[q];
           this.ctx.fillRect(x * this.tileSize, y * this.tileSize, this.tileSize, this.tileSize);
         }
-
-        // グリッド線
-        this.ctx.strokeStyle = "#1a1a1a";
-        this.ctx.lineWidth = 0.5;
-        this.ctx.strokeRect(x * this.tileSize, y * this.tileSize, this.tileSize, this.tileSize);
       }
     }
+
+    // グリッド線（可視範囲をまとめて1パスで描画）
+    this.ctx.strokeStyle = "#1a1a1a";
+    this.ctx.lineWidth = 0.5;
+    this.ctx.beginPath();
+    for (let x = startX; x <= endX; x++) {
+      const px = x * this.tileSize;
+      this.ctx.moveTo(px, startY * this.tileSize);
+      this.ctx.lineTo(px, endY * this.tileSize);
+    }
+    for (let y = startY; y <= endY; y++) {
+      const py = y * this.tileSize;
+      this.ctx.moveTo(startX * this.tileSize, py);
+      this.ctx.lineTo(endX * this.tileSize, py);
+    }
+    this.ctx.stroke();
 
     this.ctx.restore();
   }
