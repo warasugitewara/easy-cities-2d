@@ -457,6 +457,16 @@ export class GameEngine {
 
       for (let y = 0; y < this.gridSize; y++) {
         for (let x = 0; x < this.gridSize; x++) {
+          // EMPTY かつ道路・建物(1-24)のいずれにも隣接していないタイルは、新規建設・波及建設の
+          // hasAdjacent 判定が必ず false になり、高層化も EMPTY では発火しないため、
+          // 以降の全分岐が不成立。Math.random() を一切消費せずスキップ可能（消費回数は不変）。
+          if (
+            this.state.map[y][x] === TileType.EMPTY &&
+            !this.hasAdjacent(x, y, (t) => t === TileType.ROAD || (t >= 1 && t <= 24))
+          ) {
+            continue;
+          }
+
           const idx = y * this.gridSize + x;
           const bias = biasMap[idx] * boostMap[idx];
 
@@ -929,13 +939,22 @@ export class GameEngine {
 
     // スタジアム周辺の商業地
     for (const stadium of stadiums) {
-      for (let y = 0; y < this.gridSize; y++) {
-        for (let x = 0; x < this.gridSize; x++) {
+      const stadiumRadius = 40;
+      const yMin = Math.max(0, stadium.y - stadiumRadius);
+      const yMax = Math.min(this.gridSize - 1, stadium.y + stadiumRadius);
+      const xMin = Math.max(0, stadium.x - stadiumRadius);
+      const xMax = Math.min(this.gridSize - 1, stadium.x + stadiumRadius);
+      for (let y = yMin; y <= yMax; y++) {
+        for (let x = xMin; x <= xMax; x++) {
           const tile = this.state.map[y][x];
           const dist = Math.abs(x - stadium.x) + Math.abs(y - stadium.y);
 
           // スタジアムから40マス以内の商業地
-          if (dist <= 40 && tile >= TileType.COMMERCIAL_L1 && tile <= TileType.COMMERCIAL_L4) {
+          if (
+            dist <= stadiumRadius &&
+            tile >= TileType.COMMERCIAL_L1 &&
+            tile <= TileType.COMMERCIAL_L4
+          ) {
             const level = tile - TileType.COMMERCIAL_L1 + 1; // 1～4
             const bonusValues = [500, 1166, 2333, 3000];
             bonus += bonusValues[level - 1];
@@ -946,13 +965,22 @@ export class GameEngine {
 
     // 空港周辺の商業地
     for (const airport of airports) {
-      for (let y = 0; y < this.gridSize; y++) {
-        for (let x = 0; x < this.gridSize; x++) {
+      const airportRadius = 50;
+      const yMin = Math.max(0, airport.y - airportRadius);
+      const yMax = Math.min(this.gridSize - 1, airport.y + airportRadius);
+      const xMin = Math.max(0, airport.x - airportRadius);
+      const xMax = Math.min(this.gridSize - 1, airport.x + airportRadius);
+      for (let y = yMin; y <= yMax; y++) {
+        for (let x = xMin; x <= xMax; x++) {
           const tile = this.state.map[y][x];
           const dist = Math.abs(x - airport.x) + Math.abs(y - airport.y);
 
           // 空港から50マス以内の商業地
-          if (dist <= 50 && tile >= TileType.COMMERCIAL_L1 && tile <= TileType.COMMERCIAL_L4) {
+          if (
+            dist <= airportRadius &&
+            tile >= TileType.COMMERCIAL_L1 &&
+            tile <= TileType.COMMERCIAL_L4
+          ) {
             const level = tile - TileType.COMMERCIAL_L1 + 1; // 1～4
             const bonusValues = [1000, 2333, 3666, 5000];
             bonus += bonusValues[level - 1];
@@ -1245,8 +1273,12 @@ export class GameEngine {
   }
 
   private spreadPower(cx: number, cy: number, radius: number): void {
-    for (let y = 0; y < this.gridSize; y++) {
-      for (let x = 0; x < this.gridSize; x++) {
+    const yMin = Math.max(0, cy - radius);
+    const yMax = Math.min(this.gridSize - 1, cy + radius);
+    const xMin = Math.max(0, cx - radius);
+    const xMax = Math.min(this.gridSize - 1, cx + radius);
+    for (let y = yMin; y <= yMax; y++) {
+      for (let x = xMin; x <= xMax; x++) {
         const dist = Math.sqrt((x - cx) ** 2 + (y - cy) ** 2);
         if (dist <= radius) {
           this.state.powerGrid[y][x] = true;
@@ -1274,8 +1306,12 @@ export class GameEngine {
   }
 
   private spreadWater(cx: number, cy: number, radius: number): void {
-    for (let y = 0; y < this.gridSize; y++) {
-      for (let x = 0; x < this.gridSize; x++) {
+    const yMin = Math.max(0, cy - radius);
+    const yMax = Math.min(this.gridSize - 1, cy + radius);
+    const xMin = Math.max(0, cx - radius);
+    const xMax = Math.min(this.gridSize - 1, cx + radius);
+    for (let y = yMin; y <= yMax; y++) {
+      for (let x = xMin; x <= xMax; x++) {
         const dist = Math.sqrt((x - cx) ** 2 + (y - cy) ** 2);
         if (dist <= radius) {
           this.state.waterGrid[y][x] = true;
