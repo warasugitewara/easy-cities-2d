@@ -1,3 +1,89 @@
+# Easy Cities 2D — Copilot Instructions
+
+## Project overview
+
+Browser-based 2D city-building simulation game (Cities Skylines-style) built with TypeScript and Vite+. Deployed to GitHub Pages. Supports mouse and touch (pinch-zoom, 2-finger pan, 1-finger draw).
+
+## Architecture
+
+All source files are in `src/` with no subdirectories:
+
+| File           | Responsibility                                                                                                 |
+| -------------- | -------------------------------------------------------------------------------------------------------------- |
+| `constants.ts` | All game data: `TileType` enum, build costs, tax revenue, maintenance, infrastructure effects, synergy effects |
+| `engine.ts`    | `GameEngine` class — owns `GameState`, handles `build()`, `grow()`, `monthlyUpdate()`                          |
+| `renderer.ts`  | `Renderer` class — Canvas 2D rendering with viewport culling, camera pan/zoom                                  |
+| `storage.ts`   | `StorageManager` class — localStorage save/load (3 slots), JSON export/import                                  |
+| `ui.ts`        | `UIManager` class — DOM-based HUD, draggable/resizable panels                                                  |
+| `main.ts`      | Entry point — wires all classes together, owns all input event handlers                                        |
+
+`GameEngine.state` (`GameState`) is the single source of truth passed to `Renderer`, `UIManager`, and `StorageManager`. Nothing else has mutable state.
+
+## Key conventions
+
+### TileType encoding
+
+Infrastructure tiles use **negative** integers; zone tiles use **positive** integers grouped by type and level:
+
+- Residential: L1=1, L2=2, L3=3, L4=4
+- Commercial: L1=11–L4=14
+- Industrial: L1=21–L4=24
+- Infrastructure: ROAD=−1, STATION=−2, … WATER_TREATMENT=−9
+- Landmarks: STADIUM=−50, AIRPORT=−51
+
+Auto-growth upgrades a tile by incrementing its `TileType` value (e.g., `RESIDENTIAL_L1 + 1 = RESIDENTIAL_L2`).
+
+### Map representation
+
+The game map and all overlay maps (`fireMap`, `diseaseMap`, `pollutionMap`, `crimeMap`, `slumMap`, `powerGrid`, `waterGrid`) are `number[][]` or `boolean[][]` indexed `[y][x]`.
+
+### Multi-tile buildings
+
+Buildings defined in `BUILDING_SIZES` (e.g., Power Plant = 4×4) fill every cell in their footprint with the same `TileType`. Demolish logic scans for the top-left anchor before clearing all cells.
+
+### Coordinate systems
+
+Three coordinate spaces exist:
+
+1. **CSS pixels** — raw browser event coordinates
+2. **Canvas internal pixels** — CSS pixels × `getCanvasScale()` ratio (canvas has fixed logical resolution)
+3. **World pixels** — canvas pixels adjusted for camera offset and zoom via `renderer.screenToWorld()`
+
+Always convert CSS → canvas → world when handling input events.
+
+### Drawing roads
+
+`main.ts` uses Bresenham's line algorithm (`bresenhamLine()`) to fill tiles between the pointer's last position and current position during drag, enabling smooth road drawing without gaps.
+
+### Game loop
+
+`requestAnimationFrame` → `engine.grow()` every frame → `engine.monthlyUpdate()` every N frames (N = `20 / gameSpeed`). The renderer and UI update every frame regardless of pause state.
+
+### Constants are the balance file
+
+All numeric game balance lives in `constants.ts` (`INFRASTRUCTURE_EFFECTS`, `SYNERGY_EFFECTS`, `BUILD_COSTS`, `TAX_REVENUE`, `MAINTENANCE_COSTS`, `INFRASTRUCTURE_REQUIREMENTS`). Tune numbers there, not in `engine.ts`.
+
+### Importing from vite-plus
+
+Use `import { defineConfig } from 'vite-plus'` and `import { expect, test } from 'vite-plus/test'`. Never import from `vite` or `vitest` directly.
+
+## Dev commands
+
+```sh
+vp dev       # Dev server at localhost:5173
+vp build     # Production build → dist/
+vp check     # Format + lint + TypeScript type checks (run before committing)
+vp test      # Run tests via Vitest
+vp lint      # Lint only (Oxlint, type-aware)
+vp fmt       # Format only (Oxfmt)
+```
+
+Always run `vp install` after pulling, and `vp check` before committing.
+
+## Deployment
+
+Push to `main` triggers GitHub Actions (`deploy.yml`) which runs `npm run build` and deploys `dist/` to GitHub Pages at `https://warasugitewara.github.io/easy-cities-2d/`.
+
 <!--VITE PLUS START-->
 
 # Using Vite+, the Unified Toolchain for the Web
