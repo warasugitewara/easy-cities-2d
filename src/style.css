@@ -889,9 +889,7 @@ body {
 
   .dashboard-compact,
   .time-panel,
-  .toggle-container,
-  #build-menu,
-  #controls-panel {
+  .toggle-container {
     display: block !important;
   }
 }

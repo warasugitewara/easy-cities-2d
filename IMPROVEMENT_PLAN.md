@@ -42,11 +42,11 @@
 | # | 問題 | 根本原因（確定） | 修正方針 | 状態 |
 |---|------|-----------------|---------|------|
 | A | バージョン表記が古い（表示 1.0.7 / `package.json` 1.0.6 と不一致） | `constants.ts` の `GAME_VERSION` と `package.json` で二重管理かつ未更新 | `1.1.0` に統一（`constants.ts` / `package.json` / `README.md`） | ✅ |
-| B | **スマホで建物を配置できない（高）** | `updateDisplay()`（`ui.ts:740-742`）がモバイルに存在しない `stat-residential-demand` / `stat-commercial-demand` / `stat-industrial-demand` を非null断定(`!`)で参照し例外。さらに `gameLoop`（`main.ts:211`）の `requestAnimationFrame` が `try` 内にあるため、例外で描画ループが1フレームで停止し再描画されない（`build()` 自体は `state.map` を更新するが画面に反映されない） | (a) `updateDisplay` を null 安全化（要素が無ければスキップするヘルパー経由に）。(b) `gameLoop` の再スケジュールを `finally` 化し、1フレームの例外で全停止しないようにする | ⬜ |
-| C | **PCでメニューパネルの ✕ が効かず閉じられない（高）** | `@media (min-width:1025px)` の `#build-menu, #controls-panel { display:block !important }`（IDセレクタ）が `.controls-panel-overlay.hidden { display:none !important }`（クラスセレクタ）を**詳細度**で上書きし、`.hidden` が無効化。🎛️/✕ のトグルが効かず常時表示になる | デスクトップの当該ルールから `#build-menu, #controls-panel` を除外（`.dashboard-compact` / `.time-panel` / `.toggle-container` は残す）。初期非表示→🎛️で開閉という本来挙動に戻る | ⬜ |
-| D | **「設定」ボタンが機能しない（中）** | メニュー内の「⚙️ 設定」ボタン（`btn-settings` → `showSettings()`）がクリックしても効かない。**原因未確定（要調査）**。PC/モバイル両方で確認すること | 削除ではなく**動作するよう修正**（設定モーダルが開き、サンドボックス/災害/公害/スラムのトグルが反映されること） | ⬜（要調査・実装） |
+| B | **スマホで建物を配置できない（高）** | `updateDisplay()`（`ui.ts:740-742`）がモバイルに存在しない `stat-residential-demand` / `stat-commercial-demand` / `stat-industrial-demand` を非null断定(`!`)で参照し例外。さらに `gameLoop`（`main.ts:211`）の `requestAnimationFrame` が `try` 内にあるため、例外で描画ループが1フレームで停止し再描画されない（`build()` 自体は `state.map` を更新するが画面に反映されない） | (a) `updateDisplay` を null 安全化（要素が無ければスキップするヘルパー経由に）。(b) `gameLoop` の再スケジュールを `finally` 化し、1フレームの例外で全停止しないようにする | ✅（実機検証済み: ループ継続・配置が描画反映・コンソールエラー0） |
+| C | **PCでメニューパネルの ✕ が効かず閉じられない（高）** | `@media (min-width:1025px)` の `#build-menu, #controls-panel { display:block !important }`（IDセレクタ）が `.controls-panel-overlay.hidden { display:none !important }`（クラスセレクタ）を**詳細度**で上書きし、`.hidden` が無効化。🎛️/✕ のトグルが効かず常時表示になる | デスクトップの当該ルールから `#build-menu, #controls-panel` を除外（`.dashboard-compact` / `.time-panel` / `.toggle-container` は残す）。初期非表示→🎛️で開閉という本来挙動に戻る | ✅（実機検証済み: 起動時非表示→🎛️で表示→✕で非表示） |
+| D | 「設定」まわりが操作できない（中）→ **C と同一事象** | 実機調査の結果、設定モーダル自体は正常に開閉・適用できる（ユーザーの言う「項目自体は動く」と一致）。「設定が最初から出ていて✕で閉じられない」はメニュー(=設定)パネルの C のバグそのもの | C の修正で解決 | ✅（C に統合） |
 
-**進め方**: B・C を先行修正し、実機（Playwright）で再現解消を確認 → コミット。D（設定ボタン）は原因を調査のうえ動作修正。いずれも 1.1.0 のバグ修正として扱う。
+**進め方**: B・C を修正し実機（Playwright, desktop/mobile）で再現解消を確認済み（D は C と同一事象のため C で解決）。1.1.0 のバグ修正として `main` マージで公開予定。
 
 ---
 

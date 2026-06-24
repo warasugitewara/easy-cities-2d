@@ -690,65 +690,51 @@ export class UIManager {
     container.appendChild(optionsDiv);
   }
 
+  /** 要素が存在する場合のみ textContent を更新する（レイアウトにより一部要素が無くても例外を投げない） */
+  private setText(id: string, value: string): void {
+    const el = document.getElementById(id);
+    if (el) el.textContent = value;
+  }
+
   updateDisplay(): void {
     const population = this.engine.state.population;
     const money = this.engine.state.money;
 
-    document.getElementById("stat-population")!.textContent = (population / 1000).toFixed(1) + "K";
+    this.setText("stat-population", (population / 1000).toFixed(1) + "K");
 
     // サンドボックスモードの場合は∞表記、通常モードは金額表示
     if (this.engine.state.settings.sandbox) {
-      document.getElementById("stat-money")!.textContent = "∞";
+      this.setText("stat-money", "∞");
     } else {
-      document.getElementById("stat-money")!.textContent = `¥${(money / 1000).toFixed(0)}K`;
+      this.setText("stat-money", `¥${(money / 1000).toFixed(0)}K`);
     }
 
-    document.getElementById("stat-comfort")!.textContent = Math.round(
-      this.engine.state.comfort,
-    ).toString();
-    document.getElementById("stat-month")!.textContent = this.engine.state.month.toString();
+    this.setText("stat-comfort", Math.round(this.engine.state.comfort).toString());
+    this.setText("stat-month", this.engine.state.month.toString());
 
     // 新パラメータ表示
-    document.getElementById("stat-security")!.textContent = Math.round(
-      this.engine.state.securityLevel,
-    ).toString();
-    document.getElementById("stat-safety")!.textContent = Math.round(
-      this.engine.state.safetyLevel,
-    ).toString();
-    document.getElementById("stat-education")!.textContent = Math.round(
-      this.engine.state.educationLevel,
-    ).toString();
-    document.getElementById("stat-medical")!.textContent = Math.round(
-      this.engine.state.medicalLevel,
-    ).toString();
-    document.getElementById("stat-tourism")!.textContent = Math.round(
-      this.engine.state.tourismLevel,
-    ).toString();
-    document.getElementById("stat-international")!.textContent = Math.round(
-      this.engine.state.internationalLevel,
-    ).toString();
-    document.getElementById("stat-power")!.textContent =
-      Math.round(this.engine.state.powerSupplyRate).toString() + "%";
-    document.getElementById("stat-water")!.textContent =
-      Math.round(this.engine.state.waterSupplyRate).toString() + "%";
+    this.setText("stat-security", Math.round(this.engine.state.securityLevel).toString());
+    this.setText("stat-safety", Math.round(this.engine.state.safetyLevel).toString());
+    this.setText("stat-education", Math.round(this.engine.state.educationLevel).toString());
+    this.setText("stat-medical", Math.round(this.engine.state.medicalLevel).toString());
+    this.setText("stat-tourism", Math.round(this.engine.state.tourismLevel).toString());
+    this.setText("stat-international", Math.round(this.engine.state.internationalLevel).toString());
+    this.setText("stat-power", Math.round(this.engine.state.powerSupplyRate).toString() + "%");
+    this.setText("stat-water", Math.round(this.engine.state.waterSupplyRate).toString() + "%");
 
     // 需要値をダッシュボードに表示
     const residentialDemand = Math.round(this.engine.state.residentialDemand);
     const commercialDemand = Math.round(this.engine.state.commercialDemand);
     const industrialDemand = Math.round(this.engine.state.industrialDemand);
 
-    document.getElementById("stat-residential-demand")!.textContent = residentialDemand.toString();
-    document.getElementById("stat-commercial-demand")!.textContent = commercialDemand.toString();
-    document.getElementById("stat-industrial-demand")!.textContent = industrialDemand.toString();
+    this.setText("stat-residential-demand", residentialDemand.toString());
+    this.setText("stat-commercial-demand", commercialDemand.toString());
+    this.setText("stat-industrial-demand", industrialDemand.toString());
 
     // モバイル版の需要値表示（存在する場合のみ）
-    const resMobileElement = document.getElementById("demand-value-residential-mobile");
-    const comMobileElement = document.getElementById("demand-value-commercial-mobile");
-    const indMobileElement = document.getElementById("demand-value-industrial-mobile");
-
-    if (resMobileElement) resMobileElement.textContent = residentialDemand.toString();
-    if (comMobileElement) comMobileElement.textContent = commercialDemand.toString();
-    if (indMobileElement) indMobileElement.textContent = industrialDemand.toString();
+    this.setText("demand-value-residential-mobile", residentialDemand.toString());
+    this.setText("demand-value-commercial-mobile", commercialDemand.toString());
+    this.setText("demand-value-industrial-mobile", industrialDemand.toString());
   }
 
   private attachEventListeners(): void {

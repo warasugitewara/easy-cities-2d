@@ -208,9 +208,11 @@ async function initializeGame(): Promise<void> {
           }
         }
 
-        requestAnimationFrame(gameLoop);
       } catch (e) {
         console.error("❌ Game loop error:", e);
+      } finally {
+        // 1フレームの例外で描画ループ全体を停止させない（再スケジュールを保証）
+        requestAnimationFrame(gameLoop);
       }
     }
 
