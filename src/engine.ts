@@ -10,6 +10,8 @@ import {
   BUILDING_SIZES,
   INITIAL_PARAMETERS,
   INFRASTRUCTURE_REQUIREMENTS,
+  INFRASTRUCTURE_EFFECTS,
+  DISASTER_BALANCE,
 } from "./constants";
 import type { RNG } from "./rng";
 import { defaultRng } from "./rng";
@@ -71,6 +73,10 @@ export class GameEngine {
   private gridSize: number;
   private maintenanceMultiplier: number = 1.0;
   private disasterRateMultiplier: number = 1.0;
+  // Step2リバランス: 火災/病気による被害費を月次で台帳化するための集計フィールド。
+  // monthlyUpdate() の冒頭（updateDisasters() 呼出前）でリセットし、収支適用時に一括反映する。
+  // GameState には含めない（セーブデータを汚染しない派生値のため）。
+  private disasterDamage = 0;
 
   // --- grow() 高速化用キャッシュ（GameStateには含めない: 派生値のため） ---
   private biasMap: Float64Array | null = null;
@@ -413,22 +419,24 @@ export class GameEngine {
   }
 
   // 駅ブーストの lookup table を構築（未構築時のみ）。grow() から参照。
-  // 各 STATION タイルの ±4 チェビシェフ矩形を 1.5 で塗る（個別判定と数学的に等価）。
+  // 各 STATION タイルの ±station.growthRadius チェビシェフ矩形を station.growthMultiplier
+  // で塗る（個別判定と数学的に等価）。
   private ensureBoostMap(): Float32Array {
     const cached = this.boostMap;
     if (cached !== null) return cached;
 
+    const { growthRadius, growthMultiplier } = INFRASTRUCTURE_EFFECTS.station;
     const map = new Float32Array(this.gridSize * this.gridSize).fill(1.0);
     for (let y = 0; y < this.gridSize; y++) {
       for (let x = 0; x < this.gridSize; x++) {
         if (this.state.map[y][x] === TileType.STATION) {
-          const yMin = Math.max(0, y - 4);
-          const yMax = Math.min(this.gridSize - 1, y + 4);
-          const xMin = Math.max(0, x - 4);
-          const xMax = Math.min(this.gridSize - 1, x + 4);
+          const yMin = Math.max(0, y - growthRadius);
+          const yMax = Math.min(this.gridSize - 1, y + growthRadius);
+          const xMin = Math.max(0, x - growthRadius);
+          const xMax = Math.min(this.gridSize - 1, x + growthRadius);
           for (let ny = yMin; ny <= yMax; ny++) {
             for (let nx = xMin; nx <= xMax; nx++) {
-              map[ny * this.gridSize + nx] = 1.5;
+              map[ny * this.gridSize + nx] = growthMultiplier;
             }
           }
         }
@@ -625,6 +633,11 @@ export class GameEngine {
     // インフラシステム更新
     this.updateInfrastructure();
 
+    // Step2リバランス: 災害被害費の台帳をリセット（updateDisasters() 呼出前）。
+    // 月中の被害はここから収支適用までのあいだ this.disasterDamage に積算され、
+    // 月末の収支反映時に一括で差し引かれる。
+    this.disasterDamage = 0;
+
     // 災害処理
     this.updateDisasters();
 
@@ -668,13 +681,15 @@ export class GameEngine {
     revenue += this.calculateLandmarkCommercialBonus();
 
     // サンドボックスモードでない場合のみ維持費を適用
+    // Step2リバランス: 火災/病気による被害費（disasterDamage）も収支適用時に一括で
+    // 差し引く（サンドボックスモードでも被害費を引く現行挙動は踏襲）。
     if (!this.state.settings.sandbox) {
       // 難易度に応じた維持費倍率を適用
       maintenance *= this.maintenanceMultiplier;
-      this.state.money += revenue - maintenance;
+      this.state.money += revenue - maintenance - this.disasterDamage;
     } else {
-      // サンドボックスモード：税収のみ加算、維持費なし
-      this.state.money += revenue;
+      // サンドボックスモード：税収のみ加算、維持費なし（被害費は引く）
+      this.state.money += revenue - this.disasterDamage;
     }
 
     this.state.month++;
@@ -1429,12 +1444,11 @@ export class GameEngine {
           localPollution /= 121;
 
           // スラム化条件：高汚染＋低治安＋近くのスラム
+          // Step2リバランス: gameSpeed 乗算を削除（バグA）。固定タイムステップ化により
+          // monthlyUpdate の呼出頻度が既に gameSpeed に比例しているため、確率にも
+          // 掛けると速度2倍で発生率4倍になってしまっていた。
           const slumChance =
-            0.01 *
-            (localPollution / 100) *
-            (1 - localSecurity / 100) *
-            (1 + localSlum / 10) *
-            this.state.gameSpeed;
+            0.01 * (localPollution / 100) * (1 - localSecurity / 100) * (1 + localSlum / 10);
           if (this.rng() < slumChance) {
             this.state.slumMap[y][x] = Math.min(10, this.state.slumMap[y][x] + 1);
           }
@@ -1470,14 +1484,18 @@ export class GameEngine {
   }
 
   private updateFires(): void {
+    const fb = DISASTER_BALANCE.fire;
     // 難易度に応じた火災発生率を調整
-    const fireChance = 0.0002 * this.state.gameSpeed * this.disasterRateMultiplier;
+    // Step2リバランス: gameSpeed 乗算を削除（バグA）。固定タイムステップ化により
+    // monthlyUpdate の呼出頻度が既に gameSpeed に比例しているため、確率にも
+    // 掛けると速度2倍で発生率4倍になってしまっていた。
+    const fireChance = fb.baseChance * this.disasterRateMultiplier;
     const sampleRate = Math.max(1, Math.floor(this.gridSize / 64));
 
     for (let y = 0; y < this.gridSize; y += sampleRate) {
       for (let x = 0; x < this.gridSize; x += sampleRate) {
         if (this.state.map[y][x] !== TileType.EMPTY && this.rng() < fireChance) {
-          this.state.fireMap[y][x] = Math.min(10, this.state.fireMap[y][x] + 2);
+          this.state.fireMap[y][x] = Math.min(10, this.state.fireMap[y][x] + fb.igniteAmount);
         }
       }
     }
@@ -1498,23 +1516,23 @@ export class GameEngine {
             const nx = x + dx;
             const ny = y + dy;
             if (nx >= 0 && ny >= 0 && nx < this.gridSize && ny < this.gridSize) {
-              if (this.state.map[ny][nx] !== TileType.EMPTY && this.rng() < 0.01) {
-                // 0.02 → 0.01
-                newFireMap[ny][nx] = Math.min(10, newFireMap[ny][nx] + 1);
+              if (this.state.map[ny][nx] !== TileType.EMPTY && this.rng() < fb.spreadChance) {
+                newFireMap[ny][nx] = Math.min(10, newFireMap[ny][nx] + fb.spreadAmount);
               }
             }
           });
 
           // 消防署による消火（範囲と成功率を向上）
+          // searchRadius はチェビシェフ距離（±searchRadius の正方形範囲）。
           let fireExtinguished = false;
-          for (let yy = -15; yy <= 15; yy++) {
+          for (let yy = -fb.searchRadius; yy <= fb.searchRadius; yy++) {
             if (fireExtinguished) break;
-            for (let xx = -15; xx <= 15; xx++) {
+            for (let xx = -fb.searchRadius; xx <= fb.searchRadius; xx++) {
               const nx = x + xx;
               const ny = y + yy;
               if (nx >= 0 && ny >= 0 && nx < this.gridSize && ny < this.gridSize) {
                 if (this.state.map[ny][nx] === TileType.FIRE_STATION) {
-                  if (this.rng() < 0.9) fireExtinguished = true; // 0.8 → 0.9
+                  if (this.rng() < fb.extinguishSuccessRate) fireExtinguished = true;
                   break;
                 }
               }
@@ -1522,15 +1540,17 @@ export class GameEngine {
           }
 
           if (fireExtinguished) {
-            newFireMap[y][x] = Math.max(0, newFireMap[y][x] - 5); // -4 → -5
+            newFireMap[y][x] = Math.max(0, newFireMap[y][x] - fb.extinguishAmount);
           } else {
-            newFireMap[y][x] = Math.max(0, newFireMap[y][x] - 1);
+            newFireMap[y][x] = Math.max(0, newFireMap[y][x] - fb.decayAmount);
           }
 
           // 火災が蔓延したら建物を破壊
-          if (newFireMap[y][x] >= 10) {
+          if (newFireMap[y][x] >= fb.destroyThreshold) {
             this.state.map[y][x] = TileType.EMPTY;
-            this.state.money -= 500;
+            // Step2リバランス: その場での money 減算をやめ、月次台帳に積算する
+            // （monthlyUpdate() の収支適用時に一括反映されるため決定論的・追跡可能になる）。
+            this.disasterDamage += DISASTER_BALANCE.disasterDamageCost;
           }
         }
       }
@@ -1539,16 +1559,19 @@ export class GameEngine {
   }
 
   private updateDiseases(): void {
+    const db = DISASTER_BALANCE.disease;
     // 難易度に応じた病気発生率を調整
     const sampleRate = Math.max(1, Math.floor(this.gridSize / 64));
 
     for (let y = 0; y < this.gridSize; y += sampleRate) {
       for (let x = 0; x < this.gridSize; x += sampleRate) {
         const density = this.getLocalDensity(x, y);
-        const diseaseChance =
-          0.01 * (1 + density / 10) * this.state.gameSpeed * this.disasterRateMultiplier;
+        // Step2リバランス: gameSpeed 乗算を削除（バグA）。固定タイムステップ化により
+        // monthlyUpdate の呼出頻度が既に gameSpeed に比例しているため、確率にも
+        // 掛けると速度2倍で発生率4倍になってしまっていた。
+        const diseaseChance = db.baseChance * (1 + density / 10) * this.disasterRateMultiplier;
         if (this.state.map[y][x] !== TileType.EMPTY && this.rng() < diseaseChance) {
-          this.state.diseaseMap[y][x] = Math.min(10, this.state.diseaseMap[y][x] + 5);
+          this.state.diseaseMap[y][x] = Math.min(10, this.state.diseaseMap[y][x] + db.igniteAmount);
         }
       }
     }
@@ -1558,29 +1581,29 @@ export class GameEngine {
     for (let y = 0; y < this.gridSize; y++) {
       for (let x = 0; x < this.gridSize; x++) {
         if (this.state.diseaseMap[y][x] > 0) {
-          // 隣接タイル3マスに波及
-          for (let dy = -3; dy <= 3; dy++) {
-            for (let dx = -3; dx <= 3; dx++) {
+          // 隣接タイル（spreadRadius マス）に波及
+          for (let dy = -db.spreadRadius; dy <= db.spreadRadius; dy++) {
+            for (let dx = -db.spreadRadius; dx <= db.spreadRadius; dx++) {
               const nx = x + dx;
               const ny = y + dy;
               if (nx >= 0 && ny >= 0 && nx < this.gridSize && ny < this.gridSize) {
-                if (this.state.map[ny][nx] !== TileType.EMPTY && this.rng() < 0.2) {
-                  newDiseaseMap[ny][nx] = Math.min(10, newDiseaseMap[ny][nx] + 1);
+                if (this.state.map[ny][nx] !== TileType.EMPTY && this.rng() < db.spreadChance) {
+                  newDiseaseMap[ny][nx] = Math.min(10, newDiseaseMap[ny][nx] + db.spreadAmount);
                 }
               }
             }
           }
 
-          // 病院による治癒（近い病院だけチェック）
+          // 病院による治癒（近い病院だけチェック、searchRadius はチェビシェフ距離）
           let diseaseHealed = false;
-          for (let yy = -10; yy <= 10; yy++) {
+          for (let yy = -db.searchRadius; yy <= db.searchRadius; yy++) {
             if (diseaseHealed) break;
-            for (let xx = -10; xx <= 10; xx++) {
+            for (let xx = -db.searchRadius; xx <= db.searchRadius; xx++) {
               const nx = x + xx;
               const ny = y + yy;
               if (nx >= 0 && ny >= 0 && nx < this.gridSize && ny < this.gridSize) {
                 if (this.state.map[ny][nx] === TileType.HOSPITAL) {
-                  if (this.rng() < 0.7) diseaseHealed = true;
+                  if (this.rng() < db.healSuccessRate) diseaseHealed = true;
                   break;
                 }
               }
@@ -1588,16 +1611,18 @@ export class GameEngine {
           }
 
           if (diseaseHealed) {
-            newDiseaseMap[y][x] = Math.max(0, newDiseaseMap[y][x] - 3);
+            newDiseaseMap[y][x] = Math.max(0, newDiseaseMap[y][x] - db.healAmount);
           } else {
-            newDiseaseMap[y][x] = Math.max(0, newDiseaseMap[y][x] - 1);
+            newDiseaseMap[y][x] = Math.max(0, newDiseaseMap[y][x] - db.decayAmount);
           }
 
           // 病気が蔓延したら人口減少
-          if (newDiseaseMap[y][x] >= 10) {
+          if (newDiseaseMap[y][x] >= db.outbreakThreshold) {
             const popLoss = POPULATION_TABLE[this.state.map[y][x]] || 0;
             this.state.population = Math.max(0, this.state.population - popLoss);
-            this.state.money -= 500;
+            // Step2リバランス: その場での money 減算をやめ、月次台帳に積算する
+            // （monthlyUpdate() の収支適用時に一括反映されるため決定論的・追跡可能になる）。
+            this.disasterDamage += DISASTER_BALANCE.disasterDamageCost;
           }
         }
       }

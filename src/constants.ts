@@ -206,7 +206,8 @@ export const INFRASTRUCTURE_EFFECTS = {
   fire_station: {
     rangeRadius: 30,
     safetyBoost: 5, // 年間安全度向上
-    fireSuppressionRate: 0.75, // 火災発生確率低下率（75%低下）
+    // fireSuppressionRate(0.75) は実装未参照かつ実際の消火成功率(DISASTER_BALANCE.fire.
+    // extinguishSuccessRate=0.9)と食い違っていたため Step2 で削除（実装が正）。
   },
   school: {
     rangeRadius: 25,
@@ -216,7 +217,8 @@ export const INFRASTRUCTURE_EFFECTS = {
   hospital: {
     rangeRadius: 25,
     medicalBoost: 4, // 年間医療度向上
-    diseaseReductionRate: 0.6, // 病気発生確率低下率（60%低下）
+    // diseaseReductionRate(0.6) は実装未参照かつ実際の治癒成功率(DISASTER_BALANCE.disease.
+    // healSuccessRate=0.7)と食い違っていたため Step2 で削除（実装が正）。
   },
   power_plant: {
     rangeRadius: 20,
@@ -228,13 +230,47 @@ export const INFRASTRUCTURE_EFFECTS = {
     diseaseMultiplier: 3, // 給水なし時の病気発生倍率
   },
   station: {
-    rangeRadius: 20,
-    growthBoost: 1.5, // 周辺成長速度倍率
+    // 実装（engine.ts の ensureBoostMap()）は ±4 のチェビシェフ距離（正方形範囲）で
+    // 判定しており、この rangeRadius:20 とは食い違っていたため、Step2で実装値(4)を正とし
+    // growthRadius として定義し直した（挙動は変更せず、実装値をそのまま定数化）。
+    growthRadius: 4, // 駅の成長ブースト範囲（チェビシェフ距離）
+    growthMultiplier: 1.5, // 周辺成長速度倍率
   },
   park: {
     rangeRadius: 15,
     comfortBoost: 2, // 快適度向上値
   },
+};
+
+// ==================== 災害バランス定数 ====================
+// Step2リバランス: engine.ts の updateFires()/updateDiseases() に散在していた魔法数を
+// 現行の実装値のまま定数化したもの（挙動は不変）。searchRadius/spreadRadius は
+// チェビシェフ距離（正方形の判定範囲、±N のネスト for ループ）で計測している。
+export const DISASTER_BALANCE = {
+  fire: {
+    baseChance: 0.0002, // updateFires の発生率係数（現行値）
+    spreadChance: 0.01, // 隣接波及確率（現行値）
+    searchRadius: 15, // 消防署探索範囲（チェビシェフ、現行 ±15）
+    extinguishSuccessRate: 0.9, // 消火成功率（現行 rng()<0.9 を採用）
+    extinguishAmount: 5, // 消火時の減少量（現行 -5）
+    decayAmount: 1, // 自然減衰（現行 -1）
+    igniteAmount: 2, // 発生時の加算（現行 +2）
+    spreadAmount: 1, // 波及時の加算（現行 +1）
+    destroyThreshold: 10, // 建物破壊閾値（現行 >=10）
+  },
+  disease: {
+    baseChance: 0.01, // updateDiseases の発生率係数（現行値）
+    spreadChance: 0.2, // 波及確率（現行値）
+    spreadRadius: 3, // 波及範囲（現行 ±3）
+    searchRadius: 10, // 病院探索範囲（チェビシェフ、現行 ±10）
+    healSuccessRate: 0.7, // 治癒成功率（現行 rng()<0.7 を採用）
+    healAmount: 3, // 治癒時の減少量（現行 -3）
+    decayAmount: 1, // 自然減衰（現行 -1）
+    igniteAmount: 5, // 発生時の加算（現行 +5）
+    spreadAmount: 1, // 波及時の加算（現行 +1）
+    outbreakThreshold: 10, // 人口減トリガ閾値（現行 >=10）
+  },
+  disasterDamageCost: 500, // 火災/病気による被害費（現行 -500）
 };
 
 // ランドマーク効果
