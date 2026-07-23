@@ -15,6 +15,7 @@ export class UIManager {
   private guiVisible: boolean = false;
   private selectedInfrastructure: string = "station";
   private selectedLandmark: string = "stadium";
+  private lastText = new Map<string, string>();
 
   private draggingPanel: HTMLElement | null = null;
   private dragOffsetX: number = 0;
@@ -690,10 +691,13 @@ export class UIManager {
     container.appendChild(optionsDiv);
   }
 
-  /** 要素が存在する場合のみ textContent を更新する（レイアウトにより一部要素が無くても例外を投げない） */
+  /** 要素が存在する場合のみ textContent を更新する（レイアウトにより一部要素が無くても例外を投げない）。
+   *  前回書き込んだ値と同一なら DOM 書き込みをスキップする。 */
   private setText(id: string, value: string): void {
+    if (this.lastText.get(id) === value) return;
     const el = document.getElementById(id);
     if (el) el.textContent = value;
+    this.lastText.set(id, value);
   }
 
   updateDisplay(): void {
