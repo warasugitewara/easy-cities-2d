@@ -8,7 +8,7 @@
 import { describe, expect, test, beforeEach } from "vite-plus/test";
 import { GameEngine, type GameSettings } from "./engine";
 import { mulberry32 } from "./rng";
-import { TileType, POPULATION_TABLE } from "./constants";
+import { TileType, POPULATION_TABLE, SYNERGY_EFFECTS } from "./constants";
 
 // テストは高速化のため small マップ（64グリッド）を使用する。
 function makeSettings(overrides: Partial<GameSettings> = {}): GameSettings {
@@ -220,7 +220,14 @@ describe("GameEngine.monthlyUpdate()", () => {
 
     // サンドボックスでは維持費が無視され revenue のみ加算される（現状値をスナップショット固定）。
     // Step1リバランスにより更新: 建物単位課税（住宅L1税収 20→30/棟）に伴い 31.395 → 47.0925。
-    expect(engine.state.money - before).toBeCloseTo(47.0925, 3);
+    // Step3リバランスにより再更新: security/safety/education/medicalLevel の算出モデルを
+    // 「効果範囲加算→100飽和／人口スケーリングで最大50%減衰」から
+    // 「カバー率(count/required)→目標値(target)→毎月smoothing=0.25でtargetに平滑追従」に変更した。
+    // 施設0個・人口30（住宅L1×3）では required=1（base）なので target=baseLevel=20、
+    // 初期値50から1ヶ月で 50+(20-50)*0.25=42.5 に平滑追従する。旧モデルでは人口スケーリングの
+    // deficit50%減衰で educationLevel が22.5まで落ち<40のrevenuePenalty(最大15%減)が発火していたが、
+    // 新モデルの42.5は40を上回るためこのペナルティが発火せず、revenueが 47.0925 → 50.4 に増加する。
+    expect(engine.state.money - before).toBeCloseTo(50.4, 3);
     expect(engine.state.population).toBe(sumPopulationFromMap(engine.state.map));
   });
 
@@ -240,7 +247,10 @@ describe("GameEngine.monthlyUpdate()", () => {
     // 差し引いて -252.9075 になる。
     // （初期駅を正規の 2x2 で配置する監督修正により、駅が countBuildings() で 1 棟として
     //  正しく計上されるようになった。以前は1タイルのみ配置で round(1/4)=0 棟＝維持費0だった）
-    expect(engine.state.money - before).toBeCloseTo(-252.9075, 3);
+    // Step3リバランスにより再更新: 上のテストと同じ理由（educationLevel が旧モデルの22.5から
+    // 新モデルの42.5に変わり<40のrevenuePenaltyが発火しなくなる）で revenue が3.3075増加し、
+    // -252.9075 → -249.6 になる（維持費300は不変）。
+    expect(engine.state.money - before).toBeCloseTo(-249.6, 3);
     expect(engine.state.population).toBe(sumPopulationFromMap(engine.state.map));
   });
 });
@@ -280,16 +290,136 @@ describe("既知バグの特性化 (BUG: 将来Phase 2で修正)", () => {
     expect(engine.state.population).toBe(sumPopulationFromMap(engine.state.map));
   });
 
-  test("BUG: applyEffectRadius により警察署1個で securityLevel がほぼ100に飽和する", () => {
+  test("FIXED (Step3): 警察署1棟で securityLevel がカバー率に応じ上昇する（飽和しない）", () => {
+    // 旧実装は applyEffectRadius が2x2(4タイル)の POLICE すべてに対して呼ばれるため
+    // securityLevel が一気に上限(100)へ飽和するバグを持っていた。
+    // Step3リバランスの効果カバー率×平滑追従モデルではタイル数ではなく countBuildings() の
+    // 「棟数」を使い、目標値へ smoothing=0.25 の割合でしか近づかないため飽和しなくなった。
     const engine = new GameEngine(makeSettings({ sandbox: true }));
     engine.state.buildMode = "infrastructure";
     engine.state.selectedInfrastructure = "police";
-    engine.build(30, 30); // マップ中央付近（2x2、4タイルとも POLICE）
+    engine.build(30, 30); // マップ中央付近（2x2、4タイルとも POLICE→countBuildings()で1棟）
 
     engine.monthlyUpdate();
-    // 警察署は2x2(4タイル)で、4タイルすべてが POLICE として扱われるため
-    // applyEffectRadius が同じ場所に対して4回呼ばれ、securityLevel が一気に上限(100)へ飽和する。
-    // 現状値をそのままスナップショットとして固定。
-    expect(engine.state.securityLevel).toBe(100);
+    // 人口0なので requiredPolice=base=1、policeCount=1（2x2/4=1棟）で ratio=1 → target=fullLevel=80。
+    // 初期値50から1ヶ月で 50+(80-50)*0.25=57.5 に平滑追従する（100には飽和しない）。
+    expect(engine.state.securityLevel).toBeCloseTo(57.5, 5);
+  });
+});
+
+describe("Step3: 効果カバー率×平滑追従モデル（CITY_LEVEL_MODEL）", () => {
+  test("施設0個・人口0では securityLevel が baseLevel(20) へ収束する", () => {
+    const engine = new GameEngine(makeSettings({ sandbox: true }));
+    // 何も建てず、平滑追従が十分収束するまで monthlyUpdate を繰り返す
+    // （毎月 (target-level)*0.25 だけ近づくので、30ヶ月後には初期値50との差が
+    //  0.75^30 ≈ 0.00018 倍まで減衰し、20にほぼ一致する）。
+    for (let i = 0; i < 30; i++) {
+      engine.monthlyUpdate();
+    }
+    expect(engine.state.securityLevel).toBeCloseTo(20, 1);
+    expect(engine.state.educationLevel).toBeCloseTo(20, 1);
+  });
+
+  test("警察を必要数（ratio=1）ちょうど揃えると securityLevel が fullLevel(80) へ収束する", () => {
+    const engine = new GameEngine(makeSettings({ sandbox: true }));
+    engine.state.buildMode = "infrastructure";
+    engine.state.selectedInfrastructure = "police";
+    engine.build(10, 10); // 人口0なので requiredPolice=base=1、1棟でratio=1
+
+    for (let i = 0; i < 30; i++) {
+      engine.monthlyUpdate();
+    }
+    expect(engine.state.securityLevel).toBeCloseTo(80, 1);
+  });
+
+  test("警察を過剰配置（ratio>=1.25）すると securityLevel が overProvisionMax(90) へ収束する", () => {
+    const engine = new GameEngine(makeSettings({ sandbox: true }));
+    engine.state.buildMode = "infrastructure";
+    engine.state.selectedInfrastructure = "police";
+    engine.build(10, 10); // 1棟目
+    engine.build(20, 20); // 2棟目（人口0なのでrequired=1のまま、ratio=2>=1.25）
+
+    for (let i = 0; i < 30; i++) {
+      engine.monthlyUpdate();
+    }
+    expect(engine.state.securityLevel).toBeCloseTo(90, 1);
+  });
+
+  test("警察+学校が15マス以内にあるとシナジーで securityLevel/educationLevel の目標に+5される", () => {
+    const engine = new GameEngine(makeSettings({ sandbox: true }));
+    engine.state.buildMode = "infrastructure";
+    engine.state.selectedInfrastructure = "police";
+    engine.build(10, 10); // policeのみ: ratio=1 → target=80
+    engine.state.selectedInfrastructure = "school";
+    engine.build(15, 10); // policeから距離5（マンハッタン）: 15マス以内でシナジー成立
+
+    for (let i = 0; i < 30; i++) {
+      engine.monthlyUpdate();
+    }
+    // シナジーなしなら target=80、シナジーで+5されて target=85 に収束する
+    expect(engine.state.securityLevel).toBeCloseTo(85, 1);
+    expect(engine.state.educationLevel).toBeCloseTo(85, 1);
+  });
+
+  test("駅+学校+警察が20マス以内に揃うと商業高層化の確率にcommercialGrowthMult(1.2)が乗算される", () => {
+    // commercialGrowthMult はprivateな派生値のため、grow() の商業高層化判定における
+    // rng() の呼び出しを完全に同期させた「あり/なし」2エンジンを比較して間接的に検証する。
+    // - 警察+学校は両エンジンに同じ配置で置き、securityLevel/educationLevel（→growthPenalty）を揃える
+    //   （police_schoolシナジーは両方に効くため、これによる閾値の違いは生じない）。
+    // - 駅の有無だけを変え、station+school+police の三者シナジー（triple synergy）だけを分岐させる。
+    // - 商業タイルはグリッド左上(0,0)に単独配置し、grow()の走査順で最初に処理される1マスにする
+    //   ことで、それ以前に他のセルがrng()を消費して閾値判定がずれることを防ぐ
+    //   （EMPTY×道路/建物隣接なしのセルはrng()を一切消費しないためスキップされる）。
+    // - rng()に定数を返す関数を渡し、二分探索で「成長する/しない」が切り替わる閾値を実測する。
+    //   growthRate/bias等の内部定数を直接読まなくても、with/withoutの閾値比が
+    //   ちょうど SYNERGY_EFFECTS.station_school_police.commercialGrowthMult(1.2) になることを
+    //   数値的に検証できる。
+    function buildFacilities(engine: GameEngine, withStation: boolean): void {
+      engine.state.buildMode = "infrastructure";
+      engine.state.selectedInfrastructure = "police";
+      engine.build(10, 10);
+      engine.state.selectedInfrastructure = "school";
+      engine.build(14, 10); // policeから距離4（15マス以内）
+      if (withStation) {
+        engine.state.selectedInfrastructure = "station";
+        engine.build(20, 20); // school/police双方から20マス以内
+      }
+      engine.state.buildMode = "commercial";
+      engine.build(0, 0); // grow()の走査で最初に処理される単独の商業タイル
+    }
+
+    // rng()が常に定数xを返すエンジンで単発grow()を行い、商業タイルが高層化したかを返す
+    function grows(withStation: boolean, x: number): boolean {
+      const engine = new GameEngine(makeSettings({ sandbox: true }), () => x);
+      buildFacilities(engine, withStation);
+      engine.monthlyUpdate(); // growthPenalty/commercialGrowthMultを確定（disastersEnabled:falseのためrng消費なし）
+      engine.grow();
+      return engine.state.map[0][0] !== TileType.COMMERCIAL_L1;
+    }
+
+    // 二分探索で「rng()<しきい値」の境界を実測する（40回で誤差 2^-40 未満に収束）
+    function findThreshold(withStation: boolean): number {
+      let lo = 0;
+      let hi = 1;
+      for (let i = 0; i < 40; i++) {
+        const mid = (lo + hi) / 2;
+        if (grows(withStation, mid)) {
+          lo = mid; // mid < threshold（成長した）
+        } else {
+          hi = mid; // mid >= threshold（成長しなかった）
+        }
+      }
+      return (lo + hi) / 2;
+    }
+
+    const thresholdWithout = findThreshold(false);
+    const thresholdWith = findThreshold(true);
+
+    // 他の要因（bias/growthPenalty/localPenalty）はwith/withoutで完全に同一のため、
+    // 比はちょうど commercialGrowthMult(1.2) になるはず。
+    expect(thresholdWith / thresholdWithout).toBeCloseTo(
+      SYNERGY_EFFECTS.station_school_police.commercialGrowthMult,
+      6,
+    );
   });
 });

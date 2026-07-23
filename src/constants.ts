@@ -274,28 +274,34 @@ export const DISASTER_BALANCE = {
 };
 
 // ランドマーク効果
+// Step3リバランス: 観光度/国際化度は「棟数→目標値→平滑追従」モデルに変更した
+// （CITY_LEVEL_MODEL 参照）。tourismPerBuilding/internationalPerBuilding は
+// 1棟あたりの目標値への寄与量（旧 tourismBoost/internationalBoost の年間加算値とは別物）。
+// commercialBonusMin/Max/rangeRadius は Step7で扱うため変更せず残置。
 export const LANDMARK_EFFECTS = {
   stadium: {
     rangeRadius: 40,
-    tourismBoost: 5, // 年間観光度向上
+    tourismPerBuilding: 40, // 観光度目標値への1棟あたり寄与
     commercialBonusMin: 500, // L1商業地観光収入
     commercialBonusMax: 3000, // L4商業地観光収入
   },
   airport: {
     rangeRadius: 50,
-    tourismBoost: 3, // 年間観光度向上（スタジアムより少ない）
-    internationalBoost: 5, // 年間国際化度向上
+    tourismPerBuilding: 25, // 観光度目標値への1棟あたり寄与（スタジアムより少ない）
+    internationalPerBuilding: 50, // 国際化度目標値への1棟あたり寄与
     commercialBonusMin: 1000, // L1商業地国際取引収入
     commercialBonusMax: 5000, // L4商業地国際取引収入
   },
 };
 
 // シナジー効果
+// Step3リバランス: ペアごとの重複加算はしない「ブール型」（1組でも成立すれば加算）に変更。
+// 値は target（カバー率→目標レベル）への加算量として使う。
 export const SYNERGY_EFFECTS = {
   police_school: {
     distanceThreshold: 15, // 15マス以内でシナジー発生
-    securityBoost: 10,
-    educationBoost: 10,
+    securityBoost: 5,
+    educationBoost: 5,
   },
   school_hospital: {
     distanceThreshold: 15,
@@ -304,8 +310,21 @@ export const SYNERGY_EFFECTS = {
   },
   station_school_police: {
     distanceThreshold: 20,
-    commercialGrowthBonus: 0.2, // 商業成長+20%
+    commercialGrowthMult: 1.2, // 商業高層化確率の乗数
   },
+};
+
+// ==================== 都市レベルモデル（効果カバー率×平滑追従） ====================
+// Step3リバランス: 治安/安全/教育/医療/観光/国際化の各レベルは、旧来の「効果範囲内で
+// 加算し続けて上限に張り付く」モデルから、「必要数に対するカバー率(ratio)から目標値(target)
+// を算出し、毎月 target に向かって smoothing の割合だけ近づく」モデルに変更した。
+export const CITY_LEVEL_MODEL = {
+  baseLevel: 20, // 施設0個時の到達目標
+  fullLevel: 80, // 必要数ちょうど(ratio=1)の到達目標
+  overProvisionMax: 90, // ratio>=overProvisionRatio での上限
+  overProvisionRatio: 1.25,
+  smoothing: 0.25, // 毎月の目標追従率
+  synergyCap: 100, // シナジー加算後の上限
 };
 
 // ==================== 人口スケーリング ====================

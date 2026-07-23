@@ -12,6 +12,9 @@ import {
   INFRASTRUCTURE_REQUIREMENTS,
   INFRASTRUCTURE_EFFECTS,
   DISASTER_BALANCE,
+  LANDMARK_EFFECTS,
+  SYNERGY_EFFECTS,
+  CITY_LEVEL_MODEL,
 } from "./constants";
 import type { RNG } from "./rng";
 import { defaultRng } from "./rng";
@@ -77,6 +80,9 @@ export class GameEngine {
   // monthlyUpdate() の冒頭（updateDisasters() 呼出前）でリセットし、収支適用時に一括反映する。
   // GameState には含めない（セーブデータを汚染しない派生値のため）。
   private disasterDamage = 0;
+  // Step3リバランス: 駅+学校+警察の三者シナジー成立時の商業高層化確率乗数。
+  // updateInfrastructureEffects() 内で毎月再計算する派生値（GameStateには含めない）。
+  private commercialGrowthMult = 1.0;
 
   // --- grow() 高速化用キャッシュ（GameStateには含めない: 派生値のため） ---
   private biasMap: Float64Array | null = null;
@@ -561,11 +567,16 @@ export class GameEngine {
           }
 
           // 商業地の高層化
+          // Step3リバランス: 駅+学校+警察の三者シナジー成立時、commercialGrowthMult(1.2)を
+          // 乗算して商業高層化確率をブースト（住宅・工業には掛けない）。
           if (
             this.state.map[y][x] >= TileType.COMMERCIAL_L1 &&
             this.state.map[y][x] < TileType.COMMERCIAL_L4
           ) {
-            if (this.rng() < this.growthRate * 0.4 * bias * localPenalty) {
+            if (
+              this.rng() <
+              this.growthRate * 0.4 * bias * localPenalty * this.commercialGrowthMult
+            ) {
               this.state.map[y][x]++;
             }
           }
@@ -722,113 +733,102 @@ export class GameEngine {
   }
 
   // インフラ効果の計算・反映
+  // Step3リバランス: 治安/安全/教育/医療/観光/国際化の各レベルを
+  // 「カバー率(count/required)→目標値(target)→毎月 smoothing 割合だけ target に平滑追従」
+  // というモデルに全面書き換えした（旧: 効果範囲内で加算し続けて100に張り付くモデル）。
   private updateInfrastructureEffects(): void {
-    // 各パラメータを少し減衰させてからリセット（前月の記憶を保つ）
-    this.state.securityLevel = Math.max(40, this.state.securityLevel * 0.9);
-    this.state.safetyLevel = Math.max(40, this.state.safetyLevel * 0.9);
-    this.state.educationLevel = Math.max(40, this.state.educationLevel * 0.9);
-    this.state.medicalLevel = Math.max(40, this.state.medicalLevel * 0.9);
-    this.state.tourismLevel = Math.max(0, this.state.tourismLevel * 0.95);
-    this.state.internationalLevel = Math.max(0, this.state.internationalLevel * 0.95);
-
-    // 供給率計算
+    // 供給率計算（電力・給水の実カバー率。旧・人口スケーリング処理による deficit の
+    // 二重掛けはStep3で当該処理を削除して解消したため、ここで計算した値をそのまま採用する）
     this.calculateSupplyRates();
 
-    // 施設の影響を集計
-    for (let y = 0; y < this.gridSize; y++) {
-      for (let x = 0; x < this.gridSize; x++) {
-        const tile = this.state.map[y][x];
+    const buildingCounts = this.countBuildings();
+    const policeCount = buildingCounts.get(TileType.POLICE) || 0;
+    const fireCount = buildingCounts.get(TileType.FIRE_STATION) || 0;
+    const schoolCount = buildingCounts.get(TileType.SCHOOL) || 0;
+    const hospitalCount = buildingCounts.get(TileType.HOSPITAL) || 0;
+    const stadiumCount = buildingCounts.get(TileType.LANDMARK_STADIUM) || 0;
+    const airportCount = buildingCounts.get(TileType.LANDMARK_AIRPORT) || 0;
 
-        // 警察署の効果
-        if (tile === TileType.POLICE) {
-          this.applyEffectRadius(x, y, 30, "security", 5);
-        }
-        // 消防署の効果
-        if (tile === TileType.FIRE_STATION) {
-          this.applyEffectRadius(x, y, 30, "safety", 5);
-        }
-        // 学校の効果
-        if (tile === TileType.SCHOOL) {
-          this.applyEffectRadius(x, y, 25, "education", 3);
-        }
-        // 病院の効果
-        if (tile === TileType.HOSPITAL) {
-          this.applyEffectRadius(x, y, 25, "medical", 4);
-        }
-        // スタジアムの効果
-        if (tile === TileType.LANDMARK_STADIUM) {
-          this.applyEffectRadius(x, y, 40, "tourism", 5);
-        }
-        // 空港の効果
-        if (tile === TileType.LANDMARK_AIRPORT) {
-          this.applyEffectRadius(x, y, 50, "tourism", 3);
-          this.applyEffectRadius(x, y, 50, "international", 5);
-        }
-      }
-    }
+    const requiredPolice = this.requiredUnits("police");
+    const requiredFire = this.requiredUnits("fire_station");
+    const requiredSchool = this.requiredUnits("school");
+    const requiredHospital = this.requiredUnits("hospital");
 
-    // パラメータを100で上限
-    this.state.securityLevel = Math.min(100, this.state.securityLevel);
-    this.state.safetyLevel = Math.min(100, this.state.safetyLevel);
-    this.state.educationLevel = Math.min(100, this.state.educationLevel);
-    this.state.medicalLevel = Math.min(100, this.state.medicalLevel);
-    this.state.tourismLevel = Math.min(100, this.state.tourismLevel);
-    this.state.internationalLevel = Math.min(100, this.state.internationalLevel);
+    // シナジー成立フラグ・加算量を先に算出してから target に反映する
+    // （三者シナジーは commercialGrowthMult として grow() の商業高層化確率に使う）
+    const synergy = this.calculateSynergyBonuses();
+    this.commercialGrowthMult = synergy.tripleSynergy
+      ? SYNERGY_EFFECTS.station_school_police.commercialGrowthMult
+      : 1.0;
 
-    // シナジー効果の計算
-    this.applySynergyEffects();
+    const securityTarget = this.calculateLevelTarget(
+      policeCount,
+      requiredPolice,
+      synergy.securityBonus,
+    );
+    const safetyTarget = this.calculateLevelTarget(fireCount, requiredFire, 0);
+    const educationTarget = this.calculateLevelTarget(
+      schoolCount,
+      requiredSchool,
+      synergy.educationBonus,
+    );
+    const medicalTarget = this.calculateLevelTarget(
+      hospitalCount,
+      requiredHospital,
+      synergy.medicalBonus,
+    );
+
+    this.state.securityLevel = this.smoothToward(this.state.securityLevel, securityTarget);
+    this.state.safetyLevel = this.smoothToward(this.state.safetyLevel, safetyTarget);
+    this.state.educationLevel = this.smoothToward(this.state.educationLevel, educationTarget);
+    this.state.medicalLevel = this.smoothToward(this.state.medicalLevel, medicalTarget);
+
+    // 観光度/国際化度（必要数なし・施設数ベースの目標値に平滑追従）
+    const tourismTarget = Math.min(
+      100,
+      LANDMARK_EFFECTS.stadium.tourismPerBuilding * stadiumCount +
+        LANDMARK_EFFECTS.airport.tourismPerBuilding * airportCount,
+    );
+    const internationalTarget = Math.min(
+      100,
+      LANDMARK_EFFECTS.airport.internationalPerBuilding * airportCount,
+    );
+    this.state.tourismLevel = this.smoothToward(this.state.tourismLevel, tourismTarget);
+    this.state.internationalLevel = this.smoothToward(
+      this.state.internationalLevel,
+      internationalTarget,
+    );
 
     // 需要計算
     this.calculateDemands();
-
-    // 人口に基づいてインフラスケーリングを適用
-    this.applyPopulationScaling();
   }
 
-  // 半径内に効果を適用
-  private applyEffectRadius(
-    centerX: number,
-    centerY: number,
-    radius: number,
-    effectType: string,
-    value: number,
-  ): void {
-    for (
-      let y = Math.max(0, centerY - radius);
-      y < Math.min(this.gridSize, centerY + radius);
-      y++
-    ) {
-      for (
-        let x = Math.max(0, centerX - radius);
-        x < Math.min(this.gridSize, centerX + radius);
-        x++
-      ) {
-        const dist = Math.abs(x - centerX) + Math.abs(y - centerY); // マンハッタン距離
-        if (dist <= radius) {
-          const factor = 1 - (dist / radius) * 0.3; // 距離に応じて効果を減衰
-          switch (effectType) {
-            case "security":
-              this.state.securityLevel += value * factor;
-              break;
-            case "safety":
-              this.state.safetyLevel += value * factor;
-              break;
-            case "education":
-              this.state.educationLevel += value * factor;
-              break;
-            case "medical":
-              this.state.medicalLevel += value * factor;
-              break;
-            case "tourism":
-              this.state.tourismLevel += value * factor;
-              break;
-            case "international":
-              this.state.internationalLevel += value * factor;
-              break;
-          }
-        }
-      }
-    }
+  // 人口に対する必要棟数（INFRASTRUCTURE_REQUIREMENTS より）
+  private requiredUnits(kind: keyof typeof INFRASTRUCTURE_REQUIREMENTS): number {
+    const req = INFRASTRUCTURE_REQUIREMENTS[kind];
+    return Math.max(req.base, Math.ceil(this.state.population / req.populationPerUnit));
+  }
+
+  // カバー率(count/required)から目標レベルを算出する（CITY_LEVEL_MODEL参照）。
+  // ratio=0→baseLevel, ratio=1→fullLevel, ratio>=overProvisionRatio→overProvisionMax
+  // の3点をつなぐ区分線形。synergyBonus はシナジー加算分（synergyCapで上限）。
+  private calculateLevelTarget(count: number, required: number, synergyBonus: number): number {
+    const { baseLevel, fullLevel, overProvisionMax, overProvisionRatio, synergyCap } =
+      CITY_LEVEL_MODEL;
+    const ratio = required > 0 ? count / required : 0;
+
+    let target = baseLevel + (fullLevel - baseLevel) * Math.min(1, ratio);
+    const overRatio =
+      Math.max(0, Math.min(ratio, overProvisionRatio) - 1) / (overProvisionRatio - 1);
+    target += (overProvisionMax - fullLevel) * overRatio;
+
+    return Math.min(synergyCap, target + synergyBonus);
+  }
+
+  // 現在値から目標値へ smoothing の割合だけ平滑追従させる（0-100にクランプ）
+  private smoothToward(current: number, target: number): number {
+    const next = current + (target - current) * CITY_LEVEL_MODEL.smoothing;
+    return Math.min(100, Math.max(0, next));
   }
 
   // 供給率計算
@@ -909,9 +909,17 @@ export class GameEngine {
     this.state.industrialDemand = Math.round(industrialDemand);
   }
 
-  // シナジー効果の計算
-  private applySynergyEffects(): void {
-    // 施設の位置を取得
+  // Step3リバランス: シナジー成立判定（ブール型・ペアごとの重複加算はしない）。
+  // updateInfrastructureEffects() の target 計算に加算する量を先にまとめて返す。
+  // station+school+police の三者シナジーは security/education/medical には加算せず、
+  // tripleSynergy フラグとして返し、呼び出し側で commercialGrowthMult に反映する。
+  private calculateSynergyBonuses(): {
+    securityBonus: number;
+    educationBonus: number;
+    medicalBonus: number;
+    tripleSynergy: boolean;
+  } {
+    // 施設の位置を取得（存在判定のみに使うのでタイル単位の走査でよい）
     const facilities: {
       police: { x: number; y: number }[];
       school: { x: number; y: number }[];
@@ -929,48 +937,42 @@ export class GameEngine {
       }
     }
 
-    // シナジー1: 警察+学校（15マス以内）→ securityLevel +10, educationLevel +10
-    for (const police of facilities.police) {
-      for (const school of facilities.school) {
-        const dist = Math.abs(police.x - school.x) + Math.abs(police.y - school.y);
-        if (dist <= 15) {
-          this.state.securityLevel = Math.min(100, this.state.securityLevel + 10);
-          this.state.educationLevel = Math.min(100, this.state.educationLevel + 10);
-        }
-      }
+    const manhattan = (a: { x: number; y: number }, b: { x: number; y: number }): number =>
+      Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+
+    let securityBonus = 0;
+    let educationBonus = 0;
+    let medicalBonus = 0;
+
+    // シナジー1: 警察+学校が距離threshold以内に1組でも存在
+    const policeSchoolThreshold = SYNERGY_EFFECTS.police_school.distanceThreshold;
+    const policeSchool = facilities.police.some((p) =>
+      facilities.school.some((s) => manhattan(p, s) <= policeSchoolThreshold),
+    );
+    if (policeSchool) {
+      securityBonus += SYNERGY_EFFECTS.police_school.securityBoost;
+      educationBonus += SYNERGY_EFFECTS.police_school.educationBoost;
     }
 
-    // シナジー2: 学校+病院（15マス以内）→ educationLevel +5, medicalLevel +5
-    for (const school of facilities.school) {
-      for (const hospital of facilities.hospital) {
-        const dist = Math.abs(school.x - hospital.x) + Math.abs(school.y - hospital.y);
-        if (dist <= 15) {
-          this.state.educationLevel = Math.min(100, this.state.educationLevel + 5);
-          this.state.medicalLevel = Math.min(100, this.state.medicalLevel + 5);
-        }
-      }
+    // シナジー2: 学校+病院が距離threshold以内に1組でも存在
+    const schoolHospitalThreshold = SYNERGY_EFFECTS.school_hospital.distanceThreshold;
+    const schoolHospital = facilities.school.some((s) =>
+      facilities.hospital.some((h) => manhattan(s, h) <= schoolHospitalThreshold),
+    );
+    if (schoolHospital) {
+      educationBonus += SYNERGY_EFFECTS.school_hospital.educationBoost;
+      medicalBonus += SYNERGY_EFFECTS.school_hospital.medicalBoost;
     }
 
-    // シナジー3: 駅+学校+警察（20マス以内、3つ全て必要）
-    // → 商業成長ボーナス（成長ペナルティを20%軽減）
-    for (const station of facilities.station) {
-      for (const school of facilities.school) {
-        const schoolDist = Math.abs(station.x - school.x) + Math.abs(station.y - school.y);
-        if (schoolDist <= 20) {
-          for (const police of facilities.police) {
-            const policeDist = Math.abs(station.x - police.x) + Math.abs(station.y - police.y);
-            if (policeDist <= 20) {
-              // 3つが揃ったので、成長ボーナスを適用（商業成長+20%）
-              // growthPenalty に 1.2x を掛ける（ペナルティ軽減）
-              // ただし、元々 calculatePenalties() で成長ペナルティが適用されるので
-              // ここでは educationLevel を追加で上昇させることで間接的に対応
-              this.state.educationLevel = Math.min(100, this.state.educationLevel + 8);
-              // console.log('✨ Triple synergy (Station+School+Police) activated!');
-            }
-          }
-        }
-      }
-    }
+    // シナジー3: 駅+学校+警察の3種が距離threshold以内に揃って存在
+    const tripleThreshold = SYNERGY_EFFECTS.station_school_police.distanceThreshold;
+    const tripleSynergy = facilities.station.some(
+      (st) =>
+        facilities.school.some((s) => manhattan(st, s) <= tripleThreshold) &&
+        facilities.police.some((p) => manhattan(st, p) <= tripleThreshold),
+    );
+
+    return { securityBonus, educationBonus, medicalBonus, tripleSynergy };
   }
 
   // ランドマーク商業ボーナス計算
@@ -1042,73 +1044,6 @@ export class GameEngine {
     }
 
     return bonus;
-  }
-
-  // 人口に基づくインフラスケーリング
-  private applyPopulationScaling(): void {
-    // インフラ数をカウント
-    let policeCount = 0;
-    let fireCount = 0;
-    let schoolCount = 0;
-    let hospitalCount = 0;
-    let powerCount = 0;
-    let waterCount = 0;
-
-    for (let y = 0; y < this.gridSize; y++) {
-      for (let x = 0; x < this.gridSize; x++) {
-        const tile = this.state.map[y][x];
-        if (tile === TileType.POLICE) policeCount++;
-        if (tile === TileType.FIRE_STATION) fireCount++;
-        if (tile === TileType.SCHOOL) schoolCount++;
-        if (tile === TileType.HOSPITAL) hospitalCount++;
-        if (tile === TileType.POWER_PLANT) powerCount++;
-        if (tile === TileType.WATER_TREATMENT) waterCount++;
-      }
-    }
-
-    const population = this.state.population;
-
-    // 必要インフラ数を計算
-    const requiredPolice = Math.max(
-      INFRASTRUCTURE_REQUIREMENTS.police.base,
-      Math.ceil(population / INFRASTRUCTURE_REQUIREMENTS.police.populationPerUnit),
-    );
-    const requiredFire = Math.max(
-      INFRASTRUCTURE_REQUIREMENTS.fire_station.base,
-      Math.ceil(population / INFRASTRUCTURE_REQUIREMENTS.fire_station.populationPerUnit),
-    );
-    const requiredSchool = Math.max(
-      INFRASTRUCTURE_REQUIREMENTS.school.base,
-      Math.ceil(population / INFRASTRUCTURE_REQUIREMENTS.school.populationPerUnit),
-    );
-    const requiredHospital = Math.max(
-      INFRASTRUCTURE_REQUIREMENTS.hospital.base,
-      Math.ceil(population / INFRASTRUCTURE_REQUIREMENTS.hospital.populationPerUnit),
-    );
-    const requiredPower = Math.max(
-      INFRASTRUCTURE_REQUIREMENTS.power_plant.base,
-      Math.ceil(population / INFRASTRUCTURE_REQUIREMENTS.power_plant.populationPerUnit),
-    );
-    const requiredWater = Math.max(
-      INFRASTRUCTURE_REQUIREMENTS.water_treatment.base,
-      Math.ceil(population / INFRASTRUCTURE_REQUIREMENTS.water_treatment.populationPerUnit),
-    );
-
-    // 人口に対するインフラ不足率を計算
-    const policeDeficit = Math.max(0, 1 - policeCount / requiredPolice);
-    const fireDeficit = Math.max(0, 1 - fireCount / requiredFire);
-    const schoolDeficit = Math.max(0, 1 - schoolCount / requiredSchool);
-    const hospitalDeficit = Math.max(0, 1 - hospitalCount / requiredHospital);
-    const powerDeficit = Math.max(0, 1 - powerCount / requiredPower);
-    const waterDeficit = Math.max(0, 1 - waterCount / requiredWater);
-
-    // パラメータを不足率に応じて減衰
-    this.state.securityLevel *= 1 - policeDeficit * 0.5; // 不足で最大50%低下
-    this.state.safetyLevel *= 1 - fireDeficit * 0.5;
-    this.state.educationLevel *= 1 - schoolDeficit * 0.5;
-    this.state.medicalLevel *= 1 - hospitalDeficit * 0.5;
-    this.state.powerSupplyRate *= 1 - powerDeficit * 0.3; // 電力供給率低下
-    this.state.waterSupplyRate *= 1 - waterDeficit * 0.3;
   }
 
   // インフラ不足ペナルティ計算
