@@ -42,7 +42,6 @@ export interface GameState {
   waterGrid: boolean[][];
   fireMap: number[][]; // 火災レベル（0=なし、1-10=火の強さ）
   diseaseMap: number[][]; // 病気レベル（0=なし、1-10=病気の強さ）
-  crimeMap: number[][]; // 犯罪率（0-100）
   pollutionMap: number[][]; // 汚染度（0-100）
   slumMap: number[][]; // スラム化レベル（0=なし、1-10=スラム化の強さ）
   // 詳細パラメータ
@@ -133,7 +132,6 @@ export class GameEngine {
       waterGrid: Array.from({ length: this.gridSize }, () => Array(this.gridSize).fill(false)),
       fireMap: Array.from({ length: this.gridSize }, () => Array(this.gridSize).fill(0)),
       diseaseMap: Array.from({ length: this.gridSize }, () => Array(this.gridSize).fill(0)),
-      crimeMap: Array.from({ length: this.gridSize }, () => Array(this.gridSize).fill(0)),
       pollutionMap: Array.from({ length: this.gridSize }, () => Array(this.gridSize).fill(0)),
       slumMap: Array.from({ length: this.gridSize }, () => Array(this.gridSize).fill(0)),
       securityLevel: INITIAL_PARAMETERS.securityLevel,
@@ -305,11 +303,15 @@ export class GameEngine {
       const size = BUILDING_SIZES[tileType] || { width: 1, height: 1 };
 
       // 建物を配置可能か確認（複数マス占有対応）
+      // 注: x, y は関数冒頭で 0 <= x,y < gridSize を確認済みで dx,dy は常に 0 以上のため
+      // nx,ny が負になることは実際には無い（防御的にチェックのみ追加）。
       for (let dy = 0; dy < size.height; dy++) {
         for (let dx = 0; dx < size.width; dx++) {
           const nx = x + dx;
           const ny = y + dy;
           if (
+            nx < 0 ||
+            ny < 0 ||
             nx >= this.gridSize ||
             ny >= this.gridSize ||
             this.state.map[ny][nx] !== TileType.EMPTY
@@ -320,12 +322,14 @@ export class GameEngine {
         }
       }
 
-      // 建物を配置
+      // 建物を配置（上の確認ループで全マスの範囲内・空き地を保証済み）
       for (let dy = 0; dy < size.height; dy++) {
         for (let dx = 0; dx < size.width; dx++) {
           const nx = x + dx;
           const ny = y + dy;
-          this.state.map[ny][nx] = tileType;
+          if (nx >= 0 && ny >= 0 && nx < this.gridSize && ny < this.gridSize) {
+            this.state.map[ny][nx] = tileType;
+          }
         }
       }
 
@@ -353,27 +357,18 @@ export class GameEngine {
     return false;
   }
 
+  // インフラ/ランドマークの個別コストは constants.ts の BUILD_COSTS に一元化されている
+  // （station/park/police/... はそのままのキー、ランドマークは `landmark_${type}` キー）。
+  // 値は変更前とすべて一致することを確認済み（station:5000, park:1000, police:8000,
+  // fire_station:7000, hospital:10000, school:6000, power_plant:15000, water_treatment:12000,
+  // landmark_stadium:50000, landmark_airport:80000）。
   private getCost(mode: BuildingCategory): number {
     if (mode === "infrastructure") {
       // 選択されたインフラのコストを返す
-      const costs: Record<string, number> = {
-        station: 5000,
-        park: 1000,
-        police: 8000,
-        fire_station: 7000,
-        hospital: 10000,
-        school: 6000,
-        power_plant: 15000,
-        water_treatment: 12000,
-      };
-      return costs[this.state.selectedInfrastructure] || 5000;
+      return BUILD_COSTS[this.state.selectedInfrastructure] || 5000;
     } else if (mode === "landmark") {
       // 選択されたランドマークのコストを返す
-      const costs: Record<string, number> = {
-        stadium: 50000,
-        airport: 80000,
-      };
-      return costs[this.state.selectedLandmark] || 50000;
+      return BUILD_COSTS[`landmark_${this.state.selectedLandmark}`] || 50000;
     }
     return BUILD_COSTS[mode] || 0;
   }
@@ -1221,7 +1216,6 @@ export class GameEngine {
       waterGrid: Array.from({ length: this.gridSize }, () => Array(this.gridSize).fill(false)),
       fireMap: Array.from({ length: this.gridSize }, () => Array(this.gridSize).fill(0)),
       diseaseMap: Array.from({ length: this.gridSize }, () => Array(this.gridSize).fill(0)),
-      crimeMap: Array.from({ length: this.gridSize }, () => Array(this.gridSize).fill(0)),
       pollutionMap: Array.from({ length: this.gridSize }, () => Array(this.gridSize).fill(0)),
       slumMap: Array.from({ length: this.gridSize }, () => Array(this.gridSize).fill(0)),
       securityLevel: INITIAL_PARAMETERS.securityLevel,
