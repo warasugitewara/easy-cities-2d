@@ -207,7 +207,6 @@ async function initializeGame(): Promise<void> {
             devLastLogTime = __frameNow;
           }
         }
-
       } catch (e) {
         console.error("❌ Game loop error:", e);
       } finally {
