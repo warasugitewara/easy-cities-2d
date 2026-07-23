@@ -94,10 +94,13 @@ export const BUILDING_SIZES: Record<number, { width: number; height: number }> =
   [TileType.PARK]: { width: 2, height: 2 },
   [TileType.POLICE]: { width: 2, height: 2 },
   [TileType.FIRE_STATION]: { width: 2, height: 2 },
-  [TileType.HOSPITAL]: { width: 3, height: 3 },
-  [TileType.SCHOOL]: { width: 3, height: 3 },
-  [TileType.POWER_PLANT]: { width: 4, height: 4 },
-  [TileType.WATER_TREATMENT]: { width: 3, height: 3 },
+  [TileType.HOSPITAL]: { width: 2, height: 2 },
+  [TileType.SCHOOL]: { width: 2, height: 2 },
+  // POWER_PLANT/WATER_TREATMENT は 1x1（README仕様）。既定値と同じ {1,1} だが、
+  // demolish() の複数マス判定 `if (BUILDING_SIZES[tileType])` が存在有無で分岐するため、
+  // 削除せず明示的に残す（存在すれば単一マスの通常削除経路にも安全に乗る）。
+  [TileType.POWER_PLANT]: { width: 1, height: 1 },
+  [TileType.WATER_TREATMENT]: { width: 1, height: 1 },
 };
 
 // インフラごとの色定義

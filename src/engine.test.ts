@@ -116,6 +116,40 @@ describe("GameEngine.build()", () => {
     expect(engine.state.map[11][10]).toBe(TileType.EMPTY);
     expect(engine.state.map[11][11]).toBe(TileType.EMPTY);
   });
+
+  // Phase 2a: 建物サイズをREADME仕様（病院2x2・発電所1x1）に修正したことの検証。
+  test("2x2 の病院設置で4タイル占有し、demolishで4タイル全消去", () => {
+    const engine = new GameEngine(makeSettings());
+    engine.state.buildMode = "infrastructure";
+    engine.state.selectedInfrastructure = "hospital";
+    expect(engine.build(20, 20)).toBe(true);
+    expect(engine.state.map[20][20]).toBe(TileType.HOSPITAL);
+    expect(engine.state.map[20][21]).toBe(TileType.HOSPITAL);
+    expect(engine.state.map[21][20]).toBe(TileType.HOSPITAL);
+    expect(engine.state.map[21][21]).toBe(TileType.HOSPITAL);
+
+    engine.state.buildMode = "demolish";
+    expect(engine.build(20, 20)).toBe(true);
+    expect(engine.state.map[20][20]).toBe(TileType.EMPTY);
+    expect(engine.state.map[20][21]).toBe(TileType.EMPTY);
+    expect(engine.state.map[21][20]).toBe(TileType.EMPTY);
+    expect(engine.state.map[21][21]).toBe(TileType.EMPTY);
+  });
+
+  test("1x1 の発電所設置で1タイルのみ占有し、demolishで1タイル消去", () => {
+    const engine = new GameEngine(makeSettings());
+    engine.state.buildMode = "infrastructure";
+    engine.state.selectedInfrastructure = "power_plant";
+    expect(engine.build(15, 15)).toBe(true);
+    expect(engine.state.map[15][15]).toBe(TileType.POWER_PLANT);
+    // 隣接タイルは占有されない（4x4だった旧仕様との違いを固定化）
+    expect(engine.state.map[15][16]).toBe(TileType.EMPTY);
+    expect(engine.state.map[16][15]).toBe(TileType.EMPTY);
+
+    engine.state.buildMode = "demolish";
+    expect(engine.build(15, 15)).toBe(true);
+    expect(engine.state.map[15][15]).toBe(TileType.EMPTY);
+  });
 });
 
 describe("GameEngine.grow() 決定論", () => {
