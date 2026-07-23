@@ -171,6 +171,42 @@ describe("GameEngine.grow() 決定論", () => {
   });
 });
 
+describe("GameEngine.countBuildings()", () => {
+  test("1x1の発電所を3個設置すると power_plant のカウントは3", () => {
+    const engine = new GameEngine(makeSettings());
+    engine.state.buildMode = "infrastructure";
+    engine.state.selectedInfrastructure = "power_plant";
+    engine.build(5, 5);
+    engine.build(8, 8);
+    engine.build(12, 12);
+
+    const counts = engine.countBuildings();
+    expect(counts.get(TileType.POWER_PLANT)).toBe(3);
+  });
+
+  test("2x2の病院を2棟設置すると hospital のカウントは2（8タイル÷4=2）", () => {
+    const engine = new GameEngine(makeSettings());
+    engine.state.buildMode = "infrastructure";
+    engine.state.selectedInfrastructure = "hospital";
+    engine.build(10, 10);
+    engine.build(20, 20);
+
+    const counts = engine.countBuildings();
+    expect(counts.get(TileType.HOSPITAL)).toBe(2);
+  });
+
+  test("道路を5本設置すると road のカウントは5（1x1建物はタイル数=建物数）", () => {
+    const engine = new GameEngine(makeSettings());
+    engine.state.buildMode = "road";
+    for (let x = 0; x < 5; x++) {
+      engine.build(x, 40);
+    }
+
+    const counts = engine.countBuildings();
+    expect(counts.get(TileType.ROAD)).toBe(5);
+  });
+});
+
 describe("GameEngine.monthlyUpdate()", () => {
   test("サンドボックスで revenue のみ加算され、population が再計算される", () => {
     const engine = new GameEngine(makeSettings({ sandbox: true }));
@@ -183,7 +219,8 @@ describe("GameEngine.monthlyUpdate()", () => {
     engine.monthlyUpdate();
 
     // サンドボックスでは維持費が無視され revenue のみ加算される（現状値をスナップショット固定）。
-    expect(engine.state.money - before).toBeCloseTo(31.395, 3);
+    // Step1リバランスにより更新: 建物単位課税（住宅L1税収 20→30/棟）に伴い 31.395 → 47.0925。
+    expect(engine.state.money - before).toBeCloseTo(47.0925, 3);
     expect(engine.state.population).toBe(sumPopulationFromMap(engine.state.map));
   });
 
@@ -198,7 +235,12 @@ describe("GameEngine.monthlyUpdate()", () => {
     engine.monthlyUpdate();
 
     // 維持費を差し引いた revenue-maintenance 相当の変化（現状値をスナップショット固定）。
-    expect(engine.state.money - before).toBeCloseTo(-68.605, 3);
+    // Step1リバランス＋初期駅の2x2化により更新。住宅L1×3の税収(30/棟)にペナルティ等を
+    // 適用した revenue ≈ 47.0925 から、初期の中央STATION(2x2=1棟)の維持費300/棟を
+    // 差し引いて -252.9075 になる。
+    // （初期駅を正規の 2x2 で配置する監督修正により、駅が countBuildings() で 1 棟として
+    //  正しく計上されるようになった。以前は1タイルのみ配置で round(1/4)=0 棟＝維持費0だった）
+    expect(engine.state.money - before).toBeCloseTo(-252.9075, 3);
     expect(engine.state.population).toBe(sumPopulationFromMap(engine.state.map));
   });
 });

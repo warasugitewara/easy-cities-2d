@@ -156,36 +156,42 @@ export const BUILD_COSTS: Record<string, number> = {
 };
 
 // 月額維持費
+// Step1リバランス: monthlyUpdate() は countBuildings() で算出した「建物単位」の棟数に
+// 各値を掛けて月1回計上する（多マス建物のタイル数分の水増し課金を解消）。
+// そのため、多マス建物（駅・公園・警察・消防・病院・学校・ランドマーク）の値は
+// タイル単位ではなく「1棟あたり月額」として以下に再チューニングした。
 export const MAINTENANCE_COSTS: Record<number, number> = {
   [TileType.ROAD]: 10,
-  [TileType.STATION]: 100,
-  [TileType.PARK]: 5,
-  [TileType.POLICE]: 300, // 200 → 300
-  [TileType.FIRE_STATION]: 280, // 180 → 280
-  [TileType.HOSPITAL]: 400, // 250 → 400
-  [TileType.SCHOOL]: 250, // 150 → 250
-  [TileType.POWER_PLANT]: 600, // 400 → 600
-  [TileType.WATER_TREATMENT]: 500, // 300 → 500
-  [TileType.LANDMARK_STADIUM]: 2000, // 1000 → 2000
-  [TileType.LANDMARK_AIRPORT]: 4000, // 2000 → 4000
+  [TileType.STATION]: 300, // 100 → 300（建物単位換算に伴い再チューニング）
+  [TileType.PARK]: 20, // 5 → 20（建物単位換算に伴い再チューニング）
+  [TileType.POLICE]: 800, // 300 → 800（建物単位換算に伴い再チューニング）
+  [TileType.FIRE_STATION]: 700, // 280 → 700（建物単位換算に伴い再チューニング）
+  [TileType.HOSPITAL]: 1000, // 400 → 1000（建物単位換算に伴い再チューニング）
+  [TileType.SCHOOL]: 600, // 250 → 600（建物単位換算に伴い再チューニング）
+  [TileType.POWER_PLANT]: 600,
+  [TileType.WATER_TREATMENT]: 500,
+  [TileType.LANDMARK_STADIUM]: 3000, // 2000 → 3000（建物単位換算に伴い再チューニング）
+  [TileType.LANDMARK_AIRPORT]: 6000, // 4000 → 6000（建物単位換算に伴い再チューニング）
 };
 
 // 月額税収
+// Step1リバランス: monthlyUpdate() は countBuildings() で算出した「建物単位」の棟数に
+// 各値を掛けて月1回計上する（多マス建物のタイル数分の水増し課税を解消）。
 export const TAX_REVENUE: Record<number, number> = {
-  [TileType.RESIDENTIAL_L1]: 20,
-  [TileType.RESIDENTIAL_L2]: 60,
-  [TileType.RESIDENTIAL_L3]: 150,
-  [TileType.RESIDENTIAL_L4]: 300,
-  [TileType.COMMERCIAL_L1]: 30,
-  [TileType.COMMERCIAL_L2]: 90,
-  [TileType.COMMERCIAL_L3]: 200,
-  [TileType.COMMERCIAL_L4]: 400,
-  [TileType.INDUSTRIAL_L1]: 25,
-  [TileType.INDUSTRIAL_L2]: 75,
-  [TileType.INDUSTRIAL_L3]: 180,
-  [TileType.INDUSTRIAL_L4]: 350,
-  [TileType.LANDMARK_STADIUM]: 100, // 5000 → 100（月額基本料）
-  [TileType.LANDMARK_AIRPORT]: 200, // 10000 → 200（月額基本料）
+  [TileType.RESIDENTIAL_L1]: 30, // 20 → 30
+  [TileType.RESIDENTIAL_L2]: 90, // 60 → 90
+  [TileType.RESIDENTIAL_L3]: 220, // 150 → 220
+  [TileType.RESIDENTIAL_L4]: 450, // 300 → 450
+  [TileType.COMMERCIAL_L1]: 45, // 30 → 45
+  [TileType.COMMERCIAL_L2]: 130, // 90 → 130
+  [TileType.COMMERCIAL_L3]: 300, // 200 → 300
+  [TileType.COMMERCIAL_L4]: 600, // 400 → 600
+  [TileType.INDUSTRIAL_L1]: 40, // 25 → 40
+  [TileType.INDUSTRIAL_L2]: 110, // 75 → 110
+  [TileType.INDUSTRIAL_L3]: 270, // 180 → 270
+  [TileType.INDUSTRIAL_L4]: 520, // 350 → 520
+  [TileType.LANDMARK_STADIUM]: 500, // 100 → 500（建物単位換算に伴い再チューニング）
+  [TileType.LANDMARK_AIRPORT]: 1000, // 200 → 1000（建物単位換算に伴い再チューニング）
 };
 
 // ==================== インフラ効果定数 ====================
@@ -269,29 +275,31 @@ export const SYNERGY_EFFECTS = {
 // ==================== 人口スケーリング ====================
 
 // 人口に対するインフラ必要数
+// Step1リバランス: 維持費が建物単位で計上されるようになったのに合わせ、
+// 必要棟数（＝維持費負担）が増えすぎないよう populationPerUnit を引き上げた。
 export const INFRASTRUCTURE_REQUIREMENTS = {
   police: {
-    populationPerUnit: 1000, // 1,000人ごとに警察署1個必要
+    populationPerUnit: 2500, // 1000 → 2500（2,500人ごとに警察署1個必要）
     base: 1, // 最低1個必要
   },
   fire_station: {
-    populationPerUnit: 1000,
+    populationPerUnit: 2500, // 1000 → 2500
     base: 1,
   },
   school: {
-    populationPerUnit: 1500,
+    populationPerUnit: 3000, // 1500 → 3000
     base: 1,
   },
   hospital: {
-    populationPerUnit: 1500,
+    populationPerUnit: 3000, // 1500 → 3000
     base: 1,
   },
   power_plant: {
-    populationPerUnit: 2000,
+    populationPerUnit: 4000, // 2000 → 4000
     base: 1,
   },
   water_treatment: {
-    populationPerUnit: 2000,
+    populationPerUnit: 4000, // 2000 → 4000
     base: 1,
   },
 };

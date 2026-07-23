@@ -160,8 +160,7 @@ export class GameEngine {
       },
     };
     // 初期に中央に駅を配置
-    const center = this.gridSize / 2;
-    this.state.map[Math.floor(center)][Math.floor(center)] = TileType.STATION;
+    this.placeInitialStation();
 
     console.log(
       `🎮 Game initialized - Difficulty: ${difficulty}, Initial Money: ${config.initialMoney}, Maintenance: ${config.maintenanceMultiplier}x, Disasters: ${config.disasterRateMultiplier}x`,
@@ -579,6 +578,44 @@ export class GameEngine {
     this.recordSample(this.growSamples, performance.now() - __growStart);
   }
 
+  // 初期の中央駅を 2x2（STATION の建物サイズ）で配置する。
+  // 1タイルだけ置くと countBuildings() で round(1/4)=0 棟と数えられ、
+  // 維持費・駅系の効果/シナジー計算から漏れてしまうため、正規の 2x2 で配置する。
+  private placeInitialStation(): void {
+    const c = Math.floor(this.gridSize / 2);
+    for (let dy = 0; dy < 2; dy++) {
+      for (let dx = 0; dx < 2; dx++) {
+        this.state.map[c + dy][c + dx] = TileType.STATION;
+      }
+    }
+  }
+
+  // タイル種別ごとの「建物数」を数える。
+  // 多マス建物（駅・公園・警察・消防・病院・学校・ランドマーク等）は
+  // 占有タイル数を BUILDING_SIZES の面積（width×height、未定義は1x1）で割り、
+  // Math.round で建物数に丸める。
+  // 例: 2x2の病院が3棟建っていれば12タイル → round(12/4) = 3棟。
+  // 火災等で一部タイルが焼失した多マス建物にも丸めで寛容に対応する
+  // （火災ロジック自体はこのStepでは変更しない）。
+  countBuildings(): Map<number, number> {
+    const tileCounts = new Map<number, number>();
+    for (let y = 0; y < this.gridSize; y++) {
+      for (let x = 0; x < this.gridSize; x++) {
+        const tile = this.state.map[y][x];
+        if (tile === TileType.EMPTY) continue;
+        tileCounts.set(tile, (tileCounts.get(tile) || 0) + 1);
+      }
+    }
+
+    const buildingCounts = new Map<number, number>();
+    for (const [tile, tileCount] of tileCounts) {
+      const size = BUILDING_SIZES[tile];
+      const area = size ? size.width * size.height : 1;
+      buildingCounts.set(tile, Math.round(tileCount / area));
+    }
+    return buildingCounts;
+  }
+
   // 月次更新（税収・維持費）
   monthlyUpdate(): void {
     if (this.state.paused) return;
@@ -604,12 +641,12 @@ export class GameEngine {
     let revenue = 0;
     let maintenance = 0;
 
-    for (let y = 0; y < this.gridSize; y++) {
-      for (let x = 0; x < this.gridSize; x++) {
-        const tile = this.state.map[y][x];
-        revenue += TAX_REVENUE[tile] || 0;
-        maintenance += MAINTENANCE_COSTS[tile] || 0;
-      }
+    // Step1リバランス: タイル単位ではなく「建物単位」で税収・維持費を計上する
+    // （多マス建物がタイル数倍で課金/課税されるのを防ぐ）。
+    const buildingCounts = this.countBuildings();
+    for (const [tile, count] of buildingCounts) {
+      revenue += (TAX_REVENUE[tile] || 0) * count;
+      maintenance += (MAINTENANCE_COSTS[tile] || 0) * count;
     }
 
     // ペナルティを税収に適用
@@ -1236,8 +1273,7 @@ export class GameEngine {
       revenuePenalty: 1.0,
       settings: this.state.settings,
     };
-    const center = this.gridSize / 2;
-    this.state.map[Math.floor(center)][Math.floor(center)] = TileType.STATION;
+    this.placeInitialStation();
   }
 
   // 速度設定
