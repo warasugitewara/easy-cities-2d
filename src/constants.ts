@@ -359,6 +359,28 @@ export const INFRASTRUCTURE_REQUIREMENTS = {
   },
 };
 
+// ==================== 需要モデル・成長バランス ====================
+// Step4リバランス: calculateDemands() をマップ面積非依存の「雇用バランスモデル」に
+// 全面書き換え。POPULATION_TABLE を「住宅=居住人口／商業・工業=雇用数」として読み、
+// 住宅人口のうち employmentRate の割合が働き手(workers)、商業+工業の人口合計が
+// 求人数(jobs)であるとみなし、workers と jobs の需給比から各需要を算出する。
+export const DEMAND_MODEL = {
+  employmentRate: 0.5, // 就業率（住宅人口のうち労働者の割合）
+  neutralDemand: 50, // 均衡時（workers=jobs）の需要
+  bootstrapDemand: 75, // 人口も雇用も0のときの初期需要（何もない状態から発展を促す）
+  growthMultSlope: 0.006, // 需要→成長倍率の傾き
+  growthMultMin: 0.7,
+  growthMultMax: 1.3,
+  spawnResidentialWeight: 2, // 新規スポーン抽選での住宅重み係数（住宅を優遇し無限ループ的な停滞を防ぐ）
+};
+
+// grow() の基礎成長率・波及/高層化の倍率を定数化（旧: engine.ts 内のマジックナンバー）。
+export const GROWTH_BALANCE = {
+  baseRate: 0.02, // 基礎成長率（旧 growthRate 初期値）
+  spilloverFactor: 0.2, // 波及建設の倍率（旧 0.2）
+  upgradeFactor: 0.4, // 高層化の倍率（旧 0.4）
+};
+
 // パラメータの初期値
 export const INITIAL_PARAMETERS = {
   securityLevel: 50,

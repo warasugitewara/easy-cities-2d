@@ -167,7 +167,14 @@ describe("GameEngine.grow() 決定論", () => {
 
     const population = engine.calculatePopulation();
     // 現状値をそのままスナップショットとして固定（値自体の正しさは問わない）。
-    expect(population).toBe(30);
+    // Step4リバランスにより 30 → 20 に変化: 新規建設/波及建設のたびに常に
+    // RESIDENTIAL_L1 を配置していた旧実装を、需要に応じた重み付き抽選
+    // （spawnZoneTile()）で住宅/商業/工業のいずれかを配置するように変更したため、
+    // rng() の消費順序も変わった。実測では最終的に RESIDENTIAL_L1×1(人口10) +
+    // COMMERCIAL_L1×2(人口5×2=10) が配置され、population=20 になる
+    // （新規需要は起点状態で全ゾーン75均等＝bootstrapDemand、以後は雇用バランスモデルで
+    // 各ゾーン需要50均衡のため、抽選で住宅だけでなく商業も自然発生するようになった）。
+    expect(population).toBe(20);
   });
 });
 
@@ -252,6 +259,69 @@ describe("GameEngine.monthlyUpdate()", () => {
     // -252.9075 → -249.6 になる（維持費300は不変）。
     expect(engine.state.money - before).toBeCloseTo(-249.6, 3);
     expect(engine.state.population).toBe(sumPopulationFromMap(engine.state.map));
+  });
+});
+
+describe("Step4: calculateDemands() 雇用バランスモデル", () => {
+  // calculateDemands() はprivateなため monthlyUpdate() 経由（サンドボックス・disastersEnabled:false
+  // で他の月次処理からの副作用を避ける）で検証する。POPULATION_TABLE を
+  // 「住宅=居住人口／商業・工業=雇用数」として読み、jobs=comPop+indPop、
+  // workers=employmentRate(0.5)×resPop の需給比から需要を算出する（マップ面積に依存しない）。
+
+  test("住宅も雇用も0（起点状態）では全ゾーン需要が bootstrapDemand(75) になる", () => {
+    const engine = new GameEngine(makeSettings({ sandbox: true }));
+    // 中央の初期STATION以外は未建設。road等も一切建てない。
+    engine.monthlyUpdate();
+    expect(engine.state.residentialDemand).toBe(75);
+    expect(engine.state.commercialDemand).toBe(75);
+    expect(engine.state.industrialDemand).toBe(75);
+  });
+
+  test("住宅のみの街では residentialDemand=0・commercialDemand=industrialDemand=100 になる", () => {
+    const engine = new GameEngine(makeSettings({ sandbox: true }));
+    engine.state.buildMode = "residential";
+    engine.build(1, 1);
+    engine.build(2, 2);
+    engine.build(3, 3);
+    engine.monthlyUpdate();
+    // jobs=0 なので residentialDemand=round(50*0/workers)=0。
+    // businessDemand=round(50*workers/max(1,0))はclampで100に張り付き、
+    // comShare/indShareはjobs=0のため0.5ずつ→commercialDemand=industrialDemand=100。
+    expect(engine.state.residentialDemand).toBe(0);
+    expect(engine.state.commercialDemand).toBe(100);
+    expect(engine.state.industrialDemand).toBe(100);
+  });
+
+  test("雇用と住宅人口が均衡（jobs=workers・商工同数）すると全需要が50になる", () => {
+    const engine = new GameEngine(makeSettings({ sandbox: true }));
+    // resPop=60(住宅L1×6), comPop=15(商業L1×3), indPop=15(工業L1×1)
+    // workers=0.5*60=30=jobs(15+15) で均衡、comShare=indShare=0.5。
+    engine.state.buildMode = "residential";
+    for (let i = 0; i < 6; i++) engine.build(i, 0);
+    engine.state.buildMode = "commercial";
+    for (let i = 0; i < 3; i++) engine.build(i, 1);
+    engine.state.buildMode = "industrial";
+    engine.build(0, 2);
+    engine.monthlyUpdate();
+    expect(engine.state.residentialDemand).toBe(50);
+    expect(engine.state.commercialDemand).toBe(50);
+    expect(engine.state.industrialDemand).toBe(50);
+  });
+
+  test("商業が過剰（工業0・雇用超過）だと commercialDemand が下がり industrialDemand が上がる", () => {
+    const engine = new GameEngine(makeSettings({ sandbox: true }));
+    // resPop=60(workers=30), comPop=45(商業L1×9), indPop=0 → jobs=45
+    engine.state.buildMode = "residential";
+    for (let i = 0; i < 6; i++) engine.build(i, 0);
+    engine.state.buildMode = "commercial";
+    for (let i = 0; i < 9; i++) engine.build(i, 1);
+    engine.monthlyUpdate();
+    // residentialDemand=round(50*45/30)=75, businessDemand=round(50*30/45)=33,
+    // comShare=45/45=1→commercialDemand=round(33*2*0)=0,
+    // indShare=0/45=0→industrialDemand=round(33*2*1)=66。
+    expect(engine.state.residentialDemand).toBe(75);
+    expect(engine.state.commercialDemand).toBe(0);
+    expect(engine.state.industrialDemand).toBe(66);
   });
 });
 

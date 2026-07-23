@@ -15,6 +15,8 @@ import {
   LANDMARK_EFFECTS,
   SYNERGY_EFFECTS,
   CITY_LEVEL_MODEL,
+  DEMAND_MODEL,
+  GROWTH_BALANCE,
 } from "./constants";
 import type { RNG } from "./rng";
 import { defaultRng } from "./rng";
@@ -72,7 +74,8 @@ export interface GameState {
 
 export class GameEngine {
   private _state: GameState;
-  private growthRate: number = 0.02;
+  // Step4リバランス: 初期値を GROWTH_BALANCE.baseRate から取る（値自体は旧 0.02 のまま不変）。
+  private growthRate: number = GROWTH_BALANCE.baseRate;
   private gridSize: number;
   private maintenanceMultiplier: number = 1.0;
   private disasterRateMultiplier: number = 1.0;
@@ -452,6 +455,30 @@ export class GameEngine {
     return map;
   }
 
+  // 需要値(0-100)を成長倍率に線形変換する（DEMAND_MODEL.neutralDemandを基準に、
+  // growthMultSlopeの傾きでgrowthMultMin~growthMultMaxへクランプ）。
+  // Step4リバランス: 旧来の「demand>50でboost/demand<10で0.7固定」という不感帯付き
+  // 分岐（10~50の間で成長倍率が1.0に張り付く）を、demand全域で連続な線形モデルに置換した。
+  private demandMult(demand: number): number {
+    const { neutralDemand, growthMultSlope, growthMultMin, growthMultMax } = DEMAND_MODEL;
+    const mult = 1 + (demand - neutralDemand) * growthMultSlope;
+    return Math.min(growthMultMax, Math.max(growthMultMin, mult));
+  }
+
+  // 新規建設・波及建設が成功した際に配置するゾーン種別を、各需要を重みとした抽選で決める。
+  // Step4リバランス: 旧実装は常にRESIDENTIAL_L1を配置していたため、商業・工業は
+  // 既存ゾーンからの高層化でしか増えなかった。ここで需要に応じた自然発生を可能にする。
+  // rng()を1回だけ消費する。
+  private spawnZoneTile(): TileType {
+    const wR = DEMAND_MODEL.spawnResidentialWeight * this.state.residentialDemand + 1;
+    const wC = this.state.commercialDemand;
+    const wI = this.state.industrialDemand;
+    const roll = this.rng() * (wR + wC + wI);
+    if (roll < wR) return TileType.RESIDENTIAL_L1;
+    if (roll < wR + wC) return TileType.COMMERCIAL_L1;
+    return TileType.INDUSTRIAL_L1;
+  }
+
   // 成長処理
   grow(): void {
     if (this.state.paused || this.state.gameSpeed === 0) return;
@@ -488,71 +515,44 @@ export class GameEngine {
           if (!this.state.powerGrid[y][x]) localPenalty *= 0.6; // 電力なし：60%に低下
           if (!this.state.waterGrid[y][x]) localPenalty *= 0.3; // 給水なし：30%に低下
 
-          // 需要に応じたボーナス/ペナルティを適用
+          // 需要に応じたボーナス/ペナルティを適用（Step4: 線形モデルに置換）
           const tile = this.state.map[y][x];
           if (tile >= TileType.RESIDENTIAL_L1 && tile <= TileType.RESIDENTIAL_L4) {
-            // 住宅地：需要が高いほどボーナス、低いほどペナルティ
-            if (this.state.residentialDemand > 50) {
-              localPenalty *= 1 + (this.state.residentialDemand - 50) * 0.006; // 最大 +30%
-            } else if (this.state.residentialDemand < 10) {
-              localPenalty *= 0.7; // -30%
-            }
+            localPenalty *= this.demandMult(this.state.residentialDemand);
           } else if (tile >= TileType.COMMERCIAL_L1 && tile <= TileType.COMMERCIAL_L4) {
-            // 商業地：需要が高いほどボーナス
-            if (this.state.commercialDemand > 50) {
-              localPenalty *= 1 + (this.state.commercialDemand - 50) * 0.006;
-            } else if (this.state.commercialDemand < 10) {
-              localPenalty *= 0.7;
-            }
+            localPenalty *= this.demandMult(this.state.commercialDemand);
           } else if (tile >= TileType.INDUSTRIAL_L1 && tile <= TileType.INDUSTRIAL_L4) {
-            // 工業地：需要が高いほどボーナス
-            if (this.state.industrialDemand > 50) {
-              localPenalty *= 1 + (this.state.industrialDemand - 50) * 0.006;
-            } else if (this.state.industrialDemand < 10) {
-              localPenalty *= 0.7;
-            }
+            localPenalty *= this.demandMult(this.state.industrialDemand);
           }
+
+          // 新規建設・波及建設は全ゾーン需要の平均を参照した demandBonus を共有する
+          const avgDemand =
+            (this.state.residentialDemand +
+              this.state.commercialDemand +
+              this.state.industrialDemand) /
+            3;
+          const demandBonus = this.demandMult(avgDemand);
 
           // 新規建設（道路隣接）
           if (
             this.state.map[y][x] === TileType.EMPTY &&
             this.hasAdjacent(x, y, (t) => t === TileType.ROAD)
           ) {
-            // 新規建設は全ゾーン需要の平均を参照
-            let demandBonus = 1.0;
-            const avgDemand =
-              (this.state.residentialDemand +
-                this.state.commercialDemand +
-                this.state.industrialDemand) /
-              3;
-            if (avgDemand > 50) {
-              demandBonus = 1 + (avgDemand - 50) * 0.006;
-            } else if (avgDemand < 10) {
-              demandBonus = 0.7;
-            }
             if (this.rng() < this.growthRate * bias * localPenalty * demandBonus) {
-              this.state.map[y][x] = TileType.RESIDENTIAL_L1;
+              this.state.map[y][x] = this.spawnZoneTile();
             }
           }
 
-          // 波及建設（0.2倍）- 他の建物に隣接していても成長
+          // 波及建設（spilloverFactor倍）- 他の建物に隣接していても成長
           if (
             this.state.map[y][x] === TileType.EMPTY &&
             this.hasAdjacent(x, y, (t) => t >= 1 && t <= 24)
           ) {
-            let demandBonus = 1.0;
-            const avgDemand =
-              (this.state.residentialDemand +
-                this.state.commercialDemand +
-                this.state.industrialDemand) /
-              3;
-            if (avgDemand > 50) {
-              demandBonus = 1 + (avgDemand - 50) * 0.006;
-            } else if (avgDemand < 10) {
-              demandBonus = 0.7;
-            }
-            if (this.rng() < this.growthRate * 0.2 * bias * localPenalty * demandBonus) {
-              this.state.map[y][x] = TileType.RESIDENTIAL_L1;
+            if (
+              this.rng() <
+              this.growthRate * GROWTH_BALANCE.spilloverFactor * bias * localPenalty * demandBonus
+            ) {
+              this.state.map[y][x] = this.spawnZoneTile();
             }
           }
 
@@ -561,7 +561,7 @@ export class GameEngine {
             this.state.map[y][x] >= TileType.RESIDENTIAL_L1 &&
             this.state.map[y][x] < TileType.RESIDENTIAL_L4
           ) {
-            if (this.rng() < this.growthRate * 0.4 * bias * localPenalty) {
+            if (this.rng() < this.growthRate * GROWTH_BALANCE.upgradeFactor * bias * localPenalty) {
               this.state.map[y][x]++;
             }
           }
@@ -575,7 +575,11 @@ export class GameEngine {
           ) {
             if (
               this.rng() <
-              this.growthRate * 0.4 * bias * localPenalty * this.commercialGrowthMult
+              this.growthRate *
+                GROWTH_BALANCE.upgradeFactor *
+                bias *
+                localPenalty *
+                this.commercialGrowthMult
             ) {
               this.state.map[y][x]++;
             }
@@ -586,7 +590,7 @@ export class GameEngine {
             this.state.map[y][x] >= TileType.INDUSTRIAL_L1 &&
             this.state.map[y][x] < TileType.INDUSTRIAL_L4
           ) {
-            if (this.rng() < this.growthRate * 0.4 * bias * localPenalty) {
+            if (this.rng() < this.growthRate * GROWTH_BALANCE.upgradeFactor * bias * localPenalty) {
               this.state.map[y][x]++;
             }
           }
@@ -859,54 +863,58 @@ export class GameEngine {
   }
 
   // 需要計算
+  // Step4リバランス: マップ全タイル数に対する占有率をベースにしていた旧モデル（マップサイズに
+  // 依存し、大マップほど需要が下がりにくい/上がりにくいバグを持っていた）を廃止し、
+  // POPULATION_TABLE を「住宅=居住人口／商業・工業=雇用数」として読む雇用バランスモデルに
+  // 全面置換した（マップ面積に一切依存しない）。
+  // - jobs = 商業+工業の人口合計（求人数とみなす）
+  // - workers = 住宅人口 × employmentRate（働き手の数）
+  // - residentialDemand は「雇用に対して住宅が足りているか」（jobs/workers 比）
+  // - businessDemand は「住宅（働き手）に対して商業+工業が足りているか」（workers/jobs 比）
+  // - commercialDemand/industrialDemand は businessDemand を商業/工業の現シェアで配分し直す
+  //   （どちらかに偏っていれば、少ない方の需要が相対的に高くなる）
   private calculateDemands(): void {
-    let residentialCount = 0;
-    let commercialCount = 0;
-    let industrialCount = 0;
-    let totalBuildable = 0;
+    let resPop = 0;
+    let comPop = 0;
+    let indPop = 0;
 
     for (let y = 0; y < this.gridSize; y++) {
       for (let x = 0; x < this.gridSize; x++) {
         const tile = this.state.map[y][x];
-
-        // インフラ以外の建物のみカウント
-        if (tile !== TileType.EMPTY && tile < 0) continue;
-        if (tile !== TileType.EMPTY && tile > 0) {
-          totalBuildable++;
-
-          if (tile >= TileType.RESIDENTIAL_L1 && tile <= TileType.RESIDENTIAL_L4) {
-            residentialCount++;
-          } else if (tile >= TileType.COMMERCIAL_L1 && tile <= TileType.COMMERCIAL_L4) {
-            commercialCount++;
-          } else if (tile >= TileType.INDUSTRIAL_L1 && tile <= TileType.INDUSTRIAL_L4) {
-            industrialCount++;
-          }
+        if (tile >= TileType.RESIDENTIAL_L1 && tile <= TileType.RESIDENTIAL_L4) {
+          resPop += POPULATION_TABLE[tile] || 0;
+        } else if (tile >= TileType.COMMERCIAL_L1 && tile <= TileType.COMMERCIAL_L4) {
+          comPop += POPULATION_TABLE[tile] || 0;
+        } else if (tile >= TileType.INDUSTRIAL_L1 && tile <= TileType.INDUSTRIAL_L4) {
+          indPop += POPULATION_TABLE[tile] || 0;
         }
       }
     }
 
-    // 占有率を計算（総建設可能タイル数に対する割合）
-    const maxTiles = this.gridSize * this.gridSize;
-    const residentialOccupancy = totalBuildable > 0 ? (residentialCount / maxTiles) * 100 : 0;
-    const commercialOccupancy = totalBuildable > 0 ? (commercialCount / maxTiles) * 100 : 0;
-    const industrialOccupancy = totalBuildable > 0 ? (industrialCount / maxTiles) * 100 : 0;
+    const { employmentRate, neutralDemand, bootstrapDemand } = DEMAND_MODEL;
+    const jobs = comPop + indPop;
+    const workers = employmentRate * resPop;
 
-    // 需要 = 100% - 占有率 （占有率が低いほど需要が高い）
-    let residentialDemand = Math.max(0, 100 - residentialOccupancy * 2); // x2 で需要をスケール
-    let commercialDemand = Math.max(0, 100 - commercialOccupancy * 2);
-    let industrialDemand = Math.max(0, 100 - industrialOccupancy * 2);
-
-    // 人口に応じた調整
-    if (this.state.population > 0) {
-      const populationRatio = this.state.population / 50000; // スケーリング基準
-      residentialDemand = Math.min(100, residentialDemand * (0.5 + populationRatio * 0.5));
-      commercialDemand = Math.min(100, commercialDemand * (0.2 + populationRatio * 0.8));
-      industrialDemand = Math.min(100, industrialDemand * (0.2 + populationRatio * 0.8));
+    // 住宅も雇用も0の起点状態: 何を建ててもよい高需要（bootstrapDemand）を全ゾーンに与える
+    if (resPop === 0 && jobs === 0) {
+      this.state.residentialDemand = bootstrapDemand;
+      this.state.commercialDemand = bootstrapDemand;
+      this.state.industrialDemand = bootstrapDemand;
+      return;
     }
 
-    this.state.residentialDemand = Math.round(residentialDemand);
-    this.state.commercialDemand = Math.round(commercialDemand);
-    this.state.industrialDemand = Math.round(industrialDemand);
+    const clamp = (v: number): number => Math.min(100, Math.max(0, v));
+
+    const residentialDemand = clamp(Math.round((neutralDemand * jobs) / Math.max(1, workers)));
+    const businessDemand = clamp(Math.round((neutralDemand * workers) / Math.max(1, jobs)));
+    const comShare = jobs > 0 ? comPop / jobs : 0.5;
+    const indShare = jobs > 0 ? indPop / jobs : 0.5;
+    const commercialDemand = clamp(Math.round(businessDemand * 2 * (1 - comShare)));
+    const industrialDemand = clamp(Math.round(businessDemand * 2 * (1 - indShare)));
+
+    this.state.residentialDemand = residentialDemand;
+    this.state.commercialDemand = commercialDemand;
+    this.state.industrialDemand = industrialDemand;
   }
 
   // Step3リバランス: シナジー成立判定（ブール型・ペアごとの重複加算はしない）。
