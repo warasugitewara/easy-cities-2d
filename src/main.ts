@@ -4,6 +4,7 @@ import { Renderer } from "./renderer";
 import { StorageManager } from "./storage";
 import { UIManager } from "./ui";
 import { setMapSize, getCanvasSize, getTileSize, GAME_VERSION } from "./constants";
+import { computeSteps, SIM_TICK_MS } from "./gameloop";
 
 // ページタイトルを動的に更新
 document.title = `Easy Cities 2D (ver.${GAME_VERSION})`;
@@ -146,6 +147,18 @@ async function initializeGame(): Promise<void> {
     console.log("✅ Game engine initialized with settings:", settings);
 
     let monthCounter = 0;
+
+    // 固定タイムステップ（フレームレート非依存化）用の状態
+    // - accumulator: 未消化の経過時間（ミリ秒）を貯めるバッファ
+    // - lastTime: 前回 gameLoop が呼ばれた時刻（performance.now()基準）
+    // - MAX_STEPS: 1フレームあたりに追いつくために進めるステップ数の上限
+    //   （タブ非アクティブからの復帰など巨大なギャップでも処理が無限に溜まらないようにする）
+    // - MAX_FRAME_TIME_MS: frameTime自体の上限クランプ（巨大ギャップを丸ごと吸収しない）
+    let accumulator = 0;
+    let lastTime = 0;
+    const MAX_STEPS = 5;
+    const MAX_FRAME_TIME_MS = 250;
+
     let isMouseDown = false;
     let isDragging = false;
     let dragStartX = 0;
@@ -164,28 +177,54 @@ async function initializeGame(): Promise<void> {
     let devLastFrameTime = 0;
     let devLastLogTime = 0;
 
-    // ゲームループ
-    function gameLoop(): void {
+    // シミュレーションを1ステップ分進める（従来の「1フレーム分」の処理と同一）
+    function runSimulationStep(): void {
+      // 成長処理
+      engine.grow();
+
+      // 月次更新（ゲーム速度に応じたステップカウント）
+      // gameSpeed: 0.5 = 遅い（40ステップ）、1 = 通常（20ステップ）、2 = 高速（10ステップ）
+      const updateInterval = Math.max(1, Math.round(20 / engine.state.gameSpeed));
+      monthCounter++;
+      if (monthCounter >= updateInterval) {
+        engine.monthlyUpdate();
+        monthCounter = 0;
+      }
+    }
+
+    // ゲームループ（固定タイムステップ）
+    // requestAnimationFrame の呼び出し頻度（＝モニタのリフレッシュレート）に依存せず、
+    // SIM_TICK_MS（1000/60ms）刻みでシミュレーションを進めることで、
+    // 60fps環境と挙動を一致させつつ120Hz/144Hz環境での加速・低フレームレート環境での減速を防ぐ。
+    function gameLoop(now: number = performance.now()): void {
       try {
         const __frameNow = import.meta.env.DEV ? performance.now() : 0;
 
+        if (lastTime === 0) {
+          lastTime = now;
+        }
+        const rawFrameTime = now - lastTime;
+        lastTime = now;
+
         // ポーズ状態でない場合のみ成長処理
         if (!engine.state.paused && engine.state.gameSpeed > 0) {
-          // 成長処理（毎フレーム）
-          engine.grow();
+          // タブ非アクティブからの復帰などによる巨大なギャップをクランプしてから
+          // 固定刻みのステップ数を計算する
+          const frameTime = Math.min(rawFrameTime, MAX_FRAME_TIME_MS);
+          const plan = computeSteps(accumulator, frameTime, SIM_TICK_MS, MAX_STEPS);
+          accumulator = plan.accumulator;
 
-          // 月次更新（ゲーム速度に応じたフレームカウント）
-          // gameSpeed: 0.5 = 遅い（40フレーム）、1 = 通常（20フレーム）、2 = 高速（10フレーム）
-          const updateInterval = Math.max(1, Math.round(20 / engine.state.gameSpeed));
-          monthCounter++;
-          if (monthCounter >= updateInterval) {
-            engine.monthlyUpdate();
-            monthCounter = 0;
+          for (let i = 0; i < plan.steps; i++) {
+            runSimulationStep();
           }
+        } else {
+          // ポーズ中はaccumulatorを溜め込まない
+          // （溜め込むと再開直後に一気にシミュレーションが進んでしまうため）
+          accumulator = 0;
         }
-        // ポーズ中はカウンターはそのまま保持
+        // ポーズ中でも月次カウンター(monthCounter)はそのまま保持する（従来挙動と同様）
 
-        // 描画
+        // 描画（ポーズ中でも毎フレーム実行）
         renderer.draw();
 
         // UI更新
