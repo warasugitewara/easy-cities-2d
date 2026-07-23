@@ -11,6 +11,8 @@ import {
   INITIAL_PARAMETERS,
   INFRASTRUCTURE_REQUIREMENTS,
 } from "./constants";
+import type { RNG } from "./rng";
+import { defaultRng } from "./rng";
 
 // ゲーム設定インターフェース
 export interface GameSettings {
@@ -96,7 +98,10 @@ export class GameEngine {
     this.boostMap = null;
   }
 
-  constructor(settings?: GameSettings) {
+  constructor(
+    settings?: GameSettings,
+    private rng: RNG = defaultRng,
+  ) {
     const mapSize = settings?.mapSize || "medium";
     const difficulty = settings?.difficulty || "normal";
     this.gridSize = MAP_SIZES[mapSize].gridSize;
@@ -453,13 +458,13 @@ export class GameEngine {
     const boostMap = this.ensureBoostMap();
 
     for (let iter = 0; iter < iterations; iter++) {
-      if (this.state.gameSpeed < 1 && Math.random() > probability) continue;
+      if (this.state.gameSpeed < 1 && this.rng() > probability) continue;
 
       for (let y = 0; y < this.gridSize; y++) {
         for (let x = 0; x < this.gridSize; x++) {
           // EMPTY かつ道路・建物(1-24)のいずれにも隣接していないタイルは、新規建設・波及建設の
           // hasAdjacent 判定が必ず false になり、高層化も EMPTY では発火しないため、
-          // 以降の全分岐が不成立。Math.random() を一切消費せずスキップ可能（消費回数は不変）。
+          // 以降の全分岐が不成立。this.rng() を一切消費せずスキップ可能（消費回数は不変）。
           if (
             this.state.map[y][x] === TileType.EMPTY &&
             !this.hasAdjacent(x, y, (t) => t === TileType.ROAD || (t >= 1 && t <= 24))
@@ -517,7 +522,7 @@ export class GameEngine {
             } else if (avgDemand < 10) {
               demandBonus = 0.7;
             }
-            if (Math.random() < this.growthRate * bias * localPenalty * demandBonus) {
+            if (this.rng() < this.growthRate * bias * localPenalty * demandBonus) {
               this.state.map[y][x] = TileType.RESIDENTIAL_L1;
             }
           }
@@ -538,7 +543,7 @@ export class GameEngine {
             } else if (avgDemand < 10) {
               demandBonus = 0.7;
             }
-            if (Math.random() < this.growthRate * 0.2 * bias * localPenalty * demandBonus) {
+            if (this.rng() < this.growthRate * 0.2 * bias * localPenalty * demandBonus) {
               this.state.map[y][x] = TileType.RESIDENTIAL_L1;
             }
           }
@@ -548,7 +553,7 @@ export class GameEngine {
             this.state.map[y][x] >= TileType.RESIDENTIAL_L1 &&
             this.state.map[y][x] < TileType.RESIDENTIAL_L4
           ) {
-            if (Math.random() < this.growthRate * 0.4 * bias * localPenalty) {
+            if (this.rng() < this.growthRate * 0.4 * bias * localPenalty) {
               this.state.map[y][x]++;
             }
           }
@@ -558,7 +563,7 @@ export class GameEngine {
             this.state.map[y][x] >= TileType.COMMERCIAL_L1 &&
             this.state.map[y][x] < TileType.COMMERCIAL_L4
           ) {
-            if (Math.random() < this.growthRate * 0.4 * bias * localPenalty) {
+            if (this.rng() < this.growthRate * 0.4 * bias * localPenalty) {
               this.state.map[y][x]++;
             }
           }
@@ -568,7 +573,7 @@ export class GameEngine {
             this.state.map[y][x] >= TileType.INDUSTRIAL_L1 &&
             this.state.map[y][x] < TileType.INDUSTRIAL_L4
           ) {
-            if (Math.random() < this.growthRate * 0.4 * bias * localPenalty) {
+            if (this.rng() < this.growthRate * 0.4 * bias * localPenalty) {
               this.state.map[y][x]++;
             }
           }
@@ -1400,7 +1405,7 @@ export class GameEngine {
             (1 - localSecurity / 100) *
             (1 + localSlum / 10) *
             this.state.gameSpeed;
-          if (Math.random() < slumChance) {
+          if (this.rng() < slumChance) {
             this.state.slumMap[y][x] = Math.min(10, this.state.slumMap[y][x] + 1);
           }
 
@@ -1441,7 +1446,7 @@ export class GameEngine {
 
     for (let y = 0; y < this.gridSize; y += sampleRate) {
       for (let x = 0; x < this.gridSize; x += sampleRate) {
-        if (this.state.map[y][x] !== TileType.EMPTY && Math.random() < fireChance) {
+        if (this.state.map[y][x] !== TileType.EMPTY && this.rng() < fireChance) {
           this.state.fireMap[y][x] = Math.min(10, this.state.fireMap[y][x] + 2);
         }
       }
@@ -1463,7 +1468,7 @@ export class GameEngine {
             const nx = x + dx;
             const ny = y + dy;
             if (nx >= 0 && ny >= 0 && nx < this.gridSize && ny < this.gridSize) {
-              if (this.state.map[ny][nx] !== TileType.EMPTY && Math.random() < 0.01) {
+              if (this.state.map[ny][nx] !== TileType.EMPTY && this.rng() < 0.01) {
                 // 0.02 → 0.01
                 newFireMap[ny][nx] = Math.min(10, newFireMap[ny][nx] + 1);
               }
@@ -1479,7 +1484,7 @@ export class GameEngine {
               const ny = y + yy;
               if (nx >= 0 && ny >= 0 && nx < this.gridSize && ny < this.gridSize) {
                 if (this.state.map[ny][nx] === TileType.FIRE_STATION) {
-                  if (Math.random() < 0.9) fireExtinguished = true; // 0.8 → 0.9
+                  if (this.rng() < 0.9) fireExtinguished = true; // 0.8 → 0.9
                   break;
                 }
               }
@@ -1512,7 +1517,7 @@ export class GameEngine {
         const density = this.getLocalDensity(x, y);
         const diseaseChance =
           0.01 * (1 + density / 10) * this.state.gameSpeed * this.disasterRateMultiplier;
-        if (this.state.map[y][x] !== TileType.EMPTY && Math.random() < diseaseChance) {
+        if (this.state.map[y][x] !== TileType.EMPTY && this.rng() < diseaseChance) {
           this.state.diseaseMap[y][x] = Math.min(10, this.state.diseaseMap[y][x] + 5);
         }
       }
@@ -1529,7 +1534,7 @@ export class GameEngine {
               const nx = x + dx;
               const ny = y + dy;
               if (nx >= 0 && ny >= 0 && nx < this.gridSize && ny < this.gridSize) {
-                if (this.state.map[ny][nx] !== TileType.EMPTY && Math.random() < 0.2) {
+                if (this.state.map[ny][nx] !== TileType.EMPTY && this.rng() < 0.2) {
                   newDiseaseMap[ny][nx] = Math.min(10, newDiseaseMap[ny][nx] + 1);
                 }
               }
@@ -1545,7 +1550,7 @@ export class GameEngine {
               const ny = y + yy;
               if (nx >= 0 && ny >= 0 && nx < this.gridSize && ny < this.gridSize) {
                 if (this.state.map[ny][nx] === TileType.HOSPITAL) {
-                  if (Math.random() < 0.7) diseaseHealed = true;
+                  if (this.rng() < 0.7) diseaseHealed = true;
                   break;
                 }
               }
