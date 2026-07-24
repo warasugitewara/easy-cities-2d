@@ -1,106 +1,180 @@
 # Easy Cities 2D 🏙️
 
-![version](https://img.shields.io/badge/version-2.0.0-blue) ![license](https://img.shields.io/badge/license-MIT-green)
+[![Version](https://img.shields.io/badge/version-2.0.0-blue?style=flat-square)](#)
+[![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)](#license)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178c6?style=flat-square)](#)
+[![Vite+](https://img.shields.io/badge/Vite%2B-8.x-646cff?style=flat-square)](#)
 
-Cities Skylines 風の戦略性を備えた、ブラウザだけで遊べる 2D 都市建設シミュレーターです。
-初期資金を元手に道路・住宅・商業・工業・インフラを配置すると、需給バランスに応じて都市が自動で成長していきます。人口・資金・快適度のバランスを取りながら、災害や公害、スラム化といったリスクにも対応してください。
+> 🎮 Cities Skylines 風の戦略性を備えた、ブラウザだけで遊べる 2D 都市建設シミュレーター
 
-**🎮 [Play Online - Easy Cities 2D](https://warasugitewara.github.io/easy-cities-2d/)**
+**[🕹️ プレイする](https://warasugitewara.github.io/easy-cities-2d/)** • **[📖 ゲームガイド](docs/GAMEPLAY.md)** • **[💬 Issues](https://github.com/warasugitewara/easy-cities-2d/issues)**
 
-## ✨ 特徴
+## 🎮 概要
 
-- **自動成長する都市**: 道路や既存の建物に隣接するタイルが確率的に成長・高層化（住宅/商業/工業 L1〜L4）
-- **需給バランスモデル**: 住宅（居住人口）と商業・工業（雇用）のバランスから3種類の需要を算出し、成長速度に反映
-- **インフラのカバー率モデル**: 警察・消防・学校・病院は人口あたりの必要棟数に対する充足率から治安/安全/教育/医療レベルが滑らかに追従
-- **電力・給水網**: 発電所・水処理施設からの供給範囲（円形）に応じて電力供給率・給水率が変動、未供給タイルは成長が大幅に低下
-- **災害・公害・スラム化（任意でON/OFF）**: 火災・病気は蔓延すると建物を破壊/永続的に降格させる。工業地帯からの公害とスラム化も再現
-- **ランドマーク**: スタジアム・空港の周辺商業地に税収倍率ボーナス、都市全体の観光・国際化レベルも上昇
-- **ライト/ダークテーマ**: HUD 右上のボタンでいつでも切り替え可能（既定はダーク）
-- **タッチ対応**: PC（マウス）・スマートフォン/タブレット（タッチ）の両対応、レスポンシブな UI
-- **セーブ/ロード**: localStorage 3スロット + JSON エクスポート/インポート
+初期資金を元手に道路・住宅・商業・工業・インフラを配置すると、需給バランスに応じて都市が自動で成長していきます。人口・資金・快適度のバランスを保ちながら、大都市の建設を目指しましょう。
 
-## 操作方法
+## 🎨 ゲームプレイ
 
-### PC（マウス）
+<details>
+<summary><strong>📸 スクリーンショット（クリックして展開）</strong></summary>
 
-| 操作                    | 効果                             |
-| ----------------------- | -------------------------------- |
-| 左クリック / 左ドラッグ | 選択中のツールで建設（連続敷設） |
-| 右クリックドラッグ      | 画面のパン                       |
-| マウスホイール          | ズーム（1.0x〜3.0x）             |
+### ゲーム画面の進化
 
-### タッチ（スマートフォン/タブレット）
+| ビフォー（明るいテーマ） | アフター（ダークテーマ） |
+|:---:|:---:|
+| ![ビフォー - 駅を選択中](https://github.com/warasugitewara/easy-cities-2d/blob/main/docs/images/before-light.png?raw=true) | ![アフター - ダークモード UI](https://github.com/warasugitewara/easy-cities-2d/blob/main/docs/images/after-dark.png?raw=true) |
 
-| 操作                 | 効果                             |
-| -------------------- | -------------------------------- |
-| 1本指タップ/ドラッグ | 選択中のツールで建設（連続敷設） |
-| 2本指ドラッグ        | 画面のパン                       |
-| 2本指ピンチ          | ズーム（1.0x〜3.0x）             |
+### メニュー・ビルドツール
+
+![メニュー画面 - ビルドツール選択](https://github.com/warasugitewara/easy-cities-2d/blob/main/docs/images/menu-build.png?raw=true)
+
+</details>
+
+## ✨ 主な特徴
+
+- **🏘️ 自動成長する都市** — 道路や既存の建物に隣接するタイルが確率的に成長・高層化（L1〜L4）
+- **⚖️ 需給バランスモデル** — 住宅と商業・工業のバランスから成長速度を自動計算
+- **🛡️ インフラ充足率システム** — 警察・消防・学校・病院の必要棟数に応じた効果量
+- **⚡ 電力・給水ネットワーク** — 供給範囲による電力供給率・給水率の動的変動
+- **🔥 災害・公害・スラム化** — 火災や病気の蔓延、公害による建物劣化（ON/OFF 選択可）
+- **🏟️ ランドマーク** — スタジアムと空港の周辺商業地に税収ボーナス
+- **🎨 ライト/ダークテーマ** — HUD で切り替え可能（デフォルト：ダーク）
+- **📱 マルチプラットフォーム** — PC（マウス）・スマートフォン・タブレット対応
+- **💾 セーブシステム** — localStorage 3スロット + JSON エクスポート/インポート
+
+## 🎮 操作方法
+
+### マウス（PC）
+
+| 操作 | 効果 |
+|------|------|
+| **左クリック / ドラッグ** | ツール実行（連続敷設可） |
+| **右ドラッグ** | 画面パン |
+| **ホイール** | ズーム（1.0x – 3.0x） |
+
+### タッチ（モバイル）
+
+| 操作 | 効果 |
+|------|------|
+| **1本指タップ / ドラッグ** | ツール実行（連続敷設可） |
+| **2本指ドラッグ** | 画面パン |
+| **2本指ピンチ** | ズーム（1.0x – 3.0x） |
 
 ### キーボード
 
-| キー                    | 効果                                          |
-| ----------------------- | --------------------------------------------- |
-| `R`/`S`/`C`/`I`/`U`/`D` | 道路/住宅/商業/工業/インフラ/削除モードに切替 |
-| `Space`                 | 一時停止トグル                                |
-| `1`/`2`/`3`             | 速度 0.5x / 1x / 2x                           |
-| `Esc`                   | 開いているモーダルを閉じる                    |
+| キー | 効果 |
+|------|------|
+| `R` / `S` / `C` / `I` / `U` / `D` | 道路 / 住宅 / 商業 / 工業 / インフラ / 削除 |
+| `Space` | 一時停止トグル |
+| `1` / `2` / `3` | 速度 0.5x / 1x / 2x |
+| `Esc` | モーダルを閉じる |
 
-HUD 右上の ⚙ メニューから、設定（難易度・災害/公害/スラム化のON/OFF・サンドボックスモード）、セーブ/ロード、JSON エクスポート/インポートを行えます。
+💡 詳細な設定・セーブ/ロードは HUD 右上の ⚙️ メニューから
 
-## クイックスタート
+## 🚀 クイックスタート
+
+### 前提条件
+
+- Node.js 18.x 以上
+- [Vite+](https://viteplus.dev) グローバル CLI
+
+### インストール＆実行
 
 ```bash
+# リポジトリをクローン
 git clone https://github.com/warasugitewara/easy-cities-2d.git
 cd easy-cities-2d
+
+# 依存関係をインストール
 npm install
-npm run dev      # http://localhost:5173
+
+# 開発サーバーを起動
+vp dev  # http://localhost:5173
 ```
 
-このプロジェクトは [Vite+](https://viteplus.dev)（`vp`）で統一管理されています。`npm install` 後は Vite+ のグローバルインストールも必要です（`curl -fsSL https://vite.plus | bash` など、詳細は [viteplus.dev](https://viteplus.dev) 参照）。
+### よく使うコマンド
 
 ```bash
-vp dev          # 開発サーバー
+vp dev          # 開発サーバー起動
 vp build        # 本番ビルド（dist/ に出力）
-vp check        # フォーマット + リント + 型チェック（コミット前に必ず実行）
+vp check        # フォーマット + リント + 型チェック
 vp check --fix  # 自動修正
 vp test         # テスト実行（Vitest）
+vp lint         # リント のみ
+vp fmt          # フォーマット のみ
 ```
 
-## 技術スタック
+> **💡 ヒント**: コミット前に必ず `vp check` を実行してください
 
-- **言語**: TypeScript
-- **ツールチェーン**: [Vite+](https://viteplus.dev)（vite v8.0.0）— ビルド・リント（Oxlint）・フォーマット（Oxfmt）・型チェックを一元管理
-- **バンドラー**: [Rolldown](https://rolldown.rs)（Rust製）
-- **レンダリング**: Canvas 2D API（ビューポートカリングによる描画最適化）
-- **永続化**: localStorage + JSON
-- **デプロイ**: GitHub Pages（`main` push → GitHub Actions → `dist/` 公開）
+## 🏗️ アーキテクチャ
 
-## ファイル構成
+### ファイル構成
 
 ```
 src/
-├── main.ts        # エントリーポイント（クラスの配線・入力イベント処理・固定タイムステップのゲームループ）
-├── engine.ts       # GameEngine（GameState の唯一の所有者。build/grow/monthlyUpdate/reset）
-├── renderer.ts     # Canvas 描画（ビューポートカリング、カメラのパン/ズーム）
-├── ui.ts           # UIManager（HUD・ビルドツールバー・ドロワー・トースト・モーダル等）
-├── storage.ts      # StorageManager（localStorage 3スロット + JSON I/O）
-├── constants.ts    # ゲーム定数（バランス数値の唯一の定義元）
-├── gameloop.ts     # 固定タイムステップ計算の純粋関数
-├── toast.ts        # トースト通知
-├── rng.ts          # シード可能な PRNG（テスト用に注入可能）
-└── style.css       # スタイル定義
+├── main.ts          # エントリーポイント＆ゲームループ・入力処理
+├── engine.ts        # GameEngine（ゲーム状態の唯一の所有者）
+├── renderer.ts      # Canvas 2D レンダリング
+├── ui.ts            # UIManager（HUD・パネル・モーダル等）
+├── storage.ts       # StorageManager（セーブ/ロード）
+├── constants.ts     # ゲームバランス定数
+├── gameloop.ts      # 固定タイムステップ計算
+├── toast.ts         # 通知システム
+├── rng.ts           # シード可能な乱数生成器
+└── style.css        # スタイル定義
 ```
 
-より詳しいゲームバランス・数値（建物サイズ/コスト/効果/需要/快適度/ランドマーク等）は [docs/GAMEPLAY.md](docs/GAMEPLAY.md) を、更新履歴は [CHANGELOG.md](CHANGELOG.md) を参照してください。実装方針は [CLAUDE.md](CLAUDE.md) にまとめています。
+### 設計原則
 
-## ライセンス
+- **単一責任**: `GameEngine.state` が唯一の真実の源
+- **効率的レンダリング**: ビューポートカリング、Canvas 内部ピクセル管理
+- **バランス集約**: すべての数値は `constants.ts` に集約
+- **型安全**: TypeScript strict mode + ESLint + Oxfmt
 
-MIT License
+詳細は [docs/GAMEPLAY.md](docs/GAMEPLAY.md) を参照
 
-## クレジット
+## 📊 技術スタック
 
-**オリジナル版制作**: 松島さん
-**改良・2D版開発**: warasugitewara
+| 層 | 技術 |
+|----|------|
+| **言語** | TypeScript 5.x |
+| **ビルドツール** | [Vite+](https://viteplus.dev) 8.x |
+| **バンドラー** | [Rolldown](https://rolldown.rs)（Rust） |
+| **レンダリング** | Canvas 2D API |
+| **テスト** | Vitest |
+| **リント** | [Oxlint](https://oxc-project.github.io/) |
+| **フォーマット** | [Oxfmt](https://oxc-project.github.io/) |
+| **永続化** | localStorage + JSON |
+| **デプロイ** | GitHub Pages（GitHub Actions） |
+
+## 📦 デプロイ
+
+`main` ブランチへの push で自動的に以下が実行されます:
+
+1. `npm run build` で本番ビルド
+2. `dist/` を GitHub Pages に公開
+3. 以下の URL でライブ: https://warasugitewara.github.io/easy-cities-2d/
+
+## 📖 ドキュメント
+
+- **[ゲームプレイガイド](docs/GAMEPLAY.md)** — ゲームバランス、建物コスト、インフラ効果の詳細
+- **[変更履歴](CHANGELOG.md)** — バージョン履歴と更新内容
+
+## 🤝 貢献
 
 バグ報告や機能リクエストは [GitHub Issues](https://github.com/warasugitewara/easy-cities-2d/issues) までお願いします。
+
+## 📄 ライセンス
+
+MIT License — 自由に利用、改変、配布が可能です
+
+## 👥 クレジット
+
+| 役割 | 名前 |
+|------|------|
+| **オリジナル版制作** | 松島さん |
+| **改良・2D 版開発** | [warasugitewara](https://github.com/warasugitewara) |
+
+---
+
+**ぜひプレイしてみてください！** 🎮✨
