@@ -513,6 +513,12 @@ export class UIManager {
     this.updateBuildContent(this.currentTab);
   }
 
+  /** キーボードショートカット等、UI外からビルドカテゴリを切り替えるための公開ラッパー。
+   *  ツールバーのアクティブ表示・サブパネル・aria が switchTab と同じ経路で追従する。 */
+  public selectCategory(category: BuildingCategory): void {
+    this.switchTab(category);
+  }
+
   private switchTab(category: BuildingCategory): void {
     this.currentTab = category;
     this.engine.state.buildMode = category;
@@ -785,6 +791,12 @@ export class UIManager {
     document.addEventListener("keydown", (e: KeyboardEvent) => {
       if (e.key === "Escape") this.closeControlsPanel();
     });
+  }
+
+  /** キーボードショートカット（Space/1/2/3）等、UI外からゲーム速度を切り替えるための公開ラッパー。
+   *  時間ボタンのアクティブ表示・aria-pressed が setGameSpeed と同じ経路で追従する。 */
+  public setSpeed(speed: number): void {
+    this.setGameSpeed(speed);
   }
 
   private setGameSpeed(speed: number): void {

@@ -3,7 +3,16 @@ import { GameEngine, GameSettings } from "./engine";
 import { Renderer } from "./renderer";
 import { StorageManager } from "./storage";
 import { UIManager } from "./ui";
-import { setMapSize, getCanvasSize, getTileSize, GAME_VERSION, MapSize } from "./constants";
+import {
+  setMapSize,
+  getCanvasSize,
+  getTileSize,
+  GAME_VERSION,
+  MapSize,
+  TileType,
+  BUILD_COSTS,
+  BUILDING_SIZES,
+} from "./constants";
 import { computeSteps, SIM_TICK_MS } from "./gameloop";
 import { showToast } from "./toast";
 
@@ -425,6 +434,121 @@ async function initializeGame(): Promise<void> {
       }
     }
 
+    // 現在の buildMode/selectedInfrastructure/selectedLandmark から、設置予定の TileType を導出する
+    // （engine.build() 内の switch と同じ対応関係。engine 側は手を入れず main 側で読むだけ）。
+    // "demolish" は削除対象であり新規設置タイルが無いため null を返す。
+    function getPlannedTileType(): TileType | null {
+      switch (engine.state.buildMode) {
+        case "road":
+          return TileType.ROAD;
+        case "residential":
+          return TileType.RESIDENTIAL_L1;
+        case "commercial":
+          return TileType.COMMERCIAL_L1;
+        case "industrial":
+          return TileType.INDUSTRIAL_L1;
+        case "infrastructure":
+          switch (engine.state.selectedInfrastructure) {
+            case "station":
+              return TileType.STATION;
+            case "park":
+              return TileType.PARK;
+            case "police":
+              return TileType.POLICE;
+            case "fire_station":
+              return TileType.FIRE_STATION;
+            case "hospital":
+              return TileType.HOSPITAL;
+            case "school":
+              return TileType.SCHOOL;
+            case "power_plant":
+              return TileType.POWER_PLANT;
+            case "water_treatment":
+              return TileType.WATER_TREATMENT;
+            default:
+              return TileType.STATION;
+          }
+        case "landmark":
+          switch (engine.state.selectedLandmark) {
+            case "stadium":
+              return TileType.LANDMARK_STADIUM;
+            case "airport":
+              return TileType.LANDMARK_AIRPORT;
+            default:
+              return TileType.LANDMARK_STADIUM;
+          }
+        default:
+          return null;
+      }
+    }
+
+    // 設置予定の建設コストを engine.getCost() と同じ対応関係で算出する（BUILD_COSTS を直接参照）。
+    function getPlannedCost(): number {
+      const mode = engine.state.buildMode;
+      if (mode === "infrastructure") {
+        return BUILD_COSTS[engine.state.selectedInfrastructure] ?? 0;
+      } else if (mode === "landmark") {
+        return BUILD_COSTS[`landmark_${engine.state.selectedLandmark}`] ?? 0;
+      }
+      return BUILD_COSTS[mode] ?? 0;
+    }
+
+    // 設置予定タイルのフットプリントが「範囲内 かつ 全マス空き地 かつ 資金が足りる
+    // （サンドボックス時は常にtrue）」であればホバープレビューを有効（緑）とする。
+    function computeHoverValidity(tileType: TileType, x: number, y: number): boolean {
+      const size = BUILDING_SIZES[tileType] || { width: 1, height: 1 };
+      const gridSize = engine.state.gridSize;
+      if (x < 0 || y < 0 || x + size.width > gridSize || y + size.height > gridSize) return false;
+
+      for (let dy = 0; dy < size.height; dy++) {
+        for (let dx = 0; dx < size.width; dx++) {
+          if (engine.state.map[y + dy][x + dx] !== TileType.EMPTY) return false;
+        }
+      }
+
+      if (!engine.state.settings.sandbox && engine.state.money < getPlannedCost()) return false;
+
+      return true;
+    }
+
+    // canvas の CSS カーソルを buildMode に応じて更新する（削除モード中は crosshair）。
+    function updateCursor(): void {
+      canvas.style.cursor = engine.state.buildMode === "demolish" ? "crosshair" : "";
+    }
+
+    // マウスホバー中のタイル座標を算出し、renderer に建設ゴーストプレビュー用の状態を反映する。
+    // buildAtMouse と同じ変換（CSS→canvas→world、タイル中心オフセット +tileSize*0.5）を使う。
+    function updateHoverPreview(clientX: number, clientY: number): void {
+      updateCursor();
+
+      const rect = canvas.getBoundingClientRect();
+      const { scaleX, scaleY } = getCanvasScale();
+      const screenX = (clientX - rect.left) * scaleX;
+      const screenY = (clientY - rect.top) * scaleY;
+
+      const worldCoords = renderer.screenToWorld(screenX, screenY);
+      const tileSize = getTileSize();
+      const x = Math.floor((worldCoords.x + tileSize * 0.5) / tileSize);
+      const y = Math.floor((worldCoords.y + tileSize * 0.5) / tileSize);
+
+      renderer.hoverTile = { x, y };
+
+      if (engine.state.buildMode === "demolish") {
+        renderer.hoverSize = { width: 1, height: 1 };
+        renderer.hoverValid = false;
+        return;
+      }
+
+      const tileType = getPlannedTileType();
+      if (tileType === null) {
+        renderer.hoverTile = null;
+        return;
+      }
+
+      renderer.hoverSize = BUILDING_SIZES[tileType] || { width: 1, height: 1 };
+      renderer.hoverValid = computeHoverValidity(tileType, x, y);
+    }
+
     // ポインターダウン処理（マウス用）
     function handlePointerDown(
       clientX: number,
@@ -506,6 +630,7 @@ async function initializeGame(): Promise<void> {
     canvas.addEventListener("mousemove", (e) => {
       const coords = getClientCoordinates(e);
       handlePointerMove(coords.clientX, coords.clientY);
+      updateHoverPreview(coords.clientX, coords.clientY);
       e.preventDefault();
     });
 
@@ -515,6 +640,7 @@ async function initializeGame(): Promise<void> {
 
     canvas.addEventListener("mouseleave", () => {
       handlePointerUp();
+      renderer.hoverTile = null;
     });
 
     // タッチイベント（モバイル専用・全面改修）
@@ -540,6 +666,8 @@ async function initializeGame(): Promise<void> {
       "touchstart",
       (e) => {
         e.preventDefault();
+        // タッチ操作中はゴーストプレビューを表示しない
+        renderer.hoverTile = null;
 
         if (e.touches.length === 1) {
           // 1本指: 建設モード開始
@@ -571,6 +699,8 @@ async function initializeGame(): Promise<void> {
       "touchmove",
       (e) => {
         e.preventDefault();
+        // タッチ操作中はゴーストプレビューを表示しない
+        renderer.hoverTile = null;
 
         if (touchMode === "building" && e.touches.length === 1) {
           // 1本指ドラッグ: Bresenhamで連続建設
@@ -697,25 +827,52 @@ async function initializeGame(): Promise<void> {
     );
 
     // キーボード操作
+    // R/S/C/I/U/D=カテゴリ切替、Space=一時停止トグル、1/2/3=速度切替。
+    // モーダルの入力欄等にフォーカスがある時はショートカットを無効化する。
     document.addEventListener("keydown", (e) => {
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName;
+      const isTypingTarget =
+        target?.isContentEditable || tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
+      if (isTypingTarget) return;
+
       switch (e.key.toLowerCase()) {
         case "r":
-          engine.state.buildMode = "road";
+          uiManager.selectCategory("road");
+          updateCursor();
           break;
         case "s":
-          engine.state.buildMode = "residential";
+          uiManager.selectCategory("residential");
+          updateCursor();
           break;
         case "c":
-          engine.state.buildMode = "commercial";
+          uiManager.selectCategory("commercial");
+          updateCursor();
           break;
         case "i":
-          engine.state.buildMode = "industrial";
+          uiManager.selectCategory("industrial");
+          updateCursor();
           break;
         case "u":
-          engine.state.buildMode = "infrastructure";
+          uiManager.selectCategory("infrastructure");
+          updateCursor();
           break;
         case "d":
-          engine.state.buildMode = "demolish";
+          uiManager.selectCategory("demolish");
+          updateCursor();
+          break;
+        case " ":
+          e.preventDefault();
+          uiManager.setSpeed(engine.state.gameSpeed === 0 ? 1 : 0);
+          break;
+        case "1":
+          uiManager.setSpeed(0.5);
+          break;
+        case "2":
+          uiManager.setSpeed(1);
+          break;
+        case "3":
+          uiManager.setSpeed(2);
           break;
       }
     });
