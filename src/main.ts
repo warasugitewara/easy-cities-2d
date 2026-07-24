@@ -585,8 +585,8 @@ async function initializeGame(): Promise<void> {
         renderer.cameraOffsetX = lastCameraOffsetX + deltaX;
         renderer.cameraOffsetY = lastCameraOffsetY + deltaY;
         clampCamera();
-      } else if (isMouseDown && engine.state.buildMode !== "demolish") {
-        // 左ドラッグ: 線を引いて敷設
+      } else if (isMouseDown && (engine.state.buildMode !== "demolish" || uiManager.dragDemolish)) {
+        // 左ドラッグ: 線を引いて敷設（削除は連続削除トグルON時のみドラッグ対応）
         const currentScreenX = (clientX - rect.left) * scaleX;
         const currentScreenY = (clientY - rect.top) * scaleY;
         const startScreenX = (dragStartX - rect.left) * scaleX;
@@ -706,7 +706,7 @@ async function initializeGame(): Promise<void> {
         if (touchMode === "building" && e.touches.length === 1) {
           // 1本指ドラッグ: Bresenhamで連続建設
           const touch = e.touches[0];
-          if (engine.state.buildMode !== "demolish") {
+          if (engine.state.buildMode !== "demolish" || uiManager.dragDemolish) {
             const rect = canvas.getBoundingClientRect();
             const { scaleX, scaleY } = getCanvasScale();
 

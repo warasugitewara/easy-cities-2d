@@ -26,7 +26,13 @@ export class Renderer {
 
   constructor(canvas: HTMLCanvasElement, engine: GameEngine) {
     this.canvas = canvas;
-    this.ctx = canvas.getContext("2d")!;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      throw new Error(
+        "2D 描画コンテキストを取得できませんでした（お使いのブラウザが Canvas 2D に対応していない可能性があります）。",
+      );
+    }
+    this.ctx = ctx;
     this.engine = engine;
     this.gridSize = engine.state.gridSize;
     this.tileSize = getTileSize();
