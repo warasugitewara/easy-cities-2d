@@ -391,10 +391,10 @@ export class UIManager {
         ${this.statChipHTML("stat-month", "📅", "月", { primary: true })}
         <span id="hud-pause-pill" class="hud-pill hud-pill-warn hidden">⏸ 一時停止中</span>
         <span id="hud-supply-pill" class="hud-pill hud-pill-warn hidden" data-tip="電力または水道の供給率が不足しています">⚠ 電力/水道不足</span>
-        <button id="btn-detail-toggle" class="hud-detail-toggle" aria-expanded="false" aria-controls="hud-detail-panel">▸ 詳細</button>
+        <button id="btn-detail-toggle" class="hud-detail-toggle" aria-expanded="false" aria-controls="hud-detail-panel" aria-label="詳細指標の表示切り替え">▸ 詳細</button>
       </div>
       <div class="hud-time" role="toolbar" aria-label="時間コントロール">
-        <button id="btn-pause" class="time-btn" aria-pressed="false" title="ポーズ (Space)">⏸</button>
+        <button id="btn-pause" class="time-btn" aria-pressed="false" aria-label="ポーズ" title="ポーズ (Space)">⏸</button>
         <button id="btn-slow" class="time-btn" aria-pressed="false" title="0.5倍速 (1)">0.5x</button>
         <button id="btn-normal" class="time-btn active" aria-pressed="true" title="通常速度 (2)">1x</button>
         <button id="btn-fast" class="time-btn" aria-pressed="false" title="2倍速 (3)">2x</button>
@@ -866,6 +866,10 @@ export class UIManager {
     modal.setAttribute("role", "dialog");
     modal.setAttribute("aria-modal", "true");
 
+    // タイトル（h2/h3、id付き）があれば aria-labelledby で紐付ける
+    const heading = content.querySelector<HTMLElement>("h2[id], h3[id]");
+    if (heading) modal.setAttribute("aria-labelledby", heading.id);
+
     const focusable = (): HTMLElement[] =>
       Array.from(
         content.querySelectorAll<HTMLElement>(
@@ -907,13 +911,29 @@ export class UIManager {
     modal.className = "modal";
     modal.innerHTML = `
       <div class="modal-content">
-        <h2>ゲーム設定</h2>
+        <h2 id="modal-title-settings">ゲーム設定</h2>
         <div class="settings-group">
           ${this.toggleRowHTML("toggle-sandbox", "🎮 サンドボックスモード（資金∞）", this.engine.state.settings.sandbox)}
           ${this.toggleRowHTML("toggle-disasters", "災害システム", this.engine.state.settings.disastersEnabled)}
           ${this.toggleRowHTML("toggle-pollution", "公害システム", this.engine.state.settings.pollutionEnabled)}
           ${this.toggleRowHTML("toggle-slum", "スラム化システム", this.engine.state.settings.slumEnabled)}
         </div>
+        <section class="modal-section">
+          <h3 class="modal-section-title">キーボードショートカット</h3>
+          <dl class="shortcut-list">
+            <div class="shortcut-row"><dt><kbd>R</kbd></dt><dd>道路</dd></div>
+            <div class="shortcut-row"><dt><kbd>S</kbd></dt><dd>住宅</dd></div>
+            <div class="shortcut-row"><dt><kbd>C</kbd></dt><dd>商業</dd></div>
+            <div class="shortcut-row"><dt><kbd>I</kbd></dt><dd>工業</dd></div>
+            <div class="shortcut-row"><dt><kbd>U</kbd></dt><dd>インフラ</dd></div>
+            <div class="shortcut-row"><dt><kbd>D</kbd></dt><dd>削除</dd></div>
+            <div class="shortcut-row"><dt><kbd>Space</kbd></dt><dd>一時停止／再開</dd></div>
+            <div class="shortcut-row"><dt><kbd>1</kbd></dt><dd>0.5倍速</dd></div>
+            <div class="shortcut-row"><dt><kbd>2</kbd></dt><dd>通常速度</dd></div>
+            <div class="shortcut-row"><dt><kbd>3</kbd></dt><dd>2倍速</dd></div>
+            <div class="shortcut-row"><dt><kbd>Esc</kbd></dt><dd>メニュー／モーダルを閉じる</dd></div>
+          </dl>
+        </section>
         <div class="modal-buttons">
           <button id="btn-settings-apply" class="btn-primary">適用</button>
           <button id="btn-settings-close" class="btn-secondary">キャンセル</button>
@@ -948,7 +968,7 @@ export class UIManager {
     modal.className = "modal";
     modal.innerHTML = `
       <div class="modal-content">
-        <h2>セーブ</h2>
+        <h2 id="modal-title-save">セーブ</h2>
         <div class="slots">
           ${[0, 1, 2].map((i) => `<button class="slot-btn" data-slot="${i}">スロット ${i + 1}</button>`).join("")}
         </div>
@@ -977,7 +997,7 @@ export class UIManager {
     modal.className = "modal";
     modal.innerHTML = `
       <div class="modal-content">
-        <h2>ロード</h2>
+        <h2 id="modal-title-load">ロード</h2>
         <div class="slots">
           ${[0, 1, 2].map((i) => `<button class="slot-btn" data-slot="${i}">スロット ${i + 1}</button>`).join("")}
         </div>

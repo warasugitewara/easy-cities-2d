@@ -237,38 +237,6 @@ body {
   height: 100%;
 }
 
-/* ダッシュボード */
-.dashboard {
-  background: rgba(0, 0, 0, 0.5);
-  padding: 15px;
-  border-radius: 6px;
-  border: 1px solid #333;
-}
-
-.stat-panel {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-}
-
-.stat-item {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  padding: 10px;
-  background: rgba(0, 191, 255, 0.1);
-  border: 1px solid #00bfff;
-  border-radius: 4px;
-  text-align: center;
-}
-
-.stat-label {
-  font-size: 12px;
-  color: #00bfff;
-  text-transform: uppercase;
-  font-weight: bold;
-}
-
 .stat-value {
   font-size: 18px;
   font-weight: bold;
@@ -279,95 +247,7 @@ body {
   text-align: center;
 }
 
-/* ツールバー */
-.toolbar {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 10px;
-  background: rgba(0, 0, 0, 0.5);
-  border-radius: 6px;
-  border: 1px solid #333;
-}
-
-.tool-group,
-.speed-group,
-.save-group,
-.reset-group {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid #333;
-}
-
-.reset-group {
-  border-bottom: none;
-  padding-bottom: 0;
-}
-
-.tool-btn,
-.speed-btn,
-.save-btn,
-.load-btn,
-.export-btn,
-.import-btn,
-.reset-btn {
-  padding: 8px 12px;
-  background: linear-gradient(135deg, #1a3a3a, #0a2a2a);
-  color: #e0e0e0;
-  border: 1px solid #00bfff;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 12px;
-  font-weight: bold;
-  transition: all 0.2s;
-  text-align: center;
-}
-
-.tool-btn:hover,
-.speed-btn:hover,
-.save-btn:hover,
-.load-btn:hover,
-.export-btn:hover,
-.import-btn:hover,
-.reset-btn:hover {
-  background: linear-gradient(135deg, #2a5a5a, #1a3a3a);
-  box-shadow: 0 0 10px rgba(0, 191, 255, 0.5);
-  transform: translateY(-2px);
-}
-
-.tool-btn.active,
-.speed-btn.active {
-  background: linear-gradient(135deg, #00bfff, #0099cc);
-  color: #000;
-  box-shadow: 0 0 15px rgba(0, 191, 255, 0.8);
-}
-
-/* セーブスロット */
-.slot-manager {
-  background: rgba(0, 0, 0, 0.5);
-  padding: 12px;
-  border-radius: 6px;
-  border: 1px solid #333;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.slot-label {
-  font-size: 12px;
-  color: #00bfff;
-  font-weight: bold;
-  text-transform: uppercase;
-}
-
-.slot-buttons {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
+/* セーブスロット（旧デザイン残骸。.slot-btn 自体は §4-e 新モーダルでも使うため維持） */
 .slot-btn {
   padding: 6px 8px;
   background: linear-gradient(135deg, #1a3a3a, #0a2a2a);
@@ -390,123 +270,6 @@ body {
   background: linear-gradient(135deg, #00bfff, #0099cc);
   color: #000;
   box-shadow: 0 0 12px rgba(0, 191, 255, 0.7);
-}
-
-.slot-info {
-  font-size: 10px;
-  color: #00aa77;
-  background: rgba(0, 170, 119, 0.1);
-  padding: 6px;
-  border-radius: 3px;
-  border: 1px solid #00aa77;
-  word-break: break-word;
-  max-height: 60px;
-  overflow-y: auto;
-}
-
-/* タブ式ビルドメニュー */
-.build-menu {
-  background: rgba(0, 0, 0, 0.5);
-  border-radius: 6px;
-  border: 1px solid #333;
-  overflow: hidden;
-}
-
-.tab-container {
-  display: flex;
-  gap: 2px;
-  padding: 8px;
-  background: rgba(0, 0, 0, 0.7);
-  border-bottom: 1px solid #333;
-  overflow-x: auto;
-}
-
-.tab-button {
-  padding: 8px 12px;
-  background: linear-gradient(135deg, #1a3a3a, #0a2a2a);
-  color: #e0e0e0;
-  border: 1px solid #333;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 11px;
-  font-weight: bold;
-  white-space: nowrap;
-  transition: all 0.2s;
-}
-
-.tab-button:hover {
-  background: linear-gradient(135deg, #2a5a5a, #1a3a3a);
-  box-shadow: 0 0 8px rgba(0, 191, 255, 0.3);
-}
-
-.tab-button.active {
-  background: linear-gradient(135deg, #00bfff, #0099cc);
-  color: #000;
-  box-shadow: 0 0 12px rgba(0, 191, 255, 0.7);
-  border-color: #00bfff;
-}
-
-.build-content {
-  padding: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.build-info {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.info-title {
-  font-size: 14px;
-  font-weight: bold;
-  color: #00bfff;
-}
-
-.info-description {
-  font-size: 11px;
-  color: #b0b0b0;
-  line-height: 1.4;
-}
-
-.help-text {
-  font-size: 10px;
-  color: #00aa77;
-  background: rgba(0, 170, 119, 0.1);
-  padding: 6px;
-  border-radius: 3px;
-  border: 1px solid #00aa77;
-}
-
-/* コントロールパネル */
-.controls-panel {
-  display: flex;
-  gap: 8px;
-  padding: 10px;
-  background: rgba(0, 0, 0, 0.5);
-  border-radius: 6px;
-  border: 1px solid #333;
-}
-
-.btn-icon {
-  flex: 1;
-  padding: 12px;
-  background: linear-gradient(135deg, #1a3a3a, #0a2a2a);
-  color: #e0e0e0;
-  border: 1px solid #00bfff;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 18px;
-  font-weight: bold;
-  transition: all 0.2s;
-}
-
-.btn-icon:hover {
-  background: linear-gradient(135deg, #2a5a5a, #1a3a3a);
-  box-shadow: 0 0 10px rgba(0, 191, 255, 0.5);
-  transform: translateY(-2px);
 }
 
 /* ==========================================================================
@@ -672,6 +435,43 @@ body {
 .switch input:focus-visible + .switch-track {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+
+/* キーボードショートカット一覧（設定モーダル内、§6 a11y） */
+.shortcut-list {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--sp-2) var(--sp-3);
+  margin: 0;
+}
+
+.shortcut-row {
+  display: contents;
+}
+
+.shortcut-list dt {
+  margin: 0;
+}
+
+.shortcut-list dd {
+  margin: 0;
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+  align-self: center;
+}
+
+.shortcut-list kbd {
+  display: inline-block;
+  min-width: 1.6em;
+  padding: 2px 6px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-1);
+  border-radius: var(--r-sm);
+  color: var(--text-1);
+  font-family: var(--font-ui);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  text-align: center;
 }
 
 /* カード型ラジオ選択（マップサイズ/難易度） */
@@ -1719,126 +1519,6 @@ body {
 
 .btn-control:hover {
   background: var(--surface-3);
-}
-
-/* デマンドメーター（デスクトップ、現状未使用） */
-.demand-meter-container {
-  position: fixed;
-  bottom: 80px;
-  left: 20px;
-  background: rgba(0, 0, 0, 0.8);
-  border: 2px solid #ff9800;
-  border-radius: 8px;
-  padding: 0;
-  pointer-events: auto;
-  box-shadow: 0 0 15px rgba(255, 152, 0, 0.3);
-  z-index: 101;
-  width: 220px;
-  min-width: 200px;
-  max-width: 400px;
-  height: auto;
-  min-height: 100px;
-  max-height: 300px;
-}
-
-.demand-meter-header {
-  background: linear-gradient(135deg, #ff9800, #ff7043);
-  color: #000;
-  padding: 8px 12px;
-  border-radius: 6px 6px 0 0;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-weight: bold;
-  font-size: 14px;
-  pointer-events: auto;
-}
-
-.btn-close-demand {
-  background: none;
-  border: none;
-  color: #000;
-  font-size: 16px;
-  cursor: pointer;
-  padding: 0;
-  margin-left: 8px;
-  transition: transform 0.2s;
-  pointer-events: auto;
-}
-
-.btn-close-demand:hover {
-  transform: scale(1.2);
-}
-
-.demand-meter-container > div:not(.demand-meter-header) {
-  padding: 8px 12px;
-}
-
-.demand-meter {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
-}
-
-.demand-meter:last-child {
-  margin-bottom: 0;
-}
-
-.demand-label {
-  font-size: 18px;
-  min-width: 25px;
-}
-
-.demand-bar {
-  flex: 1;
-  height: 20px;
-  background: rgba(255, 152, 0, 0.2);
-  border: 1px solid #ff9800;
-  border-radius: 4px;
-  overflow: hidden;
-  position: relative;
-}
-
-.demand-fill {
-  height: 100%;
-  background: linear-gradient(90deg, #ff9800, #ffb74d);
-  transition: width 0.3s ease;
-}
-
-.demand-value {
-  min-width: 35px;
-  text-align: right;
-  color: #ffb74d;
-  font-weight: bold;
-  font-size: 12px;
-}
-
-.btn-toggle-demand-fixed {
-  position: fixed;
-  bottom: 20px;
-  left: 20px;
-  padding: 14px 18px;
-  background: linear-gradient(135deg, #ff9800, #ff7043);
-  color: #000;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 18px;
-  font-weight: bold;
-  box-shadow: 0 0 15px rgba(255, 152, 0, 0.5);
-  transition: all 0.2s;
-  pointer-events: auto;
-  z-index: 100;
-}
-
-.btn-toggle-demand-fixed:hover {
-  transform: scale(1.08);
-  box-shadow: 0 0 25px rgba(255, 152, 0, 0.8);
-}
-
-.btn-toggle-demand-fixed:active {
-  transform: scale(0.95);
 }
 
 /* ==========================================================================

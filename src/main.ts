@@ -89,7 +89,7 @@ function showInitialSettings(): Promise<GameSettings> {
     modal.className = "modal";
     modal.innerHTML = `
       <div class="modal-content modal-content-wide">
-        <h2>🎮 Easy Cities 2D (ver.${GAME_VERSION})</h2>
+        <h2 id="modal-title-init-settings">🎮 Easy Cities 2D (ver.${GAME_VERSION})</h2>
         <p class="modal-lead">ゲーム設定を選択してください</p>
 
         <div class="modal-section">
@@ -178,6 +178,7 @@ function showInitialSettings(): Promise<GameSettings> {
 
     modal.setAttribute("role", "dialog");
     modal.setAttribute("aria-modal", "true");
+    modal.setAttribute("aria-labelledby", "modal-title-init-settings");
     modal.addEventListener("keydown", (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         e.preventDefault();
