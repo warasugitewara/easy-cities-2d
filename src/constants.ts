@@ -286,20 +286,22 @@ export const DISASTER_BALANCE = {
 // （CITY_LEVEL_MODEL 参照）。tourismPerBuilding/internationalPerBuilding は
 // 1棟あたりの目標値への寄与量（旧 tourismBoost/internationalBoost の年間加算値とは別物）。
 // commercialBonusMin/Max/rangeRadius は Step7で扱うため変更せず残置。
+// Step7リバランス: ランドマークの商業ボーナスを「絶対額テーブル」から「倍率方式」に変更。
+// 圏内の商業タイル税収を倍率で押し上げる（半径は #5 に合わせマップ非依存性のため縮小）。
 export const LANDMARK_EFFECTS = {
   stadium: {
-    rangeRadius: 40,
     tourismPerBuilding: 40, // 観光度目標値への1棟あたり寄与
-    commercialBonusMin: 500, // L1商業地観光収入
-    commercialBonusMax: 3000, // L4商業地観光収入
+    bonusRadius: 20, // 商業収入倍率の効果半径（マンハッタン。旧40→20に縮小）
+    bonusMultiplier: 1.5, // 圏内の商業タイル税収を ×1.5
   },
   airport: {
-    rangeRadius: 50,
     tourismPerBuilding: 25, // 観光度目標値への1棟あたり寄与（スタジアムより少ない）
     internationalPerBuilding: 50, // 国際化度目標値への1棟あたり寄与
-    commercialBonusMin: 1000, // L1商業地国際取引収入
-    commercialBonusMax: 5000, // L4商業地国際取引収入
+    bonusRadius: 30, // 旧50→30に縮小
+    bonusMultiplier: 1.8, // 圏内の商業タイル税収を ×1.8
   },
+  bothMultiplier: 2.0, // スタジアム・空港の両圏内なら ×2.0（上限）
+  tourismRevenueSlope: 0.005, // 観光度/国際化度→商業税収ボーナスの傾き（合計で最大+100%）
 };
 
 // シナジー効果

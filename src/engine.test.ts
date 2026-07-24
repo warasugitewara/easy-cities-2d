@@ -578,3 +578,21 @@ describe("Step6: 病気/スラムの永続化", () => {
     expect(engine.state.map[5][5]).toBe(TileType.EMPTY);
   });
 });
+
+describe("Step7: ランドマーク近接ボーナス（倍率方式）", () => {
+  test("スタジアム圏内の商業タイルは税収が押し上げられる", () => {
+    function monthDelta(withStadium: boolean): number {
+      const engine = new GameEngine(makeSettings({ sandbox: true }), mulberry32(7));
+      engine.state.map[10][10] = TileType.COMMERCIAL_L1;
+      if (withStadium) {
+        engine.state.map[12][12] = TileType.LANDMARK_STADIUM; // 商業から近接（圏内）
+      }
+      const before = engine.state.money;
+      engine.monthlyUpdate();
+      return engine.state.money - before;
+    }
+
+    // スタジアム圏内では商業税収が倍率で上がるため、月次収支がプラス方向に増える。
+    expect(monthDelta(true)).toBeGreaterThan(monthDelta(false));
+  });
+});

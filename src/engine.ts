@@ -675,9 +675,14 @@ export class GameEngine {
     // Step1リバランス: タイル単位ではなく「建物単位」で税収・維持費を計上する
     // （多マス建物がタイル数倍で課金/課税されるのを防ぐ）。
     const buildingCounts = this.countBuildings();
+    let commercialBaseTax = 0; // 商業タイルの基礎税収（観光/ランドマークボーナスの基準）
     for (const [tile, count] of buildingCounts) {
-      revenue += (TAX_REVENUE[tile] || 0) * count;
+      const tax = (TAX_REVENUE[tile] || 0) * count;
+      revenue += tax;
       maintenance += (MAINTENANCE_COSTS[tile] || 0) * count;
+      if (tile >= TileType.COMMERCIAL_L1 && tile <= TileType.COMMERCIAL_L4) {
+        commercialBaseTax += tax;
+      }
     }
 
     // ペナルティを税収に適用
@@ -689,13 +694,16 @@ export class GameEngine {
       revenue *= 1 + educationBonus;
     }
 
-    // 観光度が商業収入に反映（観光度が高いほど商業地収入が増加）
-    if (this.state.tourismLevel > 0 || this.state.internationalLevel > 0) {
-      const tourismBonus = this.state.tourismLevel * 0.01 + this.state.internationalLevel * 0.01;
-      revenue *= 1 + tourismBonus;
-    }
+    // Step7: 観光度/国際化度は「商業税収のみ」を押し上げる（合計で最大+100%）。
+    // 旧実装は住宅・工業を含む全税収に最大+200%かかり強すぎた。
+    const tourismMult = Math.min(
+      1.0,
+      (this.state.tourismLevel + this.state.internationalLevel) *
+        LANDMARK_EFFECTS.tourismRevenueSlope,
+    );
+    revenue += commercialBaseTax * tourismMult;
 
-    // ランドマーク商業ボーナス（スタジアム・空港周辺商業地への観光収入）
+    // Step7: ランドマーク近接ボーナス（圏内の商業タイル税収を倍率で押し上げた分）。
     revenue += this.calculateLandmarkCommercialBonus();
 
     // サンドボックスモードでない場合のみ維持費を適用
@@ -987,13 +995,13 @@ export class GameEngine {
   }
 
   // ランドマーク商業ボーナス計算
+  // Step7: ランドマーク近接ボーナス。スタジアム/空港の効果半径内にある商業タイルの
+  // 税収を倍率で押し上げた「増分」（(倍率-1)×タイル税収 の合計）を返す。
+  // スタジアム圏内 ×1.5 / 空港圏内 ×1.8 / 両方圏内 ×2.0（上限）。
+  // 旧実装はレベル別の絶対額（L4で+5000等＝基礎税収の十数倍）で壊れた収入源だった。
   private calculateLandmarkCommercialBonus(): number {
-    let bonus = 0;
-
-    // スタジアムと空港の位置を取得
-    const stadiums = [];
-    const airports = [];
-
+    const stadiums: { x: number; y: number }[] = [];
+    const airports: { x: number; y: number }[] = [];
     for (let y = 0; y < this.gridSize; y++) {
       for (let x = 0; x < this.gridSize; x++) {
         const tile = this.state.map[y][x];
@@ -1001,59 +1009,34 @@ export class GameEngine {
         if (tile === TileType.LANDMARK_AIRPORT) airports.push({ x, y });
       }
     }
+    if (stadiums.length === 0 && airports.length === 0) return 0;
 
-    // スタジアム周辺の商業地
-    for (const stadium of stadiums) {
-      const stadiumRadius = 40;
-      const yMin = Math.max(0, stadium.y - stadiumRadius);
-      const yMax = Math.min(this.gridSize - 1, stadium.y + stadiumRadius);
-      const xMin = Math.max(0, stadium.x - stadiumRadius);
-      const xMax = Math.min(this.gridSize - 1, stadium.x + stadiumRadius);
-      for (let y = yMin; y <= yMax; y++) {
-        for (let x = xMin; x <= xMax; x++) {
-          const tile = this.state.map[y][x];
-          const dist = Math.abs(x - stadium.x) + Math.abs(y - stadium.y);
+    const stadiumRadius = LANDMARK_EFFECTS.stadium.bonusRadius;
+    const airportRadius = LANDMARK_EFFECTS.airport.bonusRadius;
 
-          // スタジアムから40マス以内の商業地
-          if (
-            dist <= stadiumRadius &&
-            tile >= TileType.COMMERCIAL_L1 &&
-            tile <= TileType.COMMERCIAL_L4
-          ) {
-            const level = tile - TileType.COMMERCIAL_L1 + 1; // 1～4
-            const bonusValues = [500, 1166, 2333, 3000];
-            bonus += bonusValues[level - 1];
-          }
+    let bonus = 0;
+    for (let y = 0; y < this.gridSize; y++) {
+      for (let x = 0; x < this.gridSize; x++) {
+        const tile = this.state.map[y][x];
+        if (tile < TileType.COMMERCIAL_L1 || tile > TileType.COMMERCIAL_L4) continue;
+
+        const inStadium = stadiums.some(
+          (s) => Math.abs(x - s.x) + Math.abs(y - s.y) <= stadiumRadius,
+        );
+        const inAirport = airports.some(
+          (a) => Math.abs(x - a.x) + Math.abs(y - a.y) <= airportRadius,
+        );
+
+        let mult = 1;
+        if (inStadium && inAirport) mult = LANDMARK_EFFECTS.bothMultiplier;
+        else if (inAirport) mult = LANDMARK_EFFECTS.airport.bonusMultiplier;
+        else if (inStadium) mult = LANDMARK_EFFECTS.stadium.bonusMultiplier;
+
+        if (mult > 1) {
+          bonus += (TAX_REVENUE[tile] || 0) * (mult - 1);
         }
       }
     }
-
-    // 空港周辺の商業地
-    for (const airport of airports) {
-      const airportRadius = 50;
-      const yMin = Math.max(0, airport.y - airportRadius);
-      const yMax = Math.min(this.gridSize - 1, airport.y + airportRadius);
-      const xMin = Math.max(0, airport.x - airportRadius);
-      const xMax = Math.min(this.gridSize - 1, airport.x + airportRadius);
-      for (let y = yMin; y <= yMax; y++) {
-        for (let x = xMin; x <= xMax; x++) {
-          const tile = this.state.map[y][x];
-          const dist = Math.abs(x - airport.x) + Math.abs(y - airport.y);
-
-          // 空港から50マス以内の商業地
-          if (
-            dist <= airportRadius &&
-            tile >= TileType.COMMERCIAL_L1 &&
-            tile <= TileType.COMMERCIAL_L4
-          ) {
-            const level = tile - TileType.COMMERCIAL_L1 + 1; // 1～4
-            const bonusValues = [1000, 2333, 3666, 5000];
-            bonus += bonusValues[level - 1];
-          }
-        }
-      }
-    }
-
     return bonus;
   }
 
