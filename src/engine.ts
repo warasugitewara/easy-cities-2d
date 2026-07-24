@@ -1074,15 +1074,8 @@ export class GameEngine {
       const shortage = (50 - this.state.waterSupplyRate) / 50;
       growthPenalty *= Math.max(0.3, 1 - shortage * 0.7); // 最大70%低下
       revenuePenalty *= Math.max(0.7, 1 - shortage * 0.3); // 最大30%低下
-
-      // 給水不足で病気発生倍率が3倍
-      for (let y = 0; y < this.gridSize; y++) {
-        for (let x = 0; x < this.gridSize; x++) {
-          if (!this.state.waterGrid[y][x] && this.state.diseaseMap[y][x] > 0) {
-            this.state.diseaseMap[y][x] = Math.min(10, this.state.diseaseMap[y][x] * 1.2);
-          }
-        }
-      }
+      // Step6: 「給水なしで病気3倍」は updateDiseases の発生確率 ×noWaterMultiplier に移設。
+      // ここでの diseaseMap ×1.2 増幅（意味論が発生率でなくレベルで README と不一致）は廃止した。
     }
 
     // 治安度不足ペナルティ（住宅成長）
@@ -1126,6 +1119,11 @@ export class GameEngine {
         }
       }
       // （旧・快適度への直接減算は calculateComfort の service/汚染乗算に一本化したため削除）
+    }
+
+    // Step6: スラム化率に応じた成長ペナルティ（最大 -50%）。
+    if (this.state.slumRate > 0) {
+      growthPenalty *= Math.max(0.5, 1 - this.state.slumRate / 200);
     }
 
     this.state.growthPenalty = growthPenalty;
@@ -1437,27 +1435,31 @@ export class GameEngine {
           localSlum /= 121;
           localPollution /= 121;
 
-          // スラム化条件：高汚染＋低治安＋近くのスラム
-          // Step2リバランス: gameSpeed 乗算を削除（バグA）。固定タイムステップ化により
-          // monthlyUpdate の呼出頻度が既に gameSpeed に比例しているため、確率にも
-          // 掛けると速度2倍で発生率4倍になってしまっていた。
+          // Step6再設計: スラム化条件（汚染と治安の悪さの平均 × 近隣スラム）。
+          // 旧 baseChance 0.01 は毎月の減衰 -0.5 に負けスラムが実質発生しなかったため 0.15 に。
+          // gameSpeed 乗算は Step2 で削除済み（固定タイムステップで月次頻度が速度比例のため）。
+          const sb = DISASTER_BALANCE.slum;
           const slumChance =
-            0.01 * (localPollution / 100) * (1 - localSecurity / 100) * (1 + localSlum / 10);
+            sb.baseChance *
+            (0.5 * (localPollution / 100) + 0.5 * (1 - localSecurity / 100)) *
+            (1 + localSlum / 10);
           if (this.rng() < slumChance) {
             this.state.slumMap[y][x] = Math.min(10, this.state.slumMap[y][x] + 1);
           }
 
-          // スラム化が進むとレベルダウン
-          if (this.state.slumMap[y][x] > 8) {
-            // 住宅レベルを1段階低下
+          // スラム化が進むと住宅レベルを1段階低下（L1は維持）
+          if (this.state.slumMap[y][x] > sb.downgradeThreshold) {
             if (tile > TileType.RESIDENTIAL_L1) {
               this.state.map[y][x] = tile - 1;
             }
             this.state.slumMap[y][x] = 0;
           }
 
-          // スラム化度低下
-          this.state.slumMap[y][x] = Math.max(0, this.state.slumMap[y][x] - 0.5);
+          // Step6: 減衰（回復）は「局所汚染が十分低く、かつ治安が十分高い」月のみ適用。
+          // 放置された荒廃地区は回復せず、環境を改善して初めて再生する（荒廃と再生のループ）。
+          if (localPollution < sb.recoveryPollutionMax && localSecurity >= sb.recoverySecurityMin) {
+            this.state.slumMap[y][x] = Math.max(0, this.state.slumMap[y][x] - sb.decayAmount);
+          }
         }
       }
     }
@@ -1466,14 +1468,10 @@ export class GameEngine {
     const slummedCells = this.state.slumMap.flat().filter((s) => s > 0).length;
     this.state.slumRate = Math.round((slummedCells / (this.gridSize * this.gridSize)) * 100);
 
-    // 快適度へのスラムペナルティは calculateComfort() の slumMult に一本化した。
-    // 人口流出（population *=）は Step6 でタイル降格による永続化に置き換える予定のため現状維持。
-    if (this.state.slumRate > 10) {
-      this.state.population *= 0.98;
-    }
-    if (this.state.slumRate > 20) {
-      this.state.population *= 0.95;
-    }
+    // Step6: 快適度ペナルティは calculateComfort() の slumMult、成長ペナルティは
+    // calculatePenalties() の slumRate 参照に一本化。人口減は上のスラム降格（住宅レベル低下）で
+    // 永続化されるため、ここでの population 直接操作（旧・calculatePopulation で上書きされる no-op）
+    // は廃止した。
   }
 
   private updateFires(): void {
@@ -1551,6 +1549,21 @@ export class GameEngine {
     this.state.fireMap = newFireMap;
   }
 
+  // ゾーンタイルを1段階降格する。各ゾーンのL1（住宅1/商業11/工業21）は EMPTY にする
+  // （街から人が逃げる）。病気の蔓延・（必要に応じ）他の永続被害で使う共通ロジック。
+  private downgradeZoneTile(x: number, y: number): void {
+    const tile = this.state.map[y][x];
+    if (
+      tile === TileType.RESIDENTIAL_L1 ||
+      tile === TileType.COMMERCIAL_L1 ||
+      tile === TileType.INDUSTRIAL_L1
+    ) {
+      this.state.map[y][x] = TileType.EMPTY;
+    } else if (tile >= 1 && tile <= 24) {
+      this.state.map[y][x] = tile - 1;
+    }
+  }
+
   private updateDiseases(): void {
     const db = DISASTER_BALANCE.disease;
     // 難易度に応じた病気発生率を調整
@@ -1558,12 +1571,16 @@ export class GameEngine {
 
     for (let y = 0; y < this.gridSize; y += sampleRate) {
       for (let x = 0; x < this.gridSize; x += sampleRate) {
+        // Step6: 病気の発生はゾーンタイル(1-24)に限定（インフラは病気にならない）。
+        const tile = this.state.map[y][x];
+        if (tile < 1 || tile > 24) continue;
+
         const density = this.getLocalDensity(x, y);
-        // Step2リバランス: gameSpeed 乗算を削除（バグA）。固定タイムステップ化により
-        // monthlyUpdate の呼出頻度が既に gameSpeed に比例しているため、確率にも
-        // 掛けると速度2倍で発生率4倍になってしまっていた。
-        const diseaseChance = db.baseChance * (1 + density / 10) * this.disasterRateMultiplier;
-        if (this.state.map[y][x] !== TileType.EMPTY && this.rng() < diseaseChance) {
+        // gameSpeed 乗算は Step2 で削除済み（固定タイムステップで月次頻度が既に速度比例のため）。
+        let diseaseChance = db.baseChance * (1 + density / 10) * this.disasterRateMultiplier;
+        // Step6: 給水されていないタイルは病気発生率を noWaterMultiplier 倍にする。
+        if (!this.state.waterGrid[y][x]) diseaseChance *= db.noWaterMultiplier;
+        if (this.rng() < diseaseChance) {
           this.state.diseaseMap[y][x] = Math.min(10, this.state.diseaseMap[y][x] + db.igniteAmount);
         }
       }
@@ -1580,7 +1597,9 @@ export class GameEngine {
               const nx = x + dx;
               const ny = y + dy;
               if (nx >= 0 && ny >= 0 && nx < this.gridSize && ny < this.gridSize) {
-                if (this.state.map[ny][nx] !== TileType.EMPTY && this.rng() < db.spreadChance) {
+                const t = this.state.map[ny][nx];
+                // 波及もゾーンタイル(1-24)に限定
+                if (t >= 1 && t <= 24 && this.rng() < db.spreadChance) {
                   newDiseaseMap[ny][nx] = Math.min(10, newDiseaseMap[ny][nx] + db.spreadAmount);
                 }
               }
@@ -1603,18 +1622,21 @@ export class GameEngine {
             }
           }
 
+          // Step6: 病気が最大(outbreakThreshold)まで蔓延したらゾーンを1段階降格して損失を
+          // 永続化する。判定は減衰前の値で行う（減衰後は必ず閾値未満になり発火不能だった＝
+          // 旧実装の人口減は no-op かつ到達不能の二重死だった）。降格ならマップ自体が変わるので
+          // calculatePopulation() に正しく反映される。
+          const outbreak = newDiseaseMap[y][x] >= db.outbreakThreshold;
+
           if (diseaseHealed) {
             newDiseaseMap[y][x] = Math.max(0, newDiseaseMap[y][x] - db.healAmount);
           } else {
             newDiseaseMap[y][x] = Math.max(0, newDiseaseMap[y][x] - db.decayAmount);
           }
 
-          // 病気が蔓延したら人口減少
-          if (newDiseaseMap[y][x] >= db.outbreakThreshold) {
-            const popLoss = POPULATION_TABLE[this.state.map[y][x]] || 0;
-            this.state.population = Math.max(0, this.state.population - popLoss);
-            // Step2リバランス: その場での money 減算をやめ、月次台帳に積算する
-            // （monthlyUpdate() の収支適用時に一括反映されるため決定論的・追跡可能になる）。
+          if (outbreak) {
+            this.downgradeZoneTile(x, y);
+            newDiseaseMap[y][x] = 0; // 降格に伴い病気をリセット
             this.disasterDamage += DISASTER_BALANCE.disasterDamageCost;
           }
         }

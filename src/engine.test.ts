@@ -547,3 +547,34 @@ describe("Step5: calculateComfort() 純粋関数モデル", () => {
     expect(high).toBeGreaterThan(low);
   });
 });
+
+describe("Step6: 病気/スラムの永続化", () => {
+  test("病気が最大まで蔓延するとゾーンが1段階降格し永続化する（L2→L1）", () => {
+    const engine = new GameEngine(
+      makeSettings({ sandbox: true, disastersEnabled: true }),
+      mulberry32(1),
+    );
+    engine.state.map[5][5] = TileType.RESIDENTIAL_L2;
+    engine.state.diseaseMap[5][5] = 10; // 蔓延の最大値
+
+    engine.monthlyUpdate();
+
+    // 旧実装は population 直接減算が calculatePopulation で上書きされ無効だった。
+    // Step6ではタイル降格でマップ自体が変わるため損失が永続化する。
+    expect(engine.state.map[5][5]).toBe(TileType.RESIDENTIAL_L1);
+    expect(engine.state.diseaseMap[5][5]).toBe(0);
+  });
+
+  test("病気が最大のL1住宅はEMPTYになる（人が逃げる）", () => {
+    const engine = new GameEngine(
+      makeSettings({ sandbox: true, disastersEnabled: true }),
+      mulberry32(1),
+    );
+    engine.state.map[5][5] = TileType.RESIDENTIAL_L1;
+    engine.state.diseaseMap[5][5] = 10;
+
+    engine.monthlyUpdate();
+
+    expect(engine.state.map[5][5]).toBe(TileType.EMPTY);
+  });
+});

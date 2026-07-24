@@ -259,16 +259,24 @@ export const DISASTER_BALANCE = {
     destroyThreshold: 10, // 建物破壊閾値（現行 >=10）
   },
   disease: {
-    baseChance: 0.01, // updateDiseases の発生率係数（現行値）
-    spreadChance: 0.2, // 波及確率（現行値）
-    spreadRadius: 3, // 波及範囲（現行 ±3）
+    baseChance: 0.002, // Step6再調整: 蔓延がタイル降格で永続化するため発生率を抑制（旧0.01）
+    spreadChance: 0.05, // Step6再調整（旧0.2）
+    spreadRadius: 2, // Step6再調整（旧3）
     searchRadius: 10, // 病院探索範囲（チェビシェフ、現行 ±10）
     healSuccessRate: 0.7, // 治癒成功率（現行 rng()<0.7 を採用）
     healAmount: 3, // 治癒時の減少量（現行 -3）
     decayAmount: 1, // 自然減衰（現行 -1）
     igniteAmount: 5, // 発生時の加算（現行 +5）
     spreadAmount: 1, // 波及時の加算（現行 +1）
-    outbreakThreshold: 10, // 人口減トリガ閾値（現行 >=10）
+    outbreakThreshold: 10, // 蔓延トリガ閾値（>=でゾーンを1段階降格）
+    noWaterMultiplier: 3, // 給水なしタイルで発生確率×3（README「病気3倍」を発生率として実装）
+  },
+  slum: {
+    baseChance: 0.15, // Step6再調整: 旧0.01では毎月の減衰-0.5に負けスラムが実質発生しなかった
+    decayAmount: 0.5, // 回復条件を満たす月のみ適用
+    recoveryPollutionMax: 20, // 局所汚染がこれ未満かつ治安十分ならスラム回復
+    recoverySecurityMin: 50,
+    downgradeThreshold: 8, // slumMap がこれを超えると住宅を1段階降格
   },
   disasterDamageCost: 500, // 火災/病気による被害費（現行 -500）
 };
