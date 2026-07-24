@@ -7,6 +7,7 @@ import {
   INFRASTRUCTURE_COLORS,
   LANDMARK_COLORS,
 } from "./constants";
+import { showToast } from "./toast";
 
 /** インフラ選択肢のアイコン/名称。コストは唯一の定義元である constants.BUILD_COSTS から引く。 */
 const INFRASTRUCTURE_META: { type: string; name: string; icon: string }[] = [
@@ -35,73 +36,10 @@ export class UIManager {
   private selectedLandmark: string = "stadium";
   private lastText = new Map<string, string>();
 
-  private draggingPanel: HTMLElement | null = null;
-  private dragOffsetX: number = 0;
-  private dragOffsetY: number = 0;
-
-  private resizingPanel: HTMLElement | null = null;
-  private resizeDir: string = "";
-  private resizeStartX: number = 0;
-  private resizeStartY: number = 0;
-  private resizeStartWidth: number = 0;
-  private resizeStartHeight: number = 0;
-
   constructor(engine: GameEngine, storage: StorageManager) {
     this.engine = engine;
     this.storage = storage;
     this.setupUI();
-    this.setupGlobalDragHandlers();
-  }
-
-  private setupGlobalDragHandlers(): void {
-    // グローバルなマウスムーブイベント
-    document.addEventListener("mousemove", (e: MouseEvent) => {
-      // リサイズ中はドラッグ処理をスキップ
-      if (this.resizingPanel) {
-        const deltaX = e.clientX - this.resizeStartX;
-        const deltaY = e.clientY - this.resizeStartY;
-
-        if (this.resizeDir.includes("right") || this.resizeDir.includes("corner")) {
-          const newWidth = Math.max(150, this.resizeStartWidth + deltaX);
-          this.resizingPanel.style.width = newWidth + "px";
-        }
-        if (this.resizeDir.includes("bottom") || this.resizeDir.includes("corner")) {
-          const newHeight = Math.max(100, this.resizeStartHeight + deltaY);
-          this.resizingPanel.style.height = newHeight + "px";
-        }
-        return;
-      }
-
-      // ドラッグ中のみ位置を更新
-      if (this.draggingPanel) {
-        let newX = e.clientX - this.dragOffsetX;
-        let newY = e.clientY - this.dragOffsetY;
-
-        // 画面外に出ないように制限
-        const minX = 0;
-        const maxX = window.innerWidth - this.draggingPanel.offsetWidth;
-        const minY = 0;
-        const maxY = window.innerHeight - this.draggingPanel.offsetHeight;
-
-        newX = Math.max(minX, Math.min(newX, maxX));
-        newY = Math.max(minY, Math.min(newY, maxY));
-
-        this.draggingPanel.style.left = newX + "px";
-        this.draggingPanel.style.top = newY + "px";
-      }
-    });
-
-    // グローバルなマウスアップイベント
-    document.addEventListener("mouseup", () => {
-      if (this.resizingPanel) {
-        this.resizingPanel = null;
-        document.body.style.cursor = "default";
-      }
-      if (this.draggingPanel) {
-        this.draggingPanel.style.cursor = "default";
-        this.draggingPanel = null;
-      }
-    });
   }
 
   private setupUI(): void {
@@ -415,22 +353,41 @@ export class UIManager {
     // ビルドツールバー（下端中央、常設）
     this.createBuildMenu(container);
 
-    // コントロールパネル（⚙メニュー、最初は非表示。Step4でドロワー化予定のため現状のまま残置）
-    const controls = document.createElement("div");
-    controls.id = "controls-panel";
-    controls.className = "controls-panel-overlay hidden";
-    controls.innerHTML = `
-      <div class="controls-header">
+    // ⚙メニュー（右サイドのスライドインドロワー）
+    this.createMenuDrawer(container);
+  }
+
+  /** ⚙メニュー（設定/セーブ/ロード/エクスポート/インポート）を右サイドのスライドインドロワーとして構築する。
+   *  閉時は transform でオフスクリーンに退避し、開くと --t-med で translateX(0) にスライドする。 */
+  private createMenuDrawer(container: HTMLElement): void {
+    const overlay = document.createElement("div");
+    overlay.id = "menu-drawer-overlay";
+    overlay.className = "menu-drawer-overlay hidden";
+    container.appendChild(overlay);
+
+    const drawer = document.createElement("div");
+    drawer.id = "controls-panel";
+    drawer.className = "menu-drawer glass";
+    drawer.setAttribute("role", "dialog");
+    drawer.setAttribute("aria-modal", "true");
+    drawer.setAttribute("aria-label", "メニュー");
+    drawer.setAttribute("aria-hidden", "true");
+    drawer.innerHTML = `
+      <div class="menu-drawer-header">
         <h3>⚙️ メニュー</h3>
-        <button id="btn-close-gui" class="btn-close">✕</button>
+        <button id="btn-close-gui" class="btn-close" aria-label="メニューを閉じる">✕</button>
       </div>
-      <button id="btn-settings" class="btn-control">⚙️ 設定</button>
-      <button id="btn-save" class="btn-control">💾 セーブ</button>
-      <button id="btn-load" class="btn-control">📂 ロード</button>
-      <button id="btn-export" class="btn-control">📤 エクスポート</button>
-      <button id="btn-import" class="btn-control">📥 インポート</button>
+      <div class="menu-drawer-body">
+        <button id="btn-settings" class="btn-control">⚙️ 設定</button>
+        <button id="btn-save" class="btn-control">💾 セーブ</button>
+        <button id="btn-load" class="btn-control">📂 ロード</button>
+        <button id="btn-export" class="btn-control">📤 エクスポート</button>
+        <button id="btn-import" class="btn-control">📥 インポート</button>
+      </div>
     `;
-    container.appendChild(controls);
+    container.appendChild(drawer);
+
+    overlay.addEventListener("click", () => this.closeControlsPanel());
   }
 
   /** トップHUDバー（主要指標＋時間コントロール＋⚙メニュー導線）と、その下にスライドダウンする副次指標パネルを構築する。 */
@@ -801,13 +758,13 @@ export class UIManager {
       ?.addEventListener("click", () => this.toggleTheme());
     this.applyThemeIcon();
 
-    // ⚙メニュー（controls-panel）表示/非表示トグル
+    // ⚙メニュードロワーの開閉
     document
       .getElementById("btn-toggle-gui")
       ?.addEventListener("click", () => this.toggleControlsPanel());
     document
       .getElementById("btn-close-gui")
-      ?.addEventListener("click", () => this.toggleControlsPanel());
+      ?.addEventListener("click", () => this.closeControlsPanel());
 
     // 時間制御ボタン
     document.getElementById("btn-pause")?.addEventListener("click", () => this.setGameSpeed(0));
@@ -824,10 +781,10 @@ export class UIManager {
     document.getElementById("btn-export")?.addEventListener("click", () => this.exportGame());
     document.getElementById("btn-import")?.addEventListener("click", () => this.importGame());
 
-    // UI パネルのドラッグ機能（HUDバー/ビルドツールバーは常設固定のためドラッグ対象から除外。
-    // controls-panel の扱いはStep4でドロワー化予定のため現状のまま維持）
-    this.makePanelDraggable("controls-panel");
-    this.makeSimpleDraggable("demand-meter-container");
+    // Escキーでメニュードロワーを閉じる（開いているモーダルがある場合はモーダル側のEscで処理される）
+    document.addEventListener("keydown", (e: KeyboardEvent) => {
+      if (e.key === "Escape") this.closeControlsPanel();
+    });
   }
 
   private setGameSpeed(speed: number): void {
@@ -865,137 +822,90 @@ export class UIManager {
     document.getElementById("hud-pause-pill")?.classList.toggle("hidden", speed !== 0);
   }
 
-  private makePanelDraggable(panelId: string): void {
-    const panel = document.getElementById(panelId);
+  /** ⚙メニュードロワーの開閉をトグルする。開くときは閉じるボタンへ、
+   *  閉じるときは⚙ボタンへフォーカスを戻す。 */
+  private toggleControlsPanel(): void {
+    const panel = document.getElementById("controls-panel");
     if (!panel) return;
-
-    // ダッシュボードと時間パネルはリサイズ不可
-    const noResize = ["dashboard", "time-panel"];
-
-    if (!noResize.includes(panelId)) {
-      // パネルにリサイズハンドル追加（底部・右側・コーナー）
-      const handles = ["resize-right", "resize-bottom", "resize-corner"];
-      handles.forEach((handle) => {
-        if (!panel.querySelector(`.${handle}`)) {
-          const div = document.createElement("div");
-          div.className = handle;
-          panel.appendChild(div);
-        }
-      });
-
-      // リサイズハンドルのマウスダウン
-      const resizeHandles = panel.querySelectorAll('[class*="resize-"]');
-      resizeHandles.forEach((handle) => {
-        (handle as HTMLElement).addEventListener("mousedown", (e: MouseEvent) => {
-          // パネルが表示されていない場合はリサイズを無効化
-          if (panel.style.display === "none") return;
-
-          e.preventDefault();
-          e.stopPropagation();
-
-          // ドラッグ中ならリサイズ開始しない
-          if (this.draggingPanel) return;
-
-          this.resizingPanel = panel;
-          this.resizeDir = (handle as HTMLElement).className;
-          this.resizeStartX = e.clientX;
-          this.resizeStartY = e.clientY;
-          this.resizeStartWidth = panel.offsetWidth;
-          this.resizeStartHeight = panel.offsetHeight;
-
-          const cursorMap: { [key: string]: string } = {
-            "resize-right": "ew-resize",
-            "resize-bottom": "ns-resize",
-            "resize-corner": "nwse-resize",
-          };
-          document.body.style.cursor = cursorMap[this.resizeDir] || "default";
-        });
-      });
+    if (panel.classList.contains("open")) {
+      this.closeControlsPanel();
+      return;
     }
 
-    // ドラッグ処理（パネル全体をドラッグ対象に）
-    panel.addEventListener("mousedown", (e: MouseEvent) => {
-      // パネルが表示されていない場合はドラッグを無効化
-      if (panel.style.display === "none") return;
-
-      // リサイズ中ならドラッグ開始しない
-      if (this.resizingPanel) return;
-
-      // リサイズハンドル上ではドラッグ無効
-      if ((e.target as HTMLElement).className.includes("resize-")) return;
-
-      // ボタンやインタラクティブ要素でのドラッグを無効化
-      if (
-        (e.target as HTMLElement).tagName === "BUTTON" ||
-        (e.target as HTMLElement).tagName === "INPUT"
-      ) {
-        return;
-      }
-
-      e.preventDefault();
-      e.stopPropagation();
-
-      this.draggingPanel = panel;
-
-      // transform: translateX(-50%) などの変換を解除し、left/top に正しい位置を設定
-      const rect = panel.getBoundingClientRect();
-      panel.style.transform = "none";
-      panel.style.left = rect.left + "px";
-      panel.style.top = rect.top + "px";
-      panel.style.right = "auto";
-      panel.style.bottom = "auto";
-
-      // transform 設定後の正確な位置を取得してオフセットを計算
-      const rectAfter = panel.getBoundingClientRect();
-      this.dragOffsetX = e.clientX - rectAfter.left;
-      this.dragOffsetY = e.clientY - rectAfter.top;
-      panel.style.cursor = "grabbing";
-    });
+    const overlay = document.getElementById("menu-drawer-overlay");
+    panel.classList.add("open");
+    panel.setAttribute("aria-hidden", "false");
+    overlay?.classList.remove("hidden");
+    document.getElementById("btn-close-gui")?.focus();
   }
 
-  private makeSimpleDraggable(panelId: string): void {
-    const panel = document.getElementById(panelId);
-    if (!panel) return;
+  /** ⚙メニュードロワーを閉じる（既に閉じている場合は何もしない）。 */
+  private closeControlsPanel(): void {
+    const panel = document.getElementById("controls-panel");
+    if (!panel || !panel.classList.contains("open")) return;
 
-    // ドラッグ処理（パネル全体をドラッグ対象に）
-    panel.addEventListener("mousedown", (e: MouseEvent) => {
-      // パネルが表示されていない場合はドラッグを無効化
-      if (panel.style.display === "none") return;
-
-      // ボタンやインタラクティブ要素でのドラッグを無効化
-      if (
-        (e.target as HTMLElement).tagName === "BUTTON" ||
-        (e.target as HTMLElement).tagName === "INPUT"
-      ) {
-        return;
-      }
-
-      e.preventDefault();
-      e.stopPropagation();
-
-      this.draggingPanel = panel;
-
-      // transform を解除し、left/top に正しい位置を設定
-      const rect = panel.getBoundingClientRect();
-      panel.style.transform = "none";
-      panel.style.left = rect.left + "px";
-      panel.style.top = rect.top + "px";
-      panel.style.right = "auto";
-      panel.style.bottom = "auto";
-
-      // transform 設定後の正確な位置を取得してオフセットを計算
-      const rectAfter = panel.getBoundingClientRect();
-      this.dragOffsetX = e.clientX - rectAfter.left;
-      this.dragOffsetY = e.clientY - rectAfter.top;
-      panel.style.cursor = "grabbing";
-    });
+    const overlay = document.getElementById("menu-drawer-overlay");
+    panel.classList.remove("open");
+    panel.setAttribute("aria-hidden", "true");
+    overlay?.classList.add("hidden");
+    document.getElementById("btn-toggle-gui")?.focus();
   }
 
-  /** ⚙メニュー（controls-panel：設定/セーブ/ロード等）の表示を切り替える。
-   *  ビルドツールバーは常設化されたため、このトグルの対象は controls-panel のみ
-   *  （Step4でドロワー化するまでの暫定導線）。 */
-  private toggleControlsPanel(): void {
-    document.getElementById("controls-panel")?.classList.toggle("hidden");
+  /** チェックボックス1個分のトグルスイッチ行 (`.toggle-row` + `.switch`) の HTML を生成する。 */
+  private toggleRowHTML(id: string, label: string, checked: boolean | undefined): string {
+    return `
+      <label class="toggle-row" for="${id}">
+        <span class="toggle-row-label">${label}</span>
+        <span class="switch">
+          <input type="checkbox" id="${id}" ${checked ? "checked" : ""}>
+          <span class="switch-track" aria-hidden="true"></span>
+        </span>
+      </label>`;
+  }
+
+  /** モーダル共通の a11y 挙動をセットアップする：
+   *  - 開時に最初のフォーカス可能要素へフォーカス
+   *  - 背景（オーバーレイ）クリックで close()
+   *  - Escキーで close()
+   *  - Tabキーでモーダル内をループするフォーカストラップ */
+  private setupModalBehavior(modal: HTMLElement, content: HTMLElement, close: () => void): void {
+    modal.setAttribute("role", "dialog");
+    modal.setAttribute("aria-modal", "true");
+
+    const focusable = (): HTMLElement[] =>
+      Array.from(
+        content.querySelectorAll<HTMLElement>(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+        ),
+      ).filter((el) => !el.hasAttribute("disabled"));
+
+    focusable()[0]?.focus();
+
+    modal.addEventListener("keydown", (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        close();
+        return;
+      }
+      if (e.key !== "Tab") return;
+
+      const items = focusable();
+      if (items.length === 0) return;
+      const first = items[0];
+      const last = items[items.length - 1];
+
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    });
+
+    modal.addEventListener("click", (e) => {
+      if (e.target === modal) close();
+    });
   }
 
   private showSettings(): void {
@@ -1005,22 +915,10 @@ export class UIManager {
       <div class="modal-content">
         <h2>ゲーム設定</h2>
         <div class="settings-group">
-          <label>
-            <input type="checkbox" id="toggle-sandbox" ${this.engine.state.settings.sandbox ? "checked" : ""}>
-            🎮 サンドボックスモード（資金∞）
-          </label>
-          <label>
-            <input type="checkbox" id="toggle-disasters" ${this.engine.state.settings.disastersEnabled ? "checked" : ""}>
-            災害システム
-          </label>
-          <label>
-            <input type="checkbox" id="toggle-pollution" ${this.engine.state.settings.pollutionEnabled ? "checked" : ""}>
-            公害システム
-          </label>
-          <label>
-            <input type="checkbox" id="toggle-slum" ${this.engine.state.settings.slumEnabled ? "checked" : ""}>
-            スラム化システム
-          </label>
+          ${this.toggleRowHTML("toggle-sandbox", "🎮 サンドボックスモード（資金∞）", this.engine.state.settings.sandbox)}
+          ${this.toggleRowHTML("toggle-disasters", "災害システム", this.engine.state.settings.disastersEnabled)}
+          ${this.toggleRowHTML("toggle-pollution", "公害システム", this.engine.state.settings.pollutionEnabled)}
+          ${this.toggleRowHTML("toggle-slum", "スラム化システム", this.engine.state.settings.slumEnabled)}
         </div>
         <div class="modal-buttons">
           <button id="btn-settings-apply" class="btn-primary">適用</button>
@@ -1030,30 +928,25 @@ export class UIManager {
     `;
 
     document.body.appendChild(modal);
+    const content = modal.querySelector<HTMLElement>(".modal-content");
+    if (!content) return;
 
-    document.getElementById("btn-settings-apply")?.addEventListener("click", () => {
-      this.engine.state.settings.sandbox = (
-        document.getElementById("toggle-sandbox") as HTMLInputElement
-      ).checked;
-      this.engine.state.settings.disastersEnabled = (
-        document.getElementById("toggle-disasters") as HTMLInputElement
-      ).checked;
-      this.engine.state.settings.pollutionEnabled = (
-        document.getElementById("toggle-pollution") as HTMLInputElement
-      ).checked;
-      this.engine.state.settings.slumEnabled = (
-        document.getElementById("toggle-slum") as HTMLInputElement
-      ).checked;
-      modal.remove();
+    const close = (): void => modal.remove();
+    this.setupModalBehavior(modal, content, close);
+
+    content.querySelector("#btn-settings-apply")?.addEventListener("click", () => {
+      const sandbox = content.querySelector<HTMLInputElement>("#toggle-sandbox");
+      const disasters = content.querySelector<HTMLInputElement>("#toggle-disasters");
+      const pollution = content.querySelector<HTMLInputElement>("#toggle-pollution");
+      const slum = content.querySelector<HTMLInputElement>("#toggle-slum");
+      if (sandbox) this.engine.state.settings.sandbox = sandbox.checked;
+      if (disasters) this.engine.state.settings.disastersEnabled = disasters.checked;
+      if (pollution) this.engine.state.settings.pollutionEnabled = pollution.checked;
+      if (slum) this.engine.state.settings.slumEnabled = slum.checked;
+      close();
     });
 
-    document.getElementById("btn-settings-close")?.addEventListener("click", () => {
-      modal.remove();
-    });
-
-    modal.addEventListener("click", (e) => {
-      if (e.target === modal) modal.remove();
-    });
+    content.querySelector("#btn-settings-close")?.addEventListener("click", close);
   }
 
   private showSaveSlots(): void {
@@ -1069,18 +962,19 @@ export class UIManager {
     `;
 
     document.body.appendChild(modal);
+    const content = modal.querySelector<HTMLElement>(".modal-content");
+    if (!content) return;
 
-    document.querySelectorAll(".slot-btn").forEach((btn) => {
+    const close = (): void => modal.remove();
+    this.setupModalBehavior(modal, content, close);
+
+    content.querySelectorAll(".slot-btn").forEach((btn) => {
       btn.addEventListener("click", (e) => {
         const slot = parseInt((e.target as HTMLElement).dataset.slot || "0");
         this.storage.saveGame(slot, this.engine.state);
-        alert(`スロット ${slot + 1} にセーブしました`);
-        modal.remove();
+        showToast(`スロット ${slot + 1} にセーブしました`, "success");
+        close();
       });
-    });
-
-    modal.addEventListener("click", (e) => {
-      if (e.target === modal) modal.remove();
     });
   }
 
@@ -1097,24 +991,25 @@ export class UIManager {
     `;
 
     document.body.appendChild(modal);
+    const content = modal.querySelector<HTMLElement>(".modal-content");
+    if (!content) return;
 
-    document.querySelectorAll(".slot-btn").forEach((btn) => {
+    const close = (): void => modal.remove();
+    this.setupModalBehavior(modal, content, close);
+
+    content.querySelectorAll(".slot-btn").forEach((btn) => {
       btn.addEventListener("click", (e) => {
         const slot = parseInt((e.target as HTMLElement).dataset.slot || "0");
         const state = this.storage.loadGame(slot);
         if (state) {
           this.engine.state = state;
           this.updateDisplay();
-          alert(`スロット ${slot + 1} からロードしました`);
+          showToast(`スロット ${slot + 1} からロードしました`, "success");
         } else {
-          alert(`スロット ${slot + 1} にセーブデータがありません`);
+          showToast(`スロット ${slot + 1} にセーブデータがありません`, "error");
         }
-        modal.remove();
+        close();
       });
-    });
-
-    modal.addEventListener("click", (e) => {
-      if (e.target === modal) modal.remove();
     });
   }
 
@@ -1143,9 +1038,9 @@ export class UIManager {
           const data = JSON.parse(event.target?.result as string);
           this.engine.state = data;
           this.updateDisplay();
-          alert("ゲームをインポートしました");
+          showToast("ゲームをインポートしました", "success");
         } catch {
-          alert("ファイルの読み込みに失敗しました");
+          showToast("ファイルの読み込みに失敗しました", "error");
         }
       };
       reader.readAsText(file);

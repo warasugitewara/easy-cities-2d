@@ -3,8 +3,9 @@ import { GameEngine, GameSettings } from "./engine";
 import { Renderer } from "./renderer";
 import { StorageManager } from "./storage";
 import { UIManager } from "./ui";
-import { setMapSize, getCanvasSize, getTileSize, GAME_VERSION } from "./constants";
+import { setMapSize, getCanvasSize, getTileSize, GAME_VERSION, MapSize } from "./constants";
 import { computeSteps, SIM_TICK_MS } from "./gameloop";
+import { showToast } from "./toast";
 
 // 保存済みテーマを最初に適用（描画前に設定してテーマのちらつきを防ぐ）。既定はダーク。
 (() => {
@@ -30,39 +31,86 @@ if (!canvas) {
 
 console.log("✅ Canvas found:", canvas);
 
+/** チェックボックス1個分のトグルスイッチ行 (`.toggle-row` + `.switch`) の HTML を生成する。
+ *  ui.ts の UIManager#toggleRowHTML と同等の見た目（独立モジュールのため小規模に複製）。 */
+function toggleRowHTML(id: string, label: string): string {
+  return `
+    <label class="toggle-row" for="${id}">
+      <span class="toggle-row-label">${label}</span>
+      <span class="switch">
+        <input type="checkbox" id="${id}">
+        <span class="switch-track" aria-hidden="true"></span>
+      </span>
+    </label>`;
+}
+
+/** カード型ラジオボタン群（`name` で束ねる）1グループ分の HTML を生成する。 */
+function optionCardsHTML(
+  name: string,
+  groupLabel: string,
+  options: { value: string; title: string; sub: string; checked?: boolean }[],
+): string {
+  const cards = options
+    .map(
+      ({ value, title, sub, checked }) => `
+      <label class="option-card${checked ? " selected" : ""}">
+        <input type="radio" name="${name}" value="${value}" ${checked ? "checked" : ""}>
+        <span class="option-card-title">${title}</span>
+        <span class="option-card-sub">${sub}</span>
+      </label>`,
+    )
+    .join("");
+  return `<div class="option-cards" role="radiogroup" aria-label="${groupLabel}">${cards}</div>`;
+}
+
+/** ラジオカード群の選択状態に応じて `.selected` クラスを追従させる。 */
+function bindOptionCardGroup(root: HTMLElement, name: string): void {
+  const inputs = Array.from(root.querySelectorAll<HTMLInputElement>(`input[name="${name}"]`));
+  inputs.forEach((input) => {
+    input.addEventListener("change", () => {
+      inputs.forEach((i) => i.closest(".option-card")?.classList.toggle("selected", i.checked));
+    });
+  });
+}
+
 // ゲーム開始前の設定画面
 function showInitialSettings(): Promise<GameSettings> {
   return new Promise((resolve) => {
     const modal = document.createElement("div");
     modal.className = "modal";
-    modal.style.zIndex = "10000";
     modal.innerHTML = `
-      <div class="modal-content" style="min-width: min(450px, 90vw);">
+      <div class="modal-content modal-content-wide">
         <h2>🎮 Easy Cities 2D (ver.${GAME_VERSION})</h2>
-        <p>ゲーム設定を選択してください</p>
-        
-        <div style="margin: 20px 0;">
-          <h3>マップサイズ</h3>
-          <label><input type="radio" name="mapsize" value="small"> 小（512x512） - 64x64グリッド</label><br>
-          <label><input type="radio" name="mapsize" value="medium" checked> 中（1024x1024） - 128x128グリッド</label><br>
-          <label><input type="radio" name="mapsize" value="large"> 大（2048x2048） - 256x256グリッド</label>
+        <p class="modal-lead">ゲーム設定を選択してください</p>
+
+        <div class="modal-section">
+          <h3 class="modal-section-title">マップサイズ</h3>
+          ${optionCardsHTML("mapsize", "マップサイズ", [
+            { value: "small", title: "小", sub: "512×512<br>64×64グリッド" },
+            { value: "medium", title: "中", sub: "1024×1024<br>128×128グリッド", checked: true },
+            { value: "large", title: "大", sub: "2048×2048<br>256×256グリッド" },
+          ])}
         </div>
-        
-        <div style="margin: 20px 0;">
-          <h3>難易度</h3>
-          <label><input type="radio" name="difficulty" value="easy" checked> イージー（資金多）</label><br>
-          <label><input type="radio" name="difficulty" value="normal"> ノーマル</label><br>
-          <label><input type="radio" name="difficulty" value="hard"> ハード（資金少）</label>
+
+        <div class="modal-section">
+          <h3 class="modal-section-title">難易度</h3>
+          ${optionCardsHTML("difficulty", "難易度", [
+            { value: "easy", title: "イージー", sub: "資金多め", checked: true },
+            { value: "normal", title: "ノーマル", sub: "標準" },
+            { value: "hard", title: "ハード", sub: "資金少なめ" },
+          ])}
         </div>
-        
-        <div style="margin: 20px 0;">
-          <h3>ゲームシステム</h3>
-          <label><input type="checkbox" id="init-sandbox"> 🎮 サンドボックスモード（資金∞）</label><br>
-          <label><input type="checkbox" id="init-disasters"> 災害システムを有効にする</label><br>
-          <label><input type="checkbox" id="init-pollution"> 公害システムを有効にする</label><br>
-          <label><input type="checkbox" id="init-slum"> スラム化システムを有効にする</label>
+
+        <div class="modal-section">
+          <h3 class="modal-section-title">ゲームシステム</h3>
+          <div class="settings-group">
+            ${toggleRowHTML("init-sandbox", "🎮 サンドボックスモード（資金∞）")}
+            ${toggleRowHTML("init-disasters", "災害システムを有効にする")}
+            ${toggleRowHTML("init-pollution", "公害システムを有効にする")}
+            ${toggleRowHTML("init-slum", "スラム化システムを有効にする")}
+          </div>
         </div>
-        
+
         <div class="modal-buttons">
           <button id="btn-start-game" class="btn-primary">ゲーム開始</button>
         </div>
@@ -70,27 +118,81 @@ function showInitialSettings(): Promise<GameSettings> {
     `;
 
     document.body.appendChild(modal);
+    const content = modal.querySelector<HTMLElement>(".modal-content");
+    if (!content) {
+      // content が取得できない異常系でも既定設定でゲームを開始できるようにする
+      modal.remove();
+      resolve({
+        mapSize: "medium",
+        difficulty: "normal",
+        sandbox: false,
+        disastersEnabled: false,
+        pollutionEnabled: false,
+        slumEnabled: false,
+      });
+      return;
+    }
 
-    document.getElementById("btn-start-game")?.addEventListener("click", () => {
+    bindOptionCardGroup(content, "mapsize");
+    bindOptionCardGroup(content, "difficulty");
+
+    const focusable = (): HTMLElement[] =>
+      Array.from(
+        content.querySelectorAll<HTMLElement>(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+        ),
+      ).filter((el) => !el.hasAttribute("disabled"));
+    focusable()[0]?.focus();
+
+    // このモーダルは「キャンセルして元の状態に戻る」先が存在しないため、
+    // Esc / 背景クリックは「ゲーム開始」ボタンと同じ確定操作として扱う
+    // （設定を破棄して閉じるだけの動作にはしない）。
+    const start = (): void => {
       const mapSize =
-        (document.querySelector('input[name="mapsize"]:checked') as HTMLInputElement)?.value ||
-        "medium";
+        content.querySelector<HTMLInputElement>('input[name="mapsize"]:checked')?.value || "medium";
       const difficulty =
-        (document.querySelector('input[name="difficulty"]:checked') as HTMLInputElement)?.value ||
+        content.querySelector<HTMLInputElement>('input[name="difficulty"]:checked')?.value ||
         "normal";
       const settings: GameSettings = {
-        mapSize: mapSize as any,
-        difficulty: difficulty as any,
-        sandbox: (document.getElementById("init-sandbox") as HTMLInputElement)?.checked || false,
+        mapSize: mapSize as MapSize,
+        difficulty: difficulty as GameSettings["difficulty"],
+        sandbox: content.querySelector<HTMLInputElement>("#init-sandbox")?.checked || false,
         disastersEnabled:
-          (document.getElementById("init-disasters") as HTMLInputElement)?.checked || false,
+          content.querySelector<HTMLInputElement>("#init-disasters")?.checked || false,
         pollutionEnabled:
-          (document.getElementById("init-pollution") as HTMLInputElement)?.checked || false,
-        slumEnabled: (document.getElementById("init-slum") as HTMLInputElement)?.checked || false,
+          content.querySelector<HTMLInputElement>("#init-pollution")?.checked || false,
+        slumEnabled: content.querySelector<HTMLInputElement>("#init-slum")?.checked || false,
       };
       modal.remove();
       resolve(settings);
+    };
+
+    modal.setAttribute("role", "dialog");
+    modal.setAttribute("aria-modal", "true");
+    modal.addEventListener("keydown", (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        start();
+        return;
+      }
+      if (e.key !== "Tab") return;
+      const items = focusable();
+      if (items.length === 0) return;
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
     });
+    modal.addEventListener("click", (e) => {
+      if (e.target === modal) start();
+    });
+
+    document.getElementById("btn-start-game")?.addEventListener("click", start);
   });
 }
 
@@ -628,7 +730,7 @@ async function initializeGame(): Promise<void> {
     gameLoop();
   } catch (e) {
     console.error("❌ Initialization error:", e);
-    alert("ゲームの初期化に失敗しました。ブラウザのコンソールを確認してください。");
+    showToast("ゲームの初期化に失敗しました。ブラウザのコンソールを確認してください。", "error");
   }
 }
 
