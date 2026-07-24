@@ -8,6 +8,12 @@ export class Renderer {
   public cameraOffsetX: number = 0;
   public cameraOffsetY: number = 0;
   public zoomLevel: number = 1;
+  /** 建設ゴーストプレビュー対象タイル（ワールド座標、フットプリント左上）。非ホバー時は null。 */
+  public hoverTile: { x: number; y: number } | null = null;
+  /** ゴーストプレビューが設置可能（緑）か不可（赤）か。 */
+  public hoverValid: boolean = true;
+  /** ゴーストプレビューのフットプリントサイズ（タイル単位）。既定は1x1。 */
+  public hoverSize: { width: number; height: number } = { width: 1, height: 1 };
   private gridSize: number;
   private tileSize: number;
   private mapSize: number; // ピクセル単位のマップサイズ
@@ -117,7 +123,7 @@ export class Renderer {
     }
 
     // グリッド線（可視範囲をまとめて1パスで描画）
-    this.ctx.strokeStyle = "#1a1a1a";
+    this.ctx.strokeStyle = "#1B2336";
     this.ctx.lineWidth = 0.5;
     this.ctx.beginPath();
     for (let x = startX; x <= endX; x++) {
@@ -131,6 +137,23 @@ export class Renderer {
       this.ctx.lineTo(endX * this.tileSize, py);
     }
     this.ctx.stroke();
+
+    // 建設ゴーストプレビュー（設置予定/削除対象タイルの半透明ハイライト）
+    if (this.hoverTile) {
+      const { x, y } = this.hoverTile;
+      const { width, height } = this.hoverSize;
+      this.ctx.fillStyle = this.hoverValid
+        ? "rgba(52, 211, 153, 0.35)"
+        : "rgba(248, 113, 113, 0.35)";
+      this.ctx.strokeStyle = this.hoverValid ? "#34D399" : "#F87171";
+      this.ctx.lineWidth = 1.5;
+      const px = x * this.tileSize;
+      const py = y * this.tileSize;
+      const pw = width * this.tileSize;
+      const ph = height * this.tileSize;
+      this.ctx.fillRect(px, py, pw, ph);
+      this.ctx.strokeRect(px, py, pw, ph);
+    }
 
     this.ctx.restore();
   }
@@ -152,7 +175,7 @@ export class Renderer {
   private getTileColor(tile: number): string {
     switch (tile) {
       case TileType.EMPTY:
-        return "#0a0a0a";
+        return "#0D1322"; // 空き地（UIの紺背景と調和）
       case TileType.ROAD:
         return "#444444"; // より濃いグレー（視認性向上）
       case TileType.STATION:
@@ -204,7 +227,7 @@ export class Renderer {
       case TileType.LANDMARK_AIRPORT:
         return "#9932cc"; // 暗い紫（空港）
       default:
-        return "#0a0a0a";
+        return "#0D1322";
     }
   }
 }

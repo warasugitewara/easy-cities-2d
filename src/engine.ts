@@ -10,7 +10,17 @@ import {
   BUILDING_SIZES,
   INITIAL_PARAMETERS,
   INFRASTRUCTURE_REQUIREMENTS,
+  INFRASTRUCTURE_EFFECTS,
+  DISASTER_BALANCE,
+  LANDMARK_EFFECTS,
+  SYNERGY_EFFECTS,
+  CITY_LEVEL_MODEL,
+  DEMAND_MODEL,
+  GROWTH_BALANCE,
+  COMFORT_MODEL,
 } from "./constants";
+import type { RNG } from "./rng";
+import { defaultRng } from "./rng";
 
 // ゲーム設定インターフェース
 export interface GameSettings {
@@ -40,7 +50,6 @@ export interface GameState {
   waterGrid: boolean[][];
   fireMap: number[][]; // 火災レベル（0=なし、1-10=火の強さ）
   diseaseMap: number[][]; // 病気レベル（0=なし、1-10=病気の強さ）
-  crimeMap: number[][]; // 犯罪率（0-100）
   pollutionMap: number[][]; // 汚染度（0-100）
   slumMap: number[][]; // スラム化レベル（0=なし、1-10=スラム化の強さ）
   // 詳細パラメータ
@@ -62,14 +71,27 @@ export interface GameState {
   // ペナルティシステム
   growthPenalty: number; // 成長速度補正係数（1.0 = 通常、0.5 = 50%低下）
   revenuePenalty: number; // 税収補正係数（1.0 = 通常）
+  // Step7 UI: 月次収支パネル表示用の派生値（表示専用・money計算には影響しない）
+  lastReport: { revenue: number; maintenance: number; disaster: number; net: number };
+  // Step7 UI: 破産の穏当化（alert+即reset をやめ、フラグ＋一時停止に。救済はUIが行う）
+  gameOver: boolean;
 }
 
 export class GameEngine {
   private _state: GameState;
-  private growthRate: number = 0.02;
+  // Step4リバランス: 初期値を GROWTH_BALANCE.baseRate から取る（値自体は旧 0.02 のまま不変）。
+  private growthRate: number = GROWTH_BALANCE.baseRate;
   private gridSize: number;
   private maintenanceMultiplier: number = 1.0;
   private disasterRateMultiplier: number = 1.0;
+  private initialMoney: number = 250000; // 難易度別の初期資金。快適度の fundScore の基準に使う。
+  // Step2リバランス: 火災/病気による被害費を月次で台帳化するための集計フィールド。
+  // monthlyUpdate() の冒頭（updateDisasters() 呼出前）でリセットし、収支適用時に一括反映する。
+  // GameState には含めない（セーブデータを汚染しない派生値のため）。
+  private disasterDamage = 0;
+  // Step3リバランス: 駅+学校+警察の三者シナジー成立時の商業高層化確率乗数。
+  // updateInfrastructureEffects() 内で毎月再計算する派生値（GameStateには含めない）。
+  private commercialGrowthMult = 1.0;
 
   // --- grow() 高速化用キャッシュ（GameStateには含めない: 派生値のため） ---
   private biasMap: Float64Array | null = null;
@@ -96,7 +118,10 @@ export class GameEngine {
     this.boostMap = null;
   }
 
-  constructor(settings?: GameSettings) {
+  constructor(
+    settings?: GameSettings,
+    private rng: RNG = defaultRng,
+  ) {
     const mapSize = settings?.mapSize || "medium";
     const difficulty = settings?.difficulty || "normal";
     this.gridSize = MAP_SIZES[mapSize].gridSize;
@@ -111,6 +136,7 @@ export class GameEngine {
     const config = difficultyConfig[difficulty];
     this.maintenanceMultiplier = config.maintenanceMultiplier;
     this.disasterRateMultiplier = config.disasterRateMultiplier;
+    this.initialMoney = config.initialMoney;
 
     this._state = {
       map: Array.from({ length: this.gridSize }, () => Array(this.gridSize).fill(TileType.EMPTY)),
@@ -128,7 +154,6 @@ export class GameEngine {
       waterGrid: Array.from({ length: this.gridSize }, () => Array(this.gridSize).fill(false)),
       fireMap: Array.from({ length: this.gridSize }, () => Array(this.gridSize).fill(0)),
       diseaseMap: Array.from({ length: this.gridSize }, () => Array(this.gridSize).fill(0)),
-      crimeMap: Array.from({ length: this.gridSize }, () => Array(this.gridSize).fill(0)),
       pollutionMap: Array.from({ length: this.gridSize }, () => Array(this.gridSize).fill(0)),
       slumMap: Array.from({ length: this.gridSize }, () => Array(this.gridSize).fill(0)),
       securityLevel: INITIAL_PARAMETERS.securityLevel,
@@ -147,6 +172,8 @@ export class GameEngine {
       showDemandMeters: false,
       growthPenalty: 1.0,
       revenuePenalty: 1.0,
+      lastReport: { revenue: 0, maintenance: 0, disaster: 0, net: 0 },
+      gameOver: false,
       settings: settings || {
         difficulty: "normal",
         mapSize: "medium",
@@ -157,8 +184,7 @@ export class GameEngine {
       },
     };
     // 初期に中央に駅を配置
-    const center = this.gridSize / 2;
-    this.state.map[Math.floor(center)][Math.floor(center)] = TileType.STATION;
+    this.placeInitialStation();
 
     console.log(
       `🎮 Game initialized - Difficulty: ${difficulty}, Initial Money: ${config.initialMoney}, Maintenance: ${config.maintenanceMultiplier}x, Disasters: ${config.disasterRateMultiplier}x`,
@@ -300,11 +326,15 @@ export class GameEngine {
       const size = BUILDING_SIZES[tileType] || { width: 1, height: 1 };
 
       // 建物を配置可能か確認（複数マス占有対応）
+      // 注: x, y は関数冒頭で 0 <= x,y < gridSize を確認済みで dx,dy は常に 0 以上のため
+      // nx,ny が負になることは実際には無い（防御的にチェックのみ追加）。
       for (let dy = 0; dy < size.height; dy++) {
         for (let dx = 0; dx < size.width; dx++) {
           const nx = x + dx;
           const ny = y + dy;
           if (
+            nx < 0 ||
+            ny < 0 ||
             nx >= this.gridSize ||
             ny >= this.gridSize ||
             this.state.map[ny][nx] !== TileType.EMPTY
@@ -315,12 +345,14 @@ export class GameEngine {
         }
       }
 
-      // 建物を配置
+      // 建物を配置（上の確認ループで全マスの範囲内・空き地を保証済み）
       for (let dy = 0; dy < size.height; dy++) {
         for (let dx = 0; dx < size.width; dx++) {
           const nx = x + dx;
           const ny = y + dy;
-          this.state.map[ny][nx] = tileType;
+          if (nx >= 0 && ny >= 0 && nx < this.gridSize && ny < this.gridSize) {
+            this.state.map[ny][nx] = tileType;
+          }
         }
       }
 
@@ -348,27 +380,18 @@ export class GameEngine {
     return false;
   }
 
+  // インフラ/ランドマークの個別コストは constants.ts の BUILD_COSTS に一元化されている
+  // （station/park/police/... はそのままのキー、ランドマークは `landmark_${type}` キー）。
+  // 値は変更前とすべて一致することを確認済み（station:5000, park:1000, police:8000,
+  // fire_station:7000, hospital:10000, school:6000, power_plant:15000, water_treatment:12000,
+  // landmark_stadium:50000, landmark_airport:80000）。
   private getCost(mode: BuildingCategory): number {
     if (mode === "infrastructure") {
       // 選択されたインフラのコストを返す
-      const costs: Record<string, number> = {
-        station: 5000,
-        park: 1000,
-        police: 8000,
-        fire_station: 7000,
-        hospital: 10000,
-        school: 6000,
-        power_plant: 15000,
-        water_treatment: 12000,
-      };
-      return costs[this.state.selectedInfrastructure] || 5000;
+      return BUILD_COSTS[this.state.selectedInfrastructure] || 5000;
     } else if (mode === "landmark") {
       // 選択されたランドマークのコストを返す
-      const costs: Record<string, number> = {
-        stadium: 50000,
-        airport: 80000,
-      };
-      return costs[this.state.selectedLandmark] || 50000;
+      return BUILD_COSTS[`landmark_${this.state.selectedLandmark}`] || 50000;
     }
     return BUILD_COSTS[mode] || 0;
   }
@@ -414,22 +437,24 @@ export class GameEngine {
   }
 
   // 駅ブーストの lookup table を構築（未構築時のみ）。grow() から参照。
-  // 各 STATION タイルの ±4 チェビシェフ矩形を 1.5 で塗る（個別判定と数学的に等価）。
+  // 各 STATION タイルの ±station.growthRadius チェビシェフ矩形を station.growthMultiplier
+  // で塗る（個別判定と数学的に等価）。
   private ensureBoostMap(): Float32Array {
     const cached = this.boostMap;
     if (cached !== null) return cached;
 
+    const { growthRadius, growthMultiplier } = INFRASTRUCTURE_EFFECTS.station;
     const map = new Float32Array(this.gridSize * this.gridSize).fill(1.0);
     for (let y = 0; y < this.gridSize; y++) {
       for (let x = 0; x < this.gridSize; x++) {
         if (this.state.map[y][x] === TileType.STATION) {
-          const yMin = Math.max(0, y - 4);
-          const yMax = Math.min(this.gridSize - 1, y + 4);
-          const xMin = Math.max(0, x - 4);
-          const xMax = Math.min(this.gridSize - 1, x + 4);
+          const yMin = Math.max(0, y - growthRadius);
+          const yMax = Math.min(this.gridSize - 1, y + growthRadius);
+          const xMin = Math.max(0, x - growthRadius);
+          const xMax = Math.min(this.gridSize - 1, x + growthRadius);
           for (let ny = yMin; ny <= yMax; ny++) {
             for (let nx = xMin; nx <= xMax; nx++) {
-              map[ny * this.gridSize + nx] = 1.5;
+              map[ny * this.gridSize + nx] = growthMultiplier;
             }
           }
         }
@@ -437,6 +462,30 @@ export class GameEngine {
     }
     this.boostMap = map;
     return map;
+  }
+
+  // 需要値(0-100)を成長倍率に線形変換する（DEMAND_MODEL.neutralDemandを基準に、
+  // growthMultSlopeの傾きでgrowthMultMin~growthMultMaxへクランプ）。
+  // Step4リバランス: 旧来の「demand>50でboost/demand<10で0.7固定」という不感帯付き
+  // 分岐（10~50の間で成長倍率が1.0に張り付く）を、demand全域で連続な線形モデルに置換した。
+  private demandMult(demand: number): number {
+    const { neutralDemand, growthMultSlope, growthMultMin, growthMultMax } = DEMAND_MODEL;
+    const mult = 1 + (demand - neutralDemand) * growthMultSlope;
+    return Math.min(growthMultMax, Math.max(growthMultMin, mult));
+  }
+
+  // 新規建設・波及建設が成功した際に配置するゾーン種別を、各需要を重みとした抽選で決める。
+  // Step4リバランス: 旧実装は常にRESIDENTIAL_L1を配置していたため、商業・工業は
+  // 既存ゾーンからの高層化でしか増えなかった。ここで需要に応じた自然発生を可能にする。
+  // rng()を1回だけ消費する。
+  private spawnZoneTile(): TileType {
+    const wR = DEMAND_MODEL.spawnResidentialWeight * this.state.residentialDemand + 1;
+    const wC = this.state.commercialDemand;
+    const wI = this.state.industrialDemand;
+    const roll = this.rng() * (wR + wC + wI);
+    if (roll < wR) return TileType.RESIDENTIAL_L1;
+    if (roll < wR + wC) return TileType.COMMERCIAL_L1;
+    return TileType.INDUSTRIAL_L1;
   }
 
   // 成長処理
@@ -453,13 +502,13 @@ export class GameEngine {
     const boostMap = this.ensureBoostMap();
 
     for (let iter = 0; iter < iterations; iter++) {
-      if (this.state.gameSpeed < 1 && Math.random() > probability) continue;
+      if (this.state.gameSpeed < 1 && this.rng() > probability) continue;
 
       for (let y = 0; y < this.gridSize; y++) {
         for (let x = 0; x < this.gridSize; x++) {
           // EMPTY かつ道路・建物(1-24)のいずれにも隣接していないタイルは、新規建設・波及建設の
           // hasAdjacent 判定が必ず false になり、高層化も EMPTY では発火しないため、
-          // 以降の全分岐が不成立。Math.random() を一切消費せずスキップ可能（消費回数は不変）。
+          // 以降の全分岐が不成立。this.rng() を一切消費せずスキップ可能（消費回数は不変）。
           if (
             this.state.map[y][x] === TileType.EMPTY &&
             !this.hasAdjacent(x, y, (t) => t === TileType.ROAD || (t >= 1 && t <= 24))
@@ -475,71 +524,44 @@ export class GameEngine {
           if (!this.state.powerGrid[y][x]) localPenalty *= 0.6; // 電力なし：60%に低下
           if (!this.state.waterGrid[y][x]) localPenalty *= 0.3; // 給水なし：30%に低下
 
-          // 需要に応じたボーナス/ペナルティを適用
+          // 需要に応じたボーナス/ペナルティを適用（Step4: 線形モデルに置換）
           const tile = this.state.map[y][x];
           if (tile >= TileType.RESIDENTIAL_L1 && tile <= TileType.RESIDENTIAL_L4) {
-            // 住宅地：需要が高いほどボーナス、低いほどペナルティ
-            if (this.state.residentialDemand > 50) {
-              localPenalty *= 1 + (this.state.residentialDemand - 50) * 0.006; // 最大 +30%
-            } else if (this.state.residentialDemand < 10) {
-              localPenalty *= 0.7; // -30%
-            }
+            localPenalty *= this.demandMult(this.state.residentialDemand);
           } else if (tile >= TileType.COMMERCIAL_L1 && tile <= TileType.COMMERCIAL_L4) {
-            // 商業地：需要が高いほどボーナス
-            if (this.state.commercialDemand > 50) {
-              localPenalty *= 1 + (this.state.commercialDemand - 50) * 0.006;
-            } else if (this.state.commercialDemand < 10) {
-              localPenalty *= 0.7;
-            }
+            localPenalty *= this.demandMult(this.state.commercialDemand);
           } else if (tile >= TileType.INDUSTRIAL_L1 && tile <= TileType.INDUSTRIAL_L4) {
-            // 工業地：需要が高いほどボーナス
-            if (this.state.industrialDemand > 50) {
-              localPenalty *= 1 + (this.state.industrialDemand - 50) * 0.006;
-            } else if (this.state.industrialDemand < 10) {
-              localPenalty *= 0.7;
-            }
+            localPenalty *= this.demandMult(this.state.industrialDemand);
           }
+
+          // 新規建設・波及建設は全ゾーン需要の平均を参照した demandBonus を共有する
+          const avgDemand =
+            (this.state.residentialDemand +
+              this.state.commercialDemand +
+              this.state.industrialDemand) /
+            3;
+          const demandBonus = this.demandMult(avgDemand);
 
           // 新規建設（道路隣接）
           if (
             this.state.map[y][x] === TileType.EMPTY &&
             this.hasAdjacent(x, y, (t) => t === TileType.ROAD)
           ) {
-            // 新規建設は全ゾーン需要の平均を参照
-            let demandBonus = 1.0;
-            const avgDemand =
-              (this.state.residentialDemand +
-                this.state.commercialDemand +
-                this.state.industrialDemand) /
-              3;
-            if (avgDemand > 50) {
-              demandBonus = 1 + (avgDemand - 50) * 0.006;
-            } else if (avgDemand < 10) {
-              demandBonus = 0.7;
-            }
-            if (Math.random() < this.growthRate * bias * localPenalty * demandBonus) {
-              this.state.map[y][x] = TileType.RESIDENTIAL_L1;
+            if (this.rng() < this.growthRate * bias * localPenalty * demandBonus) {
+              this.state.map[y][x] = this.spawnZoneTile();
             }
           }
 
-          // 波及建設（0.2倍）- 他の建物に隣接していても成長
+          // 波及建設（spilloverFactor倍）- 他の建物に隣接していても成長
           if (
             this.state.map[y][x] === TileType.EMPTY &&
             this.hasAdjacent(x, y, (t) => t >= 1 && t <= 24)
           ) {
-            let demandBonus = 1.0;
-            const avgDemand =
-              (this.state.residentialDemand +
-                this.state.commercialDemand +
-                this.state.industrialDemand) /
-              3;
-            if (avgDemand > 50) {
-              demandBonus = 1 + (avgDemand - 50) * 0.006;
-            } else if (avgDemand < 10) {
-              demandBonus = 0.7;
-            }
-            if (Math.random() < this.growthRate * 0.2 * bias * localPenalty * demandBonus) {
-              this.state.map[y][x] = TileType.RESIDENTIAL_L1;
+            if (
+              this.rng() <
+              this.growthRate * GROWTH_BALANCE.spilloverFactor * bias * localPenalty * demandBonus
+            ) {
+              this.state.map[y][x] = this.spawnZoneTile();
             }
           }
 
@@ -548,17 +570,26 @@ export class GameEngine {
             this.state.map[y][x] >= TileType.RESIDENTIAL_L1 &&
             this.state.map[y][x] < TileType.RESIDENTIAL_L4
           ) {
-            if (Math.random() < this.growthRate * 0.4 * bias * localPenalty) {
+            if (this.rng() < this.growthRate * GROWTH_BALANCE.upgradeFactor * bias * localPenalty) {
               this.state.map[y][x]++;
             }
           }
 
           // 商業地の高層化
+          // Step3リバランス: 駅+学校+警察の三者シナジー成立時、commercialGrowthMult(1.2)を
+          // 乗算して商業高層化確率をブースト（住宅・工業には掛けない）。
           if (
             this.state.map[y][x] >= TileType.COMMERCIAL_L1 &&
             this.state.map[y][x] < TileType.COMMERCIAL_L4
           ) {
-            if (Math.random() < this.growthRate * 0.4 * bias * localPenalty) {
+            if (
+              this.rng() <
+              this.growthRate *
+                GROWTH_BALANCE.upgradeFactor *
+                bias *
+                localPenalty *
+                this.commercialGrowthMult
+            ) {
               this.state.map[y][x]++;
             }
           }
@@ -568,7 +599,7 @@ export class GameEngine {
             this.state.map[y][x] >= TileType.INDUSTRIAL_L1 &&
             this.state.map[y][x] < TileType.INDUSTRIAL_L4
           ) {
-            if (Math.random() < this.growthRate * 0.4 * bias * localPenalty) {
+            if (this.rng() < this.growthRate * GROWTH_BALANCE.upgradeFactor * bias * localPenalty) {
               this.state.map[y][x]++;
             }
           }
@@ -579,6 +610,44 @@ export class GameEngine {
     this.recordSample(this.growSamples, performance.now() - __growStart);
   }
 
+  // 初期の中央駅を 2x2（STATION の建物サイズ）で配置する。
+  // 1タイルだけ置くと countBuildings() で round(1/4)=0 棟と数えられ、
+  // 維持費・駅系の効果/シナジー計算から漏れてしまうため、正規の 2x2 で配置する。
+  private placeInitialStation(): void {
+    const c = Math.floor(this.gridSize / 2);
+    for (let dy = 0; dy < 2; dy++) {
+      for (let dx = 0; dx < 2; dx++) {
+        this.state.map[c + dy][c + dx] = TileType.STATION;
+      }
+    }
+  }
+
+  // タイル種別ごとの「建物数」を数える。
+  // 多マス建物（駅・公園・警察・消防・病院・学校・ランドマーク等）は
+  // 占有タイル数を BUILDING_SIZES の面積（width×height、未定義は1x1）で割り、
+  // Math.round で建物数に丸める。
+  // 例: 2x2の病院が3棟建っていれば12タイル → round(12/4) = 3棟。
+  // 火災等で一部タイルが焼失した多マス建物にも丸めで寛容に対応する
+  // （火災ロジック自体はこのStepでは変更しない）。
+  countBuildings(): Map<number, number> {
+    const tileCounts = new Map<number, number>();
+    for (let y = 0; y < this.gridSize; y++) {
+      for (let x = 0; x < this.gridSize; x++) {
+        const tile = this.state.map[y][x];
+        if (tile === TileType.EMPTY) continue;
+        tileCounts.set(tile, (tileCounts.get(tile) || 0) + 1);
+      }
+    }
+
+    const buildingCounts = new Map<number, number>();
+    for (const [tile, tileCount] of tileCounts) {
+      const size = BUILDING_SIZES[tile];
+      const area = size ? size.width * size.height : 1;
+      buildingCounts.set(tile, Math.round(tileCount / area));
+    }
+    return buildingCounts;
+  }
+
   // 月次更新（税収・維持費）
   monthlyUpdate(): void {
     if (this.state.paused) return;
@@ -587,6 +656,11 @@ export class GameEngine {
 
     // インフラシステム更新
     this.updateInfrastructure();
+
+    // Step2リバランス: 災害被害費の台帳をリセット（updateDisasters() 呼出前）。
+    // 月中の被害はここから収支適用までのあいだ this.disasterDamage に積算され、
+    // 月末の収支反映時に一括で差し引かれる。
+    this.disasterDamage = 0;
 
     // 災害処理
     this.updateDisasters();
@@ -604,11 +678,16 @@ export class GameEngine {
     let revenue = 0;
     let maintenance = 0;
 
-    for (let y = 0; y < this.gridSize; y++) {
-      for (let x = 0; x < this.gridSize; x++) {
-        const tile = this.state.map[y][x];
-        revenue += TAX_REVENUE[tile] || 0;
-        maintenance += MAINTENANCE_COSTS[tile] || 0;
+    // Step1リバランス: タイル単位ではなく「建物単位」で税収・維持費を計上する
+    // （多マス建物がタイル数倍で課金/課税されるのを防ぐ）。
+    const buildingCounts = this.countBuildings();
+    let commercialBaseTax = 0; // 商業タイルの基礎税収（観光/ランドマークボーナスの基準）
+    for (const [tile, count] of buildingCounts) {
+      const tax = (TAX_REVENUE[tile] || 0) * count;
+      revenue += tax;
+      maintenance += (MAINTENANCE_COSTS[tile] || 0) * count;
+      if (tile >= TileType.COMMERCIAL_L1 && tile <= TileType.COMMERCIAL_L4) {
+        commercialBaseTax += tax;
       }
     }
 
@@ -621,31 +700,46 @@ export class GameEngine {
       revenue *= 1 + educationBonus;
     }
 
-    // 観光度が商業収入に反映（観光度が高いほど商業地収入が増加）
-    if (this.state.tourismLevel > 0 || this.state.internationalLevel > 0) {
-      const tourismBonus = this.state.tourismLevel * 0.01 + this.state.internationalLevel * 0.01;
-      revenue *= 1 + tourismBonus;
-    }
+    // Step7: 観光度/国際化度は「商業税収のみ」を押し上げる（合計で最大+100%）。
+    // 旧実装は住宅・工業を含む全税収に最大+200%かかり強すぎた。
+    const tourismMult = Math.min(
+      1.0,
+      (this.state.tourismLevel + this.state.internationalLevel) *
+        LANDMARK_EFFECTS.tourismRevenueSlope,
+    );
+    revenue += commercialBaseTax * tourismMult;
 
-    // ランドマーク商業ボーナス（スタジアム・空港周辺商業地への観光収入）
+    // Step7: ランドマーク近接ボーナス（圏内の商業タイル税収を倍率で押し上げた分）。
     revenue += this.calculateLandmarkCommercialBonus();
 
     // サンドボックスモードでない場合のみ維持費を適用
+    // Step2リバランス: 火災/病気による被害費（disasterDamage）も収支適用時に一括で
+    // 差し引く（サンドボックスモードでも被害費を引く現行挙動は踏襲）。
     if (!this.state.settings.sandbox) {
       // 難易度に応じた維持費倍率を適用
       maintenance *= this.maintenanceMultiplier;
-      this.state.money += revenue - maintenance;
+      this.state.money += revenue - maintenance - this.disasterDamage;
     } else {
-      // サンドボックスモード：税収のみ加算、維持費なし
-      this.state.money += revenue;
+      // サンドボックスモード：税収のみ加算、維持費なし（被害費は引く）
+      this.state.money += revenue - this.disasterDamage;
     }
+
+    // Step7 UI: 収支パネル表示用の派生値を書き出す（表示専用・money計算には影響しない）
+    const appliedMaintenance = this.state.settings.sandbox ? 0 : maintenance; // 非sandboxでは *= multiplier 済み
+    this.state.lastReport = {
+      revenue,
+      maintenance: appliedMaintenance,
+      disaster: this.disasterDamage,
+      net: revenue - appliedMaintenance - this.disasterDamage,
+    };
 
     this.state.month++;
 
-    // 破産判定（サンドボックスモードでは破産しない）
-    if (!this.state.settings.sandbox && this.state.money < 0) {
-      alert("資金がなくなりました！ゲームオーバーです");
-      this.reset();
+    // 破産判定（サンドボックスモードでは破産しない）。
+    // Step7 UI: alert+即reset をやめ、フラグ＋一時停止に。救済（やり直す/ロード/サンドボックス続行）はUIが行う。
+    if (!this.state.settings.sandbox && !this.state.gameOver && this.state.money < 0) {
+      this.state.gameOver = true;
+      this.state.paused = true;
     }
 
     this.recordSample(this.monthlySamples, performance.now() - __monthlyStart);
@@ -670,113 +764,102 @@ export class GameEngine {
   }
 
   // インフラ効果の計算・反映
+  // Step3リバランス: 治安/安全/教育/医療/観光/国際化の各レベルを
+  // 「カバー率(count/required)→目標値(target)→毎月 smoothing 割合だけ target に平滑追従」
+  // というモデルに全面書き換えした（旧: 効果範囲内で加算し続けて100に張り付くモデル）。
   private updateInfrastructureEffects(): void {
-    // 各パラメータを少し減衰させてからリセット（前月の記憶を保つ）
-    this.state.securityLevel = Math.max(40, this.state.securityLevel * 0.9);
-    this.state.safetyLevel = Math.max(40, this.state.safetyLevel * 0.9);
-    this.state.educationLevel = Math.max(40, this.state.educationLevel * 0.9);
-    this.state.medicalLevel = Math.max(40, this.state.medicalLevel * 0.9);
-    this.state.tourismLevel = Math.max(0, this.state.tourismLevel * 0.95);
-    this.state.internationalLevel = Math.max(0, this.state.internationalLevel * 0.95);
-
-    // 供給率計算
+    // 供給率計算（電力・給水の実カバー率。旧・人口スケーリング処理による deficit の
+    // 二重掛けはStep3で当該処理を削除して解消したため、ここで計算した値をそのまま採用する）
     this.calculateSupplyRates();
 
-    // 施設の影響を集計
-    for (let y = 0; y < this.gridSize; y++) {
-      for (let x = 0; x < this.gridSize; x++) {
-        const tile = this.state.map[y][x];
+    const buildingCounts = this.countBuildings();
+    const policeCount = buildingCounts.get(TileType.POLICE) || 0;
+    const fireCount = buildingCounts.get(TileType.FIRE_STATION) || 0;
+    const schoolCount = buildingCounts.get(TileType.SCHOOL) || 0;
+    const hospitalCount = buildingCounts.get(TileType.HOSPITAL) || 0;
+    const stadiumCount = buildingCounts.get(TileType.LANDMARK_STADIUM) || 0;
+    const airportCount = buildingCounts.get(TileType.LANDMARK_AIRPORT) || 0;
 
-        // 警察署の効果
-        if (tile === TileType.POLICE) {
-          this.applyEffectRadius(x, y, 30, "security", 5);
-        }
-        // 消防署の効果
-        if (tile === TileType.FIRE_STATION) {
-          this.applyEffectRadius(x, y, 30, "safety", 5);
-        }
-        // 学校の効果
-        if (tile === TileType.SCHOOL) {
-          this.applyEffectRadius(x, y, 25, "education", 3);
-        }
-        // 病院の効果
-        if (tile === TileType.HOSPITAL) {
-          this.applyEffectRadius(x, y, 25, "medical", 4);
-        }
-        // スタジアムの効果
-        if (tile === TileType.LANDMARK_STADIUM) {
-          this.applyEffectRadius(x, y, 40, "tourism", 5);
-        }
-        // 空港の効果
-        if (tile === TileType.LANDMARK_AIRPORT) {
-          this.applyEffectRadius(x, y, 50, "tourism", 3);
-          this.applyEffectRadius(x, y, 50, "international", 5);
-        }
-      }
-    }
+    const requiredPolice = this.requiredUnits("police");
+    const requiredFire = this.requiredUnits("fire_station");
+    const requiredSchool = this.requiredUnits("school");
+    const requiredHospital = this.requiredUnits("hospital");
 
-    // パラメータを100で上限
-    this.state.securityLevel = Math.min(100, this.state.securityLevel);
-    this.state.safetyLevel = Math.min(100, this.state.safetyLevel);
-    this.state.educationLevel = Math.min(100, this.state.educationLevel);
-    this.state.medicalLevel = Math.min(100, this.state.medicalLevel);
-    this.state.tourismLevel = Math.min(100, this.state.tourismLevel);
-    this.state.internationalLevel = Math.min(100, this.state.internationalLevel);
+    // シナジー成立フラグ・加算量を先に算出してから target に反映する
+    // （三者シナジーは commercialGrowthMult として grow() の商業高層化確率に使う）
+    const synergy = this.calculateSynergyBonuses();
+    this.commercialGrowthMult = synergy.tripleSynergy
+      ? SYNERGY_EFFECTS.station_school_police.commercialGrowthMult
+      : 1.0;
 
-    // シナジー効果の計算
-    this.applySynergyEffects();
+    const securityTarget = this.calculateLevelTarget(
+      policeCount,
+      requiredPolice,
+      synergy.securityBonus,
+    );
+    const safetyTarget = this.calculateLevelTarget(fireCount, requiredFire, 0);
+    const educationTarget = this.calculateLevelTarget(
+      schoolCount,
+      requiredSchool,
+      synergy.educationBonus,
+    );
+    const medicalTarget = this.calculateLevelTarget(
+      hospitalCount,
+      requiredHospital,
+      synergy.medicalBonus,
+    );
+
+    this.state.securityLevel = this.smoothToward(this.state.securityLevel, securityTarget);
+    this.state.safetyLevel = this.smoothToward(this.state.safetyLevel, safetyTarget);
+    this.state.educationLevel = this.smoothToward(this.state.educationLevel, educationTarget);
+    this.state.medicalLevel = this.smoothToward(this.state.medicalLevel, medicalTarget);
+
+    // 観光度/国際化度（必要数なし・施設数ベースの目標値に平滑追従）
+    const tourismTarget = Math.min(
+      100,
+      LANDMARK_EFFECTS.stadium.tourismPerBuilding * stadiumCount +
+        LANDMARK_EFFECTS.airport.tourismPerBuilding * airportCount,
+    );
+    const internationalTarget = Math.min(
+      100,
+      LANDMARK_EFFECTS.airport.internationalPerBuilding * airportCount,
+    );
+    this.state.tourismLevel = this.smoothToward(this.state.tourismLevel, tourismTarget);
+    this.state.internationalLevel = this.smoothToward(
+      this.state.internationalLevel,
+      internationalTarget,
+    );
 
     // 需要計算
     this.calculateDemands();
-
-    // 人口に基づいてインフラスケーリングを適用
-    this.applyPopulationScaling();
   }
 
-  // 半径内に効果を適用
-  private applyEffectRadius(
-    centerX: number,
-    centerY: number,
-    radius: number,
-    effectType: string,
-    value: number,
-  ): void {
-    for (
-      let y = Math.max(0, centerY - radius);
-      y < Math.min(this.gridSize, centerY + radius);
-      y++
-    ) {
-      for (
-        let x = Math.max(0, centerX - radius);
-        x < Math.min(this.gridSize, centerX + radius);
-        x++
-      ) {
-        const dist = Math.abs(x - centerX) + Math.abs(y - centerY); // マンハッタン距離
-        if (dist <= radius) {
-          const factor = 1 - (dist / radius) * 0.3; // 距離に応じて効果を減衰
-          switch (effectType) {
-            case "security":
-              this.state.securityLevel += value * factor;
-              break;
-            case "safety":
-              this.state.safetyLevel += value * factor;
-              break;
-            case "education":
-              this.state.educationLevel += value * factor;
-              break;
-            case "medical":
-              this.state.medicalLevel += value * factor;
-              break;
-            case "tourism":
-              this.state.tourismLevel += value * factor;
-              break;
-            case "international":
-              this.state.internationalLevel += value * factor;
-              break;
-          }
-        }
-      }
-    }
+  // 人口に対する必要棟数（INFRASTRUCTURE_REQUIREMENTS より）
+  private requiredUnits(kind: keyof typeof INFRASTRUCTURE_REQUIREMENTS): number {
+    const req = INFRASTRUCTURE_REQUIREMENTS[kind];
+    return Math.max(req.base, Math.ceil(this.state.population / req.populationPerUnit));
+  }
+
+  // カバー率(count/required)から目標レベルを算出する（CITY_LEVEL_MODEL参照）。
+  // ratio=0→baseLevel, ratio=1→fullLevel, ratio>=overProvisionRatio→overProvisionMax
+  // の3点をつなぐ区分線形。synergyBonus はシナジー加算分（synergyCapで上限）。
+  private calculateLevelTarget(count: number, required: number, synergyBonus: number): number {
+    const { baseLevel, fullLevel, overProvisionMax, overProvisionRatio, synergyCap } =
+      CITY_LEVEL_MODEL;
+    const ratio = required > 0 ? count / required : 0;
+
+    let target = baseLevel + (fullLevel - baseLevel) * Math.min(1, ratio);
+    const overRatio =
+      Math.max(0, Math.min(ratio, overProvisionRatio) - 1) / (overProvisionRatio - 1);
+    target += (overProvisionMax - fullLevel) * overRatio;
+
+    return Math.min(synergyCap, target + synergyBonus);
+  }
+
+  // 現在値から目標値へ smoothing の割合だけ平滑追従させる（0-100にクランプ）
+  private smoothToward(current: number, target: number): number {
+    const next = current + (target - current) * CITY_LEVEL_MODEL.smoothing;
+    return Math.min(100, Math.max(0, next));
   }
 
   // 供給率計算
@@ -807,59 +890,71 @@ export class GameEngine {
   }
 
   // 需要計算
+  // Step4リバランス: マップ全タイル数に対する占有率をベースにしていた旧モデル（マップサイズに
+  // 依存し、大マップほど需要が下がりにくい/上がりにくいバグを持っていた）を廃止し、
+  // POPULATION_TABLE を「住宅=居住人口／商業・工業=雇用数」として読む雇用バランスモデルに
+  // 全面置換した（マップ面積に一切依存しない）。
+  // - jobs = 商業+工業の人口合計（求人数とみなす）
+  // - workers = 住宅人口 × employmentRate（働き手の数）
+  // - residentialDemand は「雇用に対して住宅が足りているか」（jobs/workers 比）
+  // - businessDemand は「住宅（働き手）に対して商業+工業が足りているか」（workers/jobs 比）
+  // - commercialDemand/industrialDemand は businessDemand を商業/工業の現シェアで配分し直す
+  //   （どちらかに偏っていれば、少ない方の需要が相対的に高くなる）
   private calculateDemands(): void {
-    let residentialCount = 0;
-    let commercialCount = 0;
-    let industrialCount = 0;
-    let totalBuildable = 0;
+    let resPop = 0;
+    let comPop = 0;
+    let indPop = 0;
 
     for (let y = 0; y < this.gridSize; y++) {
       for (let x = 0; x < this.gridSize; x++) {
         const tile = this.state.map[y][x];
-
-        // インフラ以外の建物のみカウント
-        if (tile !== TileType.EMPTY && tile < 0) continue;
-        if (tile !== TileType.EMPTY && tile > 0) {
-          totalBuildable++;
-
-          if (tile >= TileType.RESIDENTIAL_L1 && tile <= TileType.RESIDENTIAL_L4) {
-            residentialCount++;
-          } else if (tile >= TileType.COMMERCIAL_L1 && tile <= TileType.COMMERCIAL_L4) {
-            commercialCount++;
-          } else if (tile >= TileType.INDUSTRIAL_L1 && tile <= TileType.INDUSTRIAL_L4) {
-            industrialCount++;
-          }
+        if (tile >= TileType.RESIDENTIAL_L1 && tile <= TileType.RESIDENTIAL_L4) {
+          resPop += POPULATION_TABLE[tile] || 0;
+        } else if (tile >= TileType.COMMERCIAL_L1 && tile <= TileType.COMMERCIAL_L4) {
+          comPop += POPULATION_TABLE[tile] || 0;
+        } else if (tile >= TileType.INDUSTRIAL_L1 && tile <= TileType.INDUSTRIAL_L4) {
+          indPop += POPULATION_TABLE[tile] || 0;
         }
       }
     }
 
-    // 占有率を計算（総建設可能タイル数に対する割合）
-    const maxTiles = this.gridSize * this.gridSize;
-    const residentialOccupancy = totalBuildable > 0 ? (residentialCount / maxTiles) * 100 : 0;
-    const commercialOccupancy = totalBuildable > 0 ? (commercialCount / maxTiles) * 100 : 0;
-    const industrialOccupancy = totalBuildable > 0 ? (industrialCount / maxTiles) * 100 : 0;
+    const { employmentRate, neutralDemand, bootstrapDemand } = DEMAND_MODEL;
+    const jobs = comPop + indPop;
+    const workers = employmentRate * resPop;
 
-    // 需要 = 100% - 占有率 （占有率が低いほど需要が高い）
-    let residentialDemand = Math.max(0, 100 - residentialOccupancy * 2); // x2 で需要をスケール
-    let commercialDemand = Math.max(0, 100 - commercialOccupancy * 2);
-    let industrialDemand = Math.max(0, 100 - industrialOccupancy * 2);
-
-    // 人口に応じた調整
-    if (this.state.population > 0) {
-      const populationRatio = this.state.population / 50000; // スケーリング基準
-      residentialDemand = Math.min(100, residentialDemand * (0.5 + populationRatio * 0.5));
-      commercialDemand = Math.min(100, commercialDemand * (0.2 + populationRatio * 0.8));
-      industrialDemand = Math.min(100, industrialDemand * (0.2 + populationRatio * 0.8));
+    // 住宅も雇用も0の起点状態: 何を建ててもよい高需要（bootstrapDemand）を全ゾーンに与える
+    if (resPop === 0 && jobs === 0) {
+      this.state.residentialDemand = bootstrapDemand;
+      this.state.commercialDemand = bootstrapDemand;
+      this.state.industrialDemand = bootstrapDemand;
+      return;
     }
 
-    this.state.residentialDemand = Math.round(residentialDemand);
-    this.state.commercialDemand = Math.round(commercialDemand);
-    this.state.industrialDemand = Math.round(industrialDemand);
+    const clamp = (v: number): number => Math.min(100, Math.max(0, v));
+
+    const residentialDemand = clamp(Math.round((neutralDemand * jobs) / Math.max(1, workers)));
+    const businessDemand = clamp(Math.round((neutralDemand * workers) / Math.max(1, jobs)));
+    const comShare = jobs > 0 ? comPop / jobs : 0.5;
+    const indShare = jobs > 0 ? indPop / jobs : 0.5;
+    const commercialDemand = clamp(Math.round(businessDemand * 2 * (1 - comShare)));
+    const industrialDemand = clamp(Math.round(businessDemand * 2 * (1 - indShare)));
+
+    this.state.residentialDemand = residentialDemand;
+    this.state.commercialDemand = commercialDemand;
+    this.state.industrialDemand = industrialDemand;
   }
 
-  // シナジー効果の計算
-  private applySynergyEffects(): void {
-    // 施設の位置を取得
+  // Step3リバランス: シナジー成立判定（ブール型・ペアごとの重複加算はしない）。
+  // updateInfrastructureEffects() の target 計算に加算する量を先にまとめて返す。
+  // station+school+police の三者シナジーは security/education/medical には加算せず、
+  // tripleSynergy フラグとして返し、呼び出し側で commercialGrowthMult に反映する。
+  private calculateSynergyBonuses(): {
+    securityBonus: number;
+    educationBonus: number;
+    medicalBonus: number;
+    tripleSynergy: boolean;
+  } {
+    // 施設の位置を取得（存在判定のみに使うのでタイル単位の走査でよい）
     const facilities: {
       police: { x: number; y: number }[];
       school: { x: number; y: number }[];
@@ -877,58 +972,52 @@ export class GameEngine {
       }
     }
 
-    // シナジー1: 警察+学校（15マス以内）→ securityLevel +10, educationLevel +10
-    for (const police of facilities.police) {
-      for (const school of facilities.school) {
-        const dist = Math.abs(police.x - school.x) + Math.abs(police.y - school.y);
-        if (dist <= 15) {
-          this.state.securityLevel = Math.min(100, this.state.securityLevel + 10);
-          this.state.educationLevel = Math.min(100, this.state.educationLevel + 10);
-        }
-      }
+    const manhattan = (a: { x: number; y: number }, b: { x: number; y: number }): number =>
+      Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+
+    let securityBonus = 0;
+    let educationBonus = 0;
+    let medicalBonus = 0;
+
+    // シナジー1: 警察+学校が距離threshold以内に1組でも存在
+    const policeSchoolThreshold = SYNERGY_EFFECTS.police_school.distanceThreshold;
+    const policeSchool = facilities.police.some((p) =>
+      facilities.school.some((s) => manhattan(p, s) <= policeSchoolThreshold),
+    );
+    if (policeSchool) {
+      securityBonus += SYNERGY_EFFECTS.police_school.securityBoost;
+      educationBonus += SYNERGY_EFFECTS.police_school.educationBoost;
     }
 
-    // シナジー2: 学校+病院（15マス以内）→ educationLevel +5, medicalLevel +5
-    for (const school of facilities.school) {
-      for (const hospital of facilities.hospital) {
-        const dist = Math.abs(school.x - hospital.x) + Math.abs(school.y - hospital.y);
-        if (dist <= 15) {
-          this.state.educationLevel = Math.min(100, this.state.educationLevel + 5);
-          this.state.medicalLevel = Math.min(100, this.state.medicalLevel + 5);
-        }
-      }
+    // シナジー2: 学校+病院が距離threshold以内に1組でも存在
+    const schoolHospitalThreshold = SYNERGY_EFFECTS.school_hospital.distanceThreshold;
+    const schoolHospital = facilities.school.some((s) =>
+      facilities.hospital.some((h) => manhattan(s, h) <= schoolHospitalThreshold),
+    );
+    if (schoolHospital) {
+      educationBonus += SYNERGY_EFFECTS.school_hospital.educationBoost;
+      medicalBonus += SYNERGY_EFFECTS.school_hospital.medicalBoost;
     }
 
-    // シナジー3: 駅+学校+警察（20マス以内、3つ全て必要）
-    // → 商業成長ボーナス（成長ペナルティを20%軽減）
-    for (const station of facilities.station) {
-      for (const school of facilities.school) {
-        const schoolDist = Math.abs(station.x - school.x) + Math.abs(station.y - school.y);
-        if (schoolDist <= 20) {
-          for (const police of facilities.police) {
-            const policeDist = Math.abs(station.x - police.x) + Math.abs(station.y - police.y);
-            if (policeDist <= 20) {
-              // 3つが揃ったので、成長ボーナスを適用（商業成長+20%）
-              // growthPenalty に 1.2x を掛ける（ペナルティ軽減）
-              // ただし、元々 calculatePenalties() で成長ペナルティが適用されるので
-              // ここでは educationLevel を追加で上昇させることで間接的に対応
-              this.state.educationLevel = Math.min(100, this.state.educationLevel + 8);
-              // console.log('✨ Triple synergy (Station+School+Police) activated!');
-            }
-          }
-        }
-      }
-    }
+    // シナジー3: 駅+学校+警察の3種が距離threshold以内に揃って存在
+    const tripleThreshold = SYNERGY_EFFECTS.station_school_police.distanceThreshold;
+    const tripleSynergy = facilities.station.some(
+      (st) =>
+        facilities.school.some((s) => manhattan(st, s) <= tripleThreshold) &&
+        facilities.police.some((p) => manhattan(st, p) <= tripleThreshold),
+    );
+
+    return { securityBonus, educationBonus, medicalBonus, tripleSynergy };
   }
 
   // ランドマーク商業ボーナス計算
+  // Step7: ランドマーク近接ボーナス。スタジアム/空港の効果半径内にある商業タイルの
+  // 税収を倍率で押し上げた「増分」（(倍率-1)×タイル税収 の合計）を返す。
+  // スタジアム圏内 ×1.5 / 空港圏内 ×1.8 / 両方圏内 ×2.0（上限）。
+  // 旧実装はレベル別の絶対額（L4で+5000等＝基礎税収の十数倍）で壊れた収入源だった。
   private calculateLandmarkCommercialBonus(): number {
-    let bonus = 0;
-
-    // スタジアムと空港の位置を取得
-    const stadiums = [];
-    const airports = [];
-
+    const stadiums: { x: number; y: number }[] = [];
+    const airports: { x: number; y: number }[] = [];
     for (let y = 0; y < this.gridSize; y++) {
       for (let x = 0; x < this.gridSize; x++) {
         const tile = this.state.map[y][x];
@@ -936,127 +1025,35 @@ export class GameEngine {
         if (tile === TileType.LANDMARK_AIRPORT) airports.push({ x, y });
       }
     }
+    if (stadiums.length === 0 && airports.length === 0) return 0;
 
-    // スタジアム周辺の商業地
-    for (const stadium of stadiums) {
-      const stadiumRadius = 40;
-      const yMin = Math.max(0, stadium.y - stadiumRadius);
-      const yMax = Math.min(this.gridSize - 1, stadium.y + stadiumRadius);
-      const xMin = Math.max(0, stadium.x - stadiumRadius);
-      const xMax = Math.min(this.gridSize - 1, stadium.x + stadiumRadius);
-      for (let y = yMin; y <= yMax; y++) {
-        for (let x = xMin; x <= xMax; x++) {
-          const tile = this.state.map[y][x];
-          const dist = Math.abs(x - stadium.x) + Math.abs(y - stadium.y);
+    const stadiumRadius = LANDMARK_EFFECTS.stadium.bonusRadius;
+    const airportRadius = LANDMARK_EFFECTS.airport.bonusRadius;
 
-          // スタジアムから40マス以内の商業地
-          if (
-            dist <= stadiumRadius &&
-            tile >= TileType.COMMERCIAL_L1 &&
-            tile <= TileType.COMMERCIAL_L4
-          ) {
-            const level = tile - TileType.COMMERCIAL_L1 + 1; // 1～4
-            const bonusValues = [500, 1166, 2333, 3000];
-            bonus += bonusValues[level - 1];
-          }
-        }
-      }
-    }
-
-    // 空港周辺の商業地
-    for (const airport of airports) {
-      const airportRadius = 50;
-      const yMin = Math.max(0, airport.y - airportRadius);
-      const yMax = Math.min(this.gridSize - 1, airport.y + airportRadius);
-      const xMin = Math.max(0, airport.x - airportRadius);
-      const xMax = Math.min(this.gridSize - 1, airport.x + airportRadius);
-      for (let y = yMin; y <= yMax; y++) {
-        for (let x = xMin; x <= xMax; x++) {
-          const tile = this.state.map[y][x];
-          const dist = Math.abs(x - airport.x) + Math.abs(y - airport.y);
-
-          // 空港から50マス以内の商業地
-          if (
-            dist <= airportRadius &&
-            tile >= TileType.COMMERCIAL_L1 &&
-            tile <= TileType.COMMERCIAL_L4
-          ) {
-            const level = tile - TileType.COMMERCIAL_L1 + 1; // 1～4
-            const bonusValues = [1000, 2333, 3666, 5000];
-            bonus += bonusValues[level - 1];
-          }
-        }
-      }
-    }
-
-    return bonus;
-  }
-
-  // 人口に基づくインフラスケーリング
-  private applyPopulationScaling(): void {
-    // インフラ数をカウント
-    let policeCount = 0;
-    let fireCount = 0;
-    let schoolCount = 0;
-    let hospitalCount = 0;
-    let powerCount = 0;
-    let waterCount = 0;
-
+    let bonus = 0;
     for (let y = 0; y < this.gridSize; y++) {
       for (let x = 0; x < this.gridSize; x++) {
         const tile = this.state.map[y][x];
-        if (tile === TileType.POLICE) policeCount++;
-        if (tile === TileType.FIRE_STATION) fireCount++;
-        if (tile === TileType.SCHOOL) schoolCount++;
-        if (tile === TileType.HOSPITAL) hospitalCount++;
-        if (tile === TileType.POWER_PLANT) powerCount++;
-        if (tile === TileType.WATER_TREATMENT) waterCount++;
+        if (tile < TileType.COMMERCIAL_L1 || tile > TileType.COMMERCIAL_L4) continue;
+
+        const inStadium = stadiums.some(
+          (s) => Math.abs(x - s.x) + Math.abs(y - s.y) <= stadiumRadius,
+        );
+        const inAirport = airports.some(
+          (a) => Math.abs(x - a.x) + Math.abs(y - a.y) <= airportRadius,
+        );
+
+        let mult = 1;
+        if (inStadium && inAirport) mult = LANDMARK_EFFECTS.bothMultiplier;
+        else if (inAirport) mult = LANDMARK_EFFECTS.airport.bonusMultiplier;
+        else if (inStadium) mult = LANDMARK_EFFECTS.stadium.bonusMultiplier;
+
+        if (mult > 1) {
+          bonus += (TAX_REVENUE[tile] || 0) * (mult - 1);
+        }
       }
     }
-
-    const population = this.state.population;
-
-    // 必要インフラ数を計算
-    const requiredPolice = Math.max(
-      INFRASTRUCTURE_REQUIREMENTS.police.base,
-      Math.ceil(population / INFRASTRUCTURE_REQUIREMENTS.police.populationPerUnit),
-    );
-    const requiredFire = Math.max(
-      INFRASTRUCTURE_REQUIREMENTS.fire_station.base,
-      Math.ceil(population / INFRASTRUCTURE_REQUIREMENTS.fire_station.populationPerUnit),
-    );
-    const requiredSchool = Math.max(
-      INFRASTRUCTURE_REQUIREMENTS.school.base,
-      Math.ceil(population / INFRASTRUCTURE_REQUIREMENTS.school.populationPerUnit),
-    );
-    const requiredHospital = Math.max(
-      INFRASTRUCTURE_REQUIREMENTS.hospital.base,
-      Math.ceil(population / INFRASTRUCTURE_REQUIREMENTS.hospital.populationPerUnit),
-    );
-    const requiredPower = Math.max(
-      INFRASTRUCTURE_REQUIREMENTS.power_plant.base,
-      Math.ceil(population / INFRASTRUCTURE_REQUIREMENTS.power_plant.populationPerUnit),
-    );
-    const requiredWater = Math.max(
-      INFRASTRUCTURE_REQUIREMENTS.water_treatment.base,
-      Math.ceil(population / INFRASTRUCTURE_REQUIREMENTS.water_treatment.populationPerUnit),
-    );
-
-    // 人口に対するインフラ不足率を計算
-    const policeDeficit = Math.max(0, 1 - policeCount / requiredPolice);
-    const fireDeficit = Math.max(0, 1 - fireCount / requiredFire);
-    const schoolDeficit = Math.max(0, 1 - schoolCount / requiredSchool);
-    const hospitalDeficit = Math.max(0, 1 - hospitalCount / requiredHospital);
-    const powerDeficit = Math.max(0, 1 - powerCount / requiredPower);
-    const waterDeficit = Math.max(0, 1 - waterCount / requiredWater);
-
-    // パラメータを不足率に応じて減衰
-    this.state.securityLevel *= 1 - policeDeficit * 0.5; // 不足で最大50%低下
-    this.state.safetyLevel *= 1 - fireDeficit * 0.5;
-    this.state.educationLevel *= 1 - schoolDeficit * 0.5;
-    this.state.medicalLevel *= 1 - hospitalDeficit * 0.5;
-    this.state.powerSupplyRate *= 1 - powerDeficit * 0.3; // 電力供給率低下
-    this.state.waterSupplyRate *= 1 - waterDeficit * 0.3;
+    return bonus;
   }
 
   // インフラ不足ペナルティ計算
@@ -1076,15 +1073,8 @@ export class GameEngine {
       const shortage = (50 - this.state.waterSupplyRate) / 50;
       growthPenalty *= Math.max(0.3, 1 - shortage * 0.7); // 最大70%低下
       revenuePenalty *= Math.max(0.7, 1 - shortage * 0.3); // 最大30%低下
-
-      // 給水不足で病気発生倍率が3倍
-      for (let y = 0; y < this.gridSize; y++) {
-        for (let x = 0; x < this.gridSize; x++) {
-          if (!this.state.waterGrid[y][x] && this.state.diseaseMap[y][x] > 0) {
-            this.state.diseaseMap[y][x] = Math.min(10, this.state.diseaseMap[y][x] * 1.2);
-          }
-        }
-      }
+      // Step6: 「給水なしで病気3倍」は updateDiseases の発生確率 ×noWaterMultiplier に移設。
+      // ここでの diseaseMap ×1.2 増幅（意味論が発生率でなくレベルで README と不一致）は廃止した。
     }
 
     // 治安度不足ペナルティ（住宅成長）
@@ -1127,8 +1117,12 @@ export class GameEngine {
           }
         }
       }
-      // 人口流出（快適度低下）
-      this.state.comfort *= Math.max(0.5, 1 - deficit * 0.5);
+      // （旧・快適度への直接減算は calculateComfort の service/汚染乗算に一本化したため削除）
+    }
+
+    // Step6: スラム化率に応じた成長ペナルティ（最大 -50%）。
+    if (this.state.slumRate > 0) {
+      growthPenalty *= Math.max(0.5, 1 - this.state.slumRate / 200);
     }
 
     this.state.growthPenalty = growthPenalty;
@@ -1149,47 +1143,100 @@ export class GameEngine {
   }
 
   // 快適度計算
+  // 快適度を純粋関数として算出する（唯一の算出元）。
+  // monthlyUpdate 内で pollution/slum 計算の後に呼ばれ、緑地/交通/密度/資金/サービスの
+  // 重み付き合成に、汚染・スラムの乗算ペナルティを掛けて求める。
+  // （以前は updatePollution/updateSlums/calculatePenalties に comfort *= が散在していたが、
+  //  それらは本メソッドの再計算で毎回上書きされ全て無効だった。Step5でここに一本化した。）
   calculateComfort(): number {
-    let score = 0;
+    const {
+      weights,
+      parkCoverRadius,
+      stationCoverRadius,
+      densityComfortCap,
+      densitySlope,
+      maxResidentsPerHouseTile,
+      pollutionPenaltyMax,
+      slumPenaltyMax,
+    } = COMFORT_MODEL;
 
-    // 1. 緑地率
-    let parkCount = 0;
-    let totalTiles = 0;
+    // 公園・駅のカバー範囲（±radius チェビシェフ矩形）を bool グリッドにスタンプ
+    const parkCovered = this.stampCoverage(TileType.PARK, parkCoverRadius);
+    const stationCovered = this.stampCoverage(TileType.STATION, stationCoverRadius);
+
+    let zoneTiles = 0;
+    let houseTiles = 0;
+    let parkCoveredZones = 0;
+    let stationCoveredZones = 0;
     for (let y = 0; y < this.gridSize; y++) {
       for (let x = 0; x < this.gridSize; x++) {
-        if (this.state.map[y][x] !== TileType.EMPTY) totalTiles++;
-        if (this.state.map[y][x] === TileType.PARK) parkCount++;
+        const tile = this.state.map[y][x];
+        if (tile >= 1 && tile <= 24) {
+          zoneTiles++;
+          const idx = y * this.gridSize + x;
+          if (parkCovered[idx]) parkCoveredZones++;
+          if (stationCovered[idx]) stationCoveredZones++;
+          if (tile >= TileType.RESIDENTIAL_L1 && tile <= TileType.RESIDENTIAL_L4) houseTiles++;
+        }
       }
     }
-    const greenScore = totalTiles > 0 ? (parkCount / totalTiles) * 100 : 0;
 
-    // 2. 交通充実度（駅の数と分布）
-    let stationCount = 0;
-    for (let y = 0; y < this.gridSize; y++) {
-      for (let x = 0; x < this.gridSize; x++) {
-        if (this.state.map[y][x] === TileType.STATION) stationCount++;
-      }
-    }
-    const transportScore = Math.min(stationCount * 5, 100);
+    // 緑地（公園カバー率）・交通（駅カバー率）: ゾーンタイルが無ければ中立50
+    const greenScore = zoneTiles > 0 ? (parkCoveredZones / zoneTiles) * 100 : 50;
+    const transportScore = zoneTiles > 0 ? (stationCoveredZones / zoneTiles) * 100 : 50;
 
-    // 3. 人口密度スコア（過密を避ける）
-    const densityScore = Math.max(0, 100 - this.state.population / 50);
-
-    // 4. 資金状況反映
-    const fundScore = Math.min((this.state.money / 250000) * 100, 100);
-
-    // 5. 医療度による快適度調整
-    let medicalBonus = 0;
-    if (this.state.medicalLevel >= 70) {
-      medicalBonus = 3;
-    } else if (this.state.medicalLevel <= 30) {
-      medicalBonus = -5;
+    // 密度: 住宅の平均充足率 u（最適帯 <=cap は満点、過密のみ減点）。住宅無しは中立50
+    let densityScore = 50;
+    if (houseTiles > 0) {
+      const u = this.state.population / (maxResidentsPerHouseTile * houseTiles);
+      densityScore =
+        u <= densityComfortCap ? 100 : Math.max(0, 100 - (u - densityComfortCap) * densitySlope);
     }
 
-    // 総合スコア
-    score = (greenScore + transportScore + densityScore + fundScore) / 4 + medicalBonus;
-    this.state.comfort = Math.round(Math.max(0, Math.min(100, score)));
+    // 資金
+    const fundScore = Math.min(100, Math.max(0, (this.state.money / this.initialMoney) * 50));
+
+    // サービス（治安/安全/教育/医療の平均）
+    const serviceScore =
+      (this.state.securityLevel +
+        this.state.safetyLevel +
+        this.state.educationLevel +
+        this.state.medicalLevel) /
+      4;
+
+    const base =
+      greenScore * weights.green +
+      transportScore * weights.transport +
+      densityScore * weights.density +
+      fundScore * weights.fund +
+      serviceScore * weights.service;
+
+    const pollutionMult = 1 - pollutionPenaltyMax * (this.state.pollutionLevel / 100);
+    const slumMult = 1 - slumPenaltyMax * (this.state.slumRate / 100);
+
+    this.state.comfort = Math.round(Math.max(0, Math.min(100, base * pollutionMult * slumMult)));
     return this.state.comfort;
+  }
+
+  // 指定タイル種別の各タイルを中心に ±radius（チェビシェフ）の矩形を被覆済みとして
+  // マークした bool グリッド（フラット）を返す。快適度の公園/駅カバー率算出に使う。
+  private stampCoverage(type: TileType, radius: number): Uint8Array {
+    const covered = new Uint8Array(this.gridSize * this.gridSize);
+    for (let y = 0; y < this.gridSize; y++) {
+      for (let x = 0; x < this.gridSize; x++) {
+        if (this.state.map[y][x] !== type) continue;
+        const yMin = Math.max(0, y - radius);
+        const yMax = Math.min(this.gridSize - 1, y + radius);
+        const xMin = Math.max(0, x - radius);
+        const xMax = Math.min(this.gridSize - 1, x + radius);
+        for (let ny = yMin; ny <= yMax; ny++) {
+          for (let nx = xMin; nx <= xMax; nx++) {
+            covered[ny * this.gridSize + nx] = 1;
+          }
+        }
+      }
+    }
+    return covered;
   }
 
   // リセット
@@ -1200,6 +1247,7 @@ export class GameEngine {
       hard: 150000,
     };
     const initialMoney = difficultyConfig[this.state.settings.difficulty] ?? 250000;
+    this.initialMoney = initialMoney;
     this.state = {
       map: Array.from({ length: this.gridSize }, () => Array(this.gridSize).fill(TileType.EMPTY)),
       population: 0,
@@ -1216,7 +1264,6 @@ export class GameEngine {
       waterGrid: Array.from({ length: this.gridSize }, () => Array(this.gridSize).fill(false)),
       fireMap: Array.from({ length: this.gridSize }, () => Array(this.gridSize).fill(0)),
       diseaseMap: Array.from({ length: this.gridSize }, () => Array(this.gridSize).fill(0)),
-      crimeMap: Array.from({ length: this.gridSize }, () => Array(this.gridSize).fill(0)),
       pollutionMap: Array.from({ length: this.gridSize }, () => Array(this.gridSize).fill(0)),
       slumMap: Array.from({ length: this.gridSize }, () => Array(this.gridSize).fill(0)),
       securityLevel: INITIAL_PARAMETERS.securityLevel,
@@ -1235,10 +1282,11 @@ export class GameEngine {
       showDemandMeters: false,
       growthPenalty: 1.0,
       revenuePenalty: 1.0,
+      lastReport: { revenue: 0, maintenance: 0, disaster: 0, net: 0 },
+      gameOver: false,
       settings: this.state.settings,
     };
-    const center = this.gridSize / 2;
-    this.state.map[Math.floor(center)][Math.floor(center)] = TileType.STATION;
+    this.placeInitialStation();
   }
 
   // 速度設定
@@ -1360,13 +1408,8 @@ export class GameEngine {
     const pollutedCells = this.state.pollutionMap.flat().filter((p) => p > 0).length;
     this.state.pollutionLevel = Math.round((pollutedCells / totalCells) * 100);
 
-    // 汚染が高いと快適度低下（基準を緩和）
-    if (this.state.pollutionLevel > 50) {
-      this.state.comfort *= 0.98;
-    }
-    if (this.state.pollutionLevel > 80) {
-      this.state.comfort *= 0.95;
-    }
+    // 快適度への汚染ペナルティは calculateComfort() の pollutionMult に一本化した
+    // （pollutionLevel を算出するここでは comfort を直接いじらない）。
   }
 
   private updateSlums(): void {
@@ -1393,28 +1436,31 @@ export class GameEngine {
           localSlum /= 121;
           localPollution /= 121;
 
-          // スラム化条件：高汚染＋低治安＋近くのスラム
+          // Step6再設計: スラム化条件（汚染と治安の悪さの平均 × 近隣スラム）。
+          // 旧 baseChance 0.01 は毎月の減衰 -0.5 に負けスラムが実質発生しなかったため 0.15 に。
+          // gameSpeed 乗算は Step2 で削除済み（固定タイムステップで月次頻度が速度比例のため）。
+          const sb = DISASTER_BALANCE.slum;
           const slumChance =
-            0.01 *
-            (localPollution / 100) *
-            (1 - localSecurity / 100) *
-            (1 + localSlum / 10) *
-            this.state.gameSpeed;
-          if (Math.random() < slumChance) {
+            sb.baseChance *
+            (0.5 * (localPollution / 100) + 0.5 * (1 - localSecurity / 100)) *
+            (1 + localSlum / 10);
+          if (this.rng() < slumChance) {
             this.state.slumMap[y][x] = Math.min(10, this.state.slumMap[y][x] + 1);
           }
 
-          // スラム化が進むとレベルダウン
-          if (this.state.slumMap[y][x] > 8) {
-            // 住宅レベルを1段階低下
+          // スラム化が進むと住宅レベルを1段階低下（L1は維持）
+          if (this.state.slumMap[y][x] > sb.downgradeThreshold) {
             if (tile > TileType.RESIDENTIAL_L1) {
               this.state.map[y][x] = tile - 1;
             }
             this.state.slumMap[y][x] = 0;
           }
 
-          // スラム化度低下
-          this.state.slumMap[y][x] = Math.max(0, this.state.slumMap[y][x] - 0.5);
+          // Step6: 減衰（回復）は「局所汚染が十分低く、かつ治安が十分高い」月のみ適用。
+          // 放置された荒廃地区は回復せず、環境を改善して初めて再生する（荒廃と再生のループ）。
+          if (localPollution < sb.recoveryPollutionMax && localSecurity >= sb.recoverySecurityMin) {
+            this.state.slumMap[y][x] = Math.max(0, this.state.slumMap[y][x] - sb.decayAmount);
+          }
         }
       }
     }
@@ -1423,26 +1469,25 @@ export class GameEngine {
     const slummedCells = this.state.slumMap.flat().filter((s) => s > 0).length;
     this.state.slumRate = Math.round((slummedCells / (this.gridSize * this.gridSize)) * 100);
 
-    // スラム化が高いと快適度低下・人口流出
-    if (this.state.slumRate > 10) {
-      this.state.comfort *= 0.95;
-      this.state.population *= 0.98;
-    }
-    if (this.state.slumRate > 20) {
-      this.state.comfort *= 0.9;
-      this.state.population *= 0.95;
-    }
+    // Step6: 快適度ペナルティは calculateComfort() の slumMult、成長ペナルティは
+    // calculatePenalties() の slumRate 参照に一本化。人口減は上のスラム降格（住宅レベル低下）で
+    // 永続化されるため、ここでの population 直接操作（旧・calculatePopulation で上書きされる no-op）
+    // は廃止した。
   }
 
   private updateFires(): void {
+    const fb = DISASTER_BALANCE.fire;
     // 難易度に応じた火災発生率を調整
-    const fireChance = 0.0002 * this.state.gameSpeed * this.disasterRateMultiplier;
+    // Step2リバランス: gameSpeed 乗算を削除（バグA）。固定タイムステップ化により
+    // monthlyUpdate の呼出頻度が既に gameSpeed に比例しているため、確率にも
+    // 掛けると速度2倍で発生率4倍になってしまっていた。
+    const fireChance = fb.baseChance * this.disasterRateMultiplier;
     const sampleRate = Math.max(1, Math.floor(this.gridSize / 64));
 
     for (let y = 0; y < this.gridSize; y += sampleRate) {
       for (let x = 0; x < this.gridSize; x += sampleRate) {
-        if (this.state.map[y][x] !== TileType.EMPTY && Math.random() < fireChance) {
-          this.state.fireMap[y][x] = Math.min(10, this.state.fireMap[y][x] + 2);
+        if (this.state.map[y][x] !== TileType.EMPTY && this.rng() < fireChance) {
+          this.state.fireMap[y][x] = Math.min(10, this.state.fireMap[y][x] + fb.igniteAmount);
         }
       }
     }
@@ -1463,23 +1508,23 @@ export class GameEngine {
             const nx = x + dx;
             const ny = y + dy;
             if (nx >= 0 && ny >= 0 && nx < this.gridSize && ny < this.gridSize) {
-              if (this.state.map[ny][nx] !== TileType.EMPTY && Math.random() < 0.01) {
-                // 0.02 → 0.01
-                newFireMap[ny][nx] = Math.min(10, newFireMap[ny][nx] + 1);
+              if (this.state.map[ny][nx] !== TileType.EMPTY && this.rng() < fb.spreadChance) {
+                newFireMap[ny][nx] = Math.min(10, newFireMap[ny][nx] + fb.spreadAmount);
               }
             }
           });
 
           // 消防署による消火（範囲と成功率を向上）
+          // searchRadius はチェビシェフ距離（±searchRadius の正方形範囲）。
           let fireExtinguished = false;
-          for (let yy = -15; yy <= 15; yy++) {
+          for (let yy = -fb.searchRadius; yy <= fb.searchRadius; yy++) {
             if (fireExtinguished) break;
-            for (let xx = -15; xx <= 15; xx++) {
+            for (let xx = -fb.searchRadius; xx <= fb.searchRadius; xx++) {
               const nx = x + xx;
               const ny = y + yy;
               if (nx >= 0 && ny >= 0 && nx < this.gridSize && ny < this.gridSize) {
                 if (this.state.map[ny][nx] === TileType.FIRE_STATION) {
-                  if (Math.random() < 0.9) fireExtinguished = true; // 0.8 → 0.9
+                  if (this.rng() < fb.extinguishSuccessRate) fireExtinguished = true;
                   break;
                 }
               }
@@ -1487,15 +1532,17 @@ export class GameEngine {
           }
 
           if (fireExtinguished) {
-            newFireMap[y][x] = Math.max(0, newFireMap[y][x] - 5); // -4 → -5
+            newFireMap[y][x] = Math.max(0, newFireMap[y][x] - fb.extinguishAmount);
           } else {
-            newFireMap[y][x] = Math.max(0, newFireMap[y][x] - 1);
+            newFireMap[y][x] = Math.max(0, newFireMap[y][x] - fb.decayAmount);
           }
 
           // 火災が蔓延したら建物を破壊
-          if (newFireMap[y][x] >= 10) {
+          if (newFireMap[y][x] >= fb.destroyThreshold) {
             this.state.map[y][x] = TileType.EMPTY;
-            this.state.money -= 500;
+            // Step2リバランス: その場での money 減算をやめ、月次台帳に積算する
+            // （monthlyUpdate() の収支適用時に一括反映されるため決定論的・追跡可能になる）。
+            this.disasterDamage += DISASTER_BALANCE.disasterDamageCost;
           }
         }
       }
@@ -1503,17 +1550,39 @@ export class GameEngine {
     this.state.fireMap = newFireMap;
   }
 
+  // ゾーンタイルを1段階降格する。各ゾーンのL1（住宅1/商業11/工業21）は EMPTY にする
+  // （街から人が逃げる）。病気の蔓延・（必要に応じ）他の永続被害で使う共通ロジック。
+  private downgradeZoneTile(x: number, y: number): void {
+    const tile = this.state.map[y][x];
+    if (
+      tile === TileType.RESIDENTIAL_L1 ||
+      tile === TileType.COMMERCIAL_L1 ||
+      tile === TileType.INDUSTRIAL_L1
+    ) {
+      this.state.map[y][x] = TileType.EMPTY;
+    } else if (tile >= 1 && tile <= 24) {
+      this.state.map[y][x] = tile - 1;
+    }
+  }
+
   private updateDiseases(): void {
+    const db = DISASTER_BALANCE.disease;
     // 難易度に応じた病気発生率を調整
     const sampleRate = Math.max(1, Math.floor(this.gridSize / 64));
 
     for (let y = 0; y < this.gridSize; y += sampleRate) {
       for (let x = 0; x < this.gridSize; x += sampleRate) {
+        // Step6: 病気の発生はゾーンタイル(1-24)に限定（インフラは病気にならない）。
+        const tile = this.state.map[y][x];
+        if (tile < 1 || tile > 24) continue;
+
         const density = this.getLocalDensity(x, y);
-        const diseaseChance =
-          0.01 * (1 + density / 10) * this.state.gameSpeed * this.disasterRateMultiplier;
-        if (this.state.map[y][x] !== TileType.EMPTY && Math.random() < diseaseChance) {
-          this.state.diseaseMap[y][x] = Math.min(10, this.state.diseaseMap[y][x] + 5);
+        // gameSpeed 乗算は Step2 で削除済み（固定タイムステップで月次頻度が既に速度比例のため）。
+        let diseaseChance = db.baseChance * (1 + density / 10) * this.disasterRateMultiplier;
+        // Step6: 給水されていないタイルは病気発生率を noWaterMultiplier 倍にする。
+        if (!this.state.waterGrid[y][x]) diseaseChance *= db.noWaterMultiplier;
+        if (this.rng() < diseaseChance) {
+          this.state.diseaseMap[y][x] = Math.min(10, this.state.diseaseMap[y][x] + db.igniteAmount);
         }
       }
     }
@@ -1523,46 +1592,53 @@ export class GameEngine {
     for (let y = 0; y < this.gridSize; y++) {
       for (let x = 0; x < this.gridSize; x++) {
         if (this.state.diseaseMap[y][x] > 0) {
-          // 隣接タイル3マスに波及
-          for (let dy = -3; dy <= 3; dy++) {
-            for (let dx = -3; dx <= 3; dx++) {
+          // 隣接タイル（spreadRadius マス）に波及
+          for (let dy = -db.spreadRadius; dy <= db.spreadRadius; dy++) {
+            for (let dx = -db.spreadRadius; dx <= db.spreadRadius; dx++) {
               const nx = x + dx;
               const ny = y + dy;
               if (nx >= 0 && ny >= 0 && nx < this.gridSize && ny < this.gridSize) {
-                if (this.state.map[ny][nx] !== TileType.EMPTY && Math.random() < 0.2) {
-                  newDiseaseMap[ny][nx] = Math.min(10, newDiseaseMap[ny][nx] + 1);
+                const t = this.state.map[ny][nx];
+                // 波及もゾーンタイル(1-24)に限定
+                if (t >= 1 && t <= 24 && this.rng() < db.spreadChance) {
+                  newDiseaseMap[ny][nx] = Math.min(10, newDiseaseMap[ny][nx] + db.spreadAmount);
                 }
               }
             }
           }
 
-          // 病院による治癒（近い病院だけチェック）
+          // 病院による治癒（近い病院だけチェック、searchRadius はチェビシェフ距離）
           let diseaseHealed = false;
-          for (let yy = -10; yy <= 10; yy++) {
+          for (let yy = -db.searchRadius; yy <= db.searchRadius; yy++) {
             if (diseaseHealed) break;
-            for (let xx = -10; xx <= 10; xx++) {
+            for (let xx = -db.searchRadius; xx <= db.searchRadius; xx++) {
               const nx = x + xx;
               const ny = y + yy;
               if (nx >= 0 && ny >= 0 && nx < this.gridSize && ny < this.gridSize) {
                 if (this.state.map[ny][nx] === TileType.HOSPITAL) {
-                  if (Math.random() < 0.7) diseaseHealed = true;
+                  if (this.rng() < db.healSuccessRate) diseaseHealed = true;
                   break;
                 }
               }
             }
           }
 
+          // Step6: 病気が最大(outbreakThreshold)まで蔓延したらゾーンを1段階降格して損失を
+          // 永続化する。判定は減衰前の値で行う（減衰後は必ず閾値未満になり発火不能だった＝
+          // 旧実装の人口減は no-op かつ到達不能の二重死だった）。降格ならマップ自体が変わるので
+          // calculatePopulation() に正しく反映される。
+          const outbreak = newDiseaseMap[y][x] >= db.outbreakThreshold;
+
           if (diseaseHealed) {
-            newDiseaseMap[y][x] = Math.max(0, newDiseaseMap[y][x] - 3);
+            newDiseaseMap[y][x] = Math.max(0, newDiseaseMap[y][x] - db.healAmount);
           } else {
-            newDiseaseMap[y][x] = Math.max(0, newDiseaseMap[y][x] - 1);
+            newDiseaseMap[y][x] = Math.max(0, newDiseaseMap[y][x] - db.decayAmount);
           }
 
-          // 病気が蔓延したら人口減少
-          if (newDiseaseMap[y][x] >= 10) {
-            const popLoss = POPULATION_TABLE[this.state.map[y][x]] || 0;
-            this.state.population = Math.max(0, this.state.population - popLoss);
-            this.state.money -= 500;
+          if (outbreak) {
+            this.downgradeZoneTile(x, y);
+            newDiseaseMap[y][x] = 0; // 降格に伴い病気をリセット
+            this.disasterDamage += DISASTER_BALANCE.disasterDamageCost;
           }
         }
       }

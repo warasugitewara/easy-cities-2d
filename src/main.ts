@@ -3,14 +3,32 @@ import { GameEngine, GameSettings } from "./engine";
 import { Renderer } from "./renderer";
 import { StorageManager } from "./storage";
 import { UIManager } from "./ui";
-import { setMapSize, getCanvasSize, getTileSize, GAME_VERSION } from "./constants";
+import {
+  setMapSize,
+  getCanvasSize,
+  getTileSize,
+  GAME_VERSION,
+  MapSize,
+  TileType,
+  BUILD_COSTS,
+  BUILDING_SIZES,
+} from "./constants";
+import { computeSteps, SIM_TICK_MS } from "./gameloop";
+import { showToast } from "./toast";
+
+// 保存済みテーマを最初に適用（描画前に設定してテーマのちらつきを防ぐ）。既定はダーク。
+(() => {
+  let saved: string | null = null;
+  try {
+    saved = localStorage.getItem("easy-cities-2d-theme");
+  } catch {
+    /* localStorage 不可でも既定テーマで動作させる */
+  }
+  document.documentElement.setAttribute("data-theme", saved === "light" ? "light" : "dark");
+})();
 
 // ページタイトルを動的に更新
 document.title = `Easy Cities 2D (ver.${GAME_VERSION})`;
-const titleElement = document.getElementById("app-title");
-if (titleElement) {
-  titleElement.textContent = `Easy Cities 2D (ver.${GAME_VERSION})`;
-}
 
 console.log(`🎮 Easy Cities 2D (ver.${GAME_VERSION}) - Initializing...`);
 
@@ -22,39 +40,86 @@ if (!canvas) {
 
 console.log("✅ Canvas found:", canvas);
 
+/** チェックボックス1個分のトグルスイッチ行 (`.toggle-row` + `.switch`) の HTML を生成する。
+ *  ui.ts の UIManager#toggleRowHTML と同等の見た目（独立モジュールのため小規模に複製）。 */
+function toggleRowHTML(id: string, label: string): string {
+  return `
+    <label class="toggle-row" for="${id}">
+      <span class="toggle-row-label">${label}</span>
+      <span class="switch">
+        <input type="checkbox" id="${id}">
+        <span class="switch-track" aria-hidden="true"></span>
+      </span>
+    </label>`;
+}
+
+/** カード型ラジオボタン群（`name` で束ねる）1グループ分の HTML を生成する。 */
+function optionCardsHTML(
+  name: string,
+  groupLabel: string,
+  options: { value: string; title: string; sub: string; checked?: boolean }[],
+): string {
+  const cards = options
+    .map(
+      ({ value, title, sub, checked }) => `
+      <label class="option-card${checked ? " selected" : ""}">
+        <input type="radio" name="${name}" value="${value}" ${checked ? "checked" : ""}>
+        <span class="option-card-title">${title}</span>
+        <span class="option-card-sub">${sub}</span>
+      </label>`,
+    )
+    .join("");
+  return `<div class="option-cards" role="radiogroup" aria-label="${groupLabel}">${cards}</div>`;
+}
+
+/** ラジオカード群の選択状態に応じて `.selected` クラスを追従させる。 */
+function bindOptionCardGroup(root: HTMLElement, name: string): void {
+  const inputs = Array.from(root.querySelectorAll<HTMLInputElement>(`input[name="${name}"]`));
+  inputs.forEach((input) => {
+    input.addEventListener("change", () => {
+      inputs.forEach((i) => i.closest(".option-card")?.classList.toggle("selected", i.checked));
+    });
+  });
+}
+
 // ゲーム開始前の設定画面
 function showInitialSettings(): Promise<GameSettings> {
   return new Promise((resolve) => {
     const modal = document.createElement("div");
     modal.className = "modal";
-    modal.style.zIndex = "10000";
     modal.innerHTML = `
-      <div class="modal-content" style="min-width: min(450px, 90vw);">
-        <h2>🎮 Easy Cities 2D (ver.${GAME_VERSION})</h2>
-        <p>ゲーム設定を選択してください</p>
-        
-        <div style="margin: 20px 0;">
-          <h3>マップサイズ</h3>
-          <label><input type="radio" name="mapsize" value="small"> 小（512x512） - 64x64グリッド</label><br>
-          <label><input type="radio" name="mapsize" value="medium" checked> 中（1024x1024） - 128x128グリッド</label><br>
-          <label><input type="radio" name="mapsize" value="large"> 大（2048x2048） - 256x256グリッド</label>
+      <div class="modal-content modal-content-wide">
+        <h2 id="modal-title-init-settings">🎮 Easy Cities 2D (ver.${GAME_VERSION})</h2>
+        <p class="modal-lead">ゲーム設定を選択してください</p>
+
+        <div class="modal-section">
+          <h3 class="modal-section-title">マップサイズ</h3>
+          ${optionCardsHTML("mapsize", "マップサイズ", [
+            { value: "small", title: "小", sub: "512×512<br>64×64グリッド" },
+            { value: "medium", title: "中", sub: "1024×1024<br>128×128グリッド", checked: true },
+            { value: "large", title: "大", sub: "2048×2048<br>256×256グリッド" },
+          ])}
         </div>
-        
-        <div style="margin: 20px 0;">
-          <h3>難易度</h3>
-          <label><input type="radio" name="difficulty" value="easy" checked> イージー（資金多）</label><br>
-          <label><input type="radio" name="difficulty" value="normal"> ノーマル</label><br>
-          <label><input type="radio" name="difficulty" value="hard"> ハード（資金少）</label>
+
+        <div class="modal-section">
+          <h3 class="modal-section-title">難易度</h3>
+          ${optionCardsHTML("difficulty", "難易度", [
+            { value: "easy", title: "イージー", sub: "資金多め", checked: true },
+            { value: "normal", title: "ノーマル", sub: "標準" },
+            { value: "hard", title: "ハード", sub: "資金少なめ" },
+          ])}
         </div>
-        
-        <div style="margin: 20px 0;">
-          <h3>ゲームシステム</h3>
-          <label><input type="checkbox" id="init-sandbox"> 🎮 サンドボックスモード（資金∞）</label><br>
-          <label><input type="checkbox" id="init-disasters"> 災害システムを有効にする</label><br>
-          <label><input type="checkbox" id="init-pollution"> 公害システムを有効にする</label><br>
-          <label><input type="checkbox" id="init-slum"> スラム化システムを有効にする</label>
+
+        <div class="modal-section">
+          <h3 class="modal-section-title">ゲームシステム</h3>
+          <div class="settings-group">
+            ${toggleRowHTML("init-sandbox", "🎮 サンドボックスモード（資金∞）")}
+            ${toggleRowHTML("init-disasters", "災害システムを有効にする")}
+            ${toggleRowHTML("init-pollution", "公害システムを有効にする")}
+            ${toggleRowHTML("init-slum", "スラム化システムを有効にする")}
+          </div>
         </div>
-        
+
         <div class="modal-buttons">
           <button id="btn-start-game" class="btn-primary">ゲーム開始</button>
         </div>
@@ -62,27 +127,82 @@ function showInitialSettings(): Promise<GameSettings> {
     `;
 
     document.body.appendChild(modal);
+    const content = modal.querySelector<HTMLElement>(".modal-content");
+    if (!content) {
+      // content が取得できない異常系でも既定設定でゲームを開始できるようにする
+      modal.remove();
+      resolve({
+        mapSize: "medium",
+        difficulty: "normal",
+        sandbox: false,
+        disastersEnabled: false,
+        pollutionEnabled: false,
+        slumEnabled: false,
+      });
+      return;
+    }
 
-    document.getElementById("btn-start-game")?.addEventListener("click", () => {
+    bindOptionCardGroup(content, "mapsize");
+    bindOptionCardGroup(content, "difficulty");
+
+    const focusable = (): HTMLElement[] =>
+      Array.from(
+        content.querySelectorAll<HTMLElement>(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+        ),
+      ).filter((el) => !el.hasAttribute("disabled"));
+    focusable()[0]?.focus();
+
+    // このモーダルは「キャンセルして元の状態に戻る」先が存在しないため、
+    // Esc / 背景クリックは「ゲーム開始」ボタンと同じ確定操作として扱う
+    // （設定を破棄して閉じるだけの動作にはしない）。
+    const start = (): void => {
       const mapSize =
-        (document.querySelector('input[name="mapsize"]:checked') as HTMLInputElement)?.value ||
-        "medium";
+        content.querySelector<HTMLInputElement>('input[name="mapsize"]:checked')?.value || "medium";
       const difficulty =
-        (document.querySelector('input[name="difficulty"]:checked') as HTMLInputElement)?.value ||
+        content.querySelector<HTMLInputElement>('input[name="difficulty"]:checked')?.value ||
         "normal";
       const settings: GameSettings = {
-        mapSize: mapSize as any,
-        difficulty: difficulty as any,
-        sandbox: (document.getElementById("init-sandbox") as HTMLInputElement)?.checked || false,
+        mapSize: mapSize as MapSize,
+        difficulty: difficulty as GameSettings["difficulty"],
+        sandbox: content.querySelector<HTMLInputElement>("#init-sandbox")?.checked || false,
         disastersEnabled:
-          (document.getElementById("init-disasters") as HTMLInputElement)?.checked || false,
+          content.querySelector<HTMLInputElement>("#init-disasters")?.checked || false,
         pollutionEnabled:
-          (document.getElementById("init-pollution") as HTMLInputElement)?.checked || false,
-        slumEnabled: (document.getElementById("init-slum") as HTMLInputElement)?.checked || false,
+          content.querySelector<HTMLInputElement>("#init-pollution")?.checked || false,
+        slumEnabled: content.querySelector<HTMLInputElement>("#init-slum")?.checked || false,
       };
       modal.remove();
       resolve(settings);
+    };
+
+    modal.setAttribute("role", "dialog");
+    modal.setAttribute("aria-modal", "true");
+    modal.setAttribute("aria-labelledby", "modal-title-init-settings");
+    modal.addEventListener("keydown", (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        start();
+        return;
+      }
+      if (e.key !== "Tab") return;
+      const items = focusable();
+      if (items.length === 0) return;
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
     });
+    modal.addEventListener("click", (e) => {
+      if (e.target === modal) start();
+    });
+
+    document.getElementById("btn-start-game")?.addEventListener("click", start);
   });
 }
 
@@ -146,6 +266,18 @@ async function initializeGame(): Promise<void> {
     console.log("✅ Game engine initialized with settings:", settings);
 
     let monthCounter = 0;
+
+    // 固定タイムステップ（フレームレート非依存化）用の状態
+    // - accumulator: 未消化の経過時間（ミリ秒）を貯めるバッファ
+    // - lastTime: 前回 gameLoop が呼ばれた時刻（performance.now()基準）
+    // - MAX_STEPS: 1フレームあたりに追いつくために進めるステップ数の上限
+    //   （タブ非アクティブからの復帰など巨大なギャップでも処理が無限に溜まらないようにする）
+    // - MAX_FRAME_TIME_MS: frameTime自体の上限クランプ（巨大ギャップを丸ごと吸収しない）
+    let accumulator = 0;
+    let lastTime = 0;
+    const MAX_STEPS = 5;
+    const MAX_FRAME_TIME_MS = 250;
+
     let isMouseDown = false;
     let isDragging = false;
     let dragStartX = 0;
@@ -164,28 +296,54 @@ async function initializeGame(): Promise<void> {
     let devLastFrameTime = 0;
     let devLastLogTime = 0;
 
-    // ゲームループ
-    function gameLoop(): void {
+    // シミュレーションを1ステップ分進める（従来の「1フレーム分」の処理と同一）
+    function runSimulationStep(): void {
+      // 成長処理
+      engine.grow();
+
+      // 月次更新（ゲーム速度に応じたステップカウント）
+      // gameSpeed: 0.5 = 遅い（40ステップ）、1 = 通常（20ステップ）、2 = 高速（10ステップ）
+      const updateInterval = Math.max(1, Math.round(20 / engine.state.gameSpeed));
+      monthCounter++;
+      if (monthCounter >= updateInterval) {
+        engine.monthlyUpdate();
+        monthCounter = 0;
+      }
+    }
+
+    // ゲームループ（固定タイムステップ）
+    // requestAnimationFrame の呼び出し頻度（＝モニタのリフレッシュレート）に依存せず、
+    // SIM_TICK_MS（1000/60ms）刻みでシミュレーションを進めることで、
+    // 60fps環境と挙動を一致させつつ120Hz/144Hz環境での加速・低フレームレート環境での減速を防ぐ。
+    function gameLoop(now: number = performance.now()): void {
       try {
         const __frameNow = import.meta.env.DEV ? performance.now() : 0;
 
+        if (lastTime === 0) {
+          lastTime = now;
+        }
+        const rawFrameTime = now - lastTime;
+        lastTime = now;
+
         // ポーズ状態でない場合のみ成長処理
         if (!engine.state.paused && engine.state.gameSpeed > 0) {
-          // 成長処理（毎フレーム）
-          engine.grow();
+          // タブ非アクティブからの復帰などによる巨大なギャップをクランプしてから
+          // 固定刻みのステップ数を計算する
+          const frameTime = Math.min(rawFrameTime, MAX_FRAME_TIME_MS);
+          const plan = computeSteps(accumulator, frameTime, SIM_TICK_MS, MAX_STEPS);
+          accumulator = plan.accumulator;
 
-          // 月次更新（ゲーム速度に応じたフレームカウント）
-          // gameSpeed: 0.5 = 遅い（40フレーム）、1 = 通常（20フレーム）、2 = 高速（10フレーム）
-          const updateInterval = Math.max(1, Math.round(20 / engine.state.gameSpeed));
-          monthCounter++;
-          if (monthCounter >= updateInterval) {
-            engine.monthlyUpdate();
-            monthCounter = 0;
+          for (let i = 0; i < plan.steps; i++) {
+            runSimulationStep();
           }
+        } else {
+          // ポーズ中はaccumulatorを溜め込まない
+          // （溜め込むと再開直後に一気にシミュレーションが進んでしまうため）
+          accumulator = 0;
         }
-        // ポーズ中はカウンターはそのまま保持
+        // ポーズ中でも月次カウンター(monthCounter)はそのまま保持する（従来挙動と同様）
 
-        // 描画
+        // 描画（ポーズ中でも毎フレーム実行）
         renderer.draw();
 
         // UI更新
@@ -207,7 +365,6 @@ async function initializeGame(): Promise<void> {
             devLastLogTime = __frameNow;
           }
         }
-
       } catch (e) {
         console.error("❌ Game loop error:", e);
       } finally {
@@ -276,6 +433,121 @@ async function initializeGame(): Promise<void> {
       } catch (e) {
         console.error("❌ Build error:", e);
       }
+    }
+
+    // 現在の buildMode/selectedInfrastructure/selectedLandmark から、設置予定の TileType を導出する
+    // （engine.build() 内の switch と同じ対応関係。engine 側は手を入れず main 側で読むだけ）。
+    // "demolish" は削除対象であり新規設置タイルが無いため null を返す。
+    function getPlannedTileType(): TileType | null {
+      switch (engine.state.buildMode) {
+        case "road":
+          return TileType.ROAD;
+        case "residential":
+          return TileType.RESIDENTIAL_L1;
+        case "commercial":
+          return TileType.COMMERCIAL_L1;
+        case "industrial":
+          return TileType.INDUSTRIAL_L1;
+        case "infrastructure":
+          switch (engine.state.selectedInfrastructure) {
+            case "station":
+              return TileType.STATION;
+            case "park":
+              return TileType.PARK;
+            case "police":
+              return TileType.POLICE;
+            case "fire_station":
+              return TileType.FIRE_STATION;
+            case "hospital":
+              return TileType.HOSPITAL;
+            case "school":
+              return TileType.SCHOOL;
+            case "power_plant":
+              return TileType.POWER_PLANT;
+            case "water_treatment":
+              return TileType.WATER_TREATMENT;
+            default:
+              return TileType.STATION;
+          }
+        case "landmark":
+          switch (engine.state.selectedLandmark) {
+            case "stadium":
+              return TileType.LANDMARK_STADIUM;
+            case "airport":
+              return TileType.LANDMARK_AIRPORT;
+            default:
+              return TileType.LANDMARK_STADIUM;
+          }
+        default:
+          return null;
+      }
+    }
+
+    // 設置予定の建設コストを engine.getCost() と同じ対応関係で算出する（BUILD_COSTS を直接参照）。
+    function getPlannedCost(): number {
+      const mode = engine.state.buildMode;
+      if (mode === "infrastructure") {
+        return BUILD_COSTS[engine.state.selectedInfrastructure] ?? 0;
+      } else if (mode === "landmark") {
+        return BUILD_COSTS[`landmark_${engine.state.selectedLandmark}`] ?? 0;
+      }
+      return BUILD_COSTS[mode] ?? 0;
+    }
+
+    // 設置予定タイルのフットプリントが「範囲内 かつ 全マス空き地 かつ 資金が足りる
+    // （サンドボックス時は常にtrue）」であればホバープレビューを有効（緑）とする。
+    function computeHoverValidity(tileType: TileType, x: number, y: number): boolean {
+      const size = BUILDING_SIZES[tileType] || { width: 1, height: 1 };
+      const gridSize = engine.state.gridSize;
+      if (x < 0 || y < 0 || x + size.width > gridSize || y + size.height > gridSize) return false;
+
+      for (let dy = 0; dy < size.height; dy++) {
+        for (let dx = 0; dx < size.width; dx++) {
+          if (engine.state.map[y + dy][x + dx] !== TileType.EMPTY) return false;
+        }
+      }
+
+      if (!engine.state.settings.sandbox && engine.state.money < getPlannedCost()) return false;
+
+      return true;
+    }
+
+    // canvas の CSS カーソルを buildMode に応じて更新する（削除モード中は crosshair）。
+    function updateCursor(): void {
+      canvas.style.cursor = engine.state.buildMode === "demolish" ? "crosshair" : "";
+    }
+
+    // マウスホバー中のタイル座標を算出し、renderer に建設ゴーストプレビュー用の状態を反映する。
+    // buildAtMouse と同じ変換（CSS→canvas→world、タイル中心オフセット +tileSize*0.5）を使う。
+    function updateHoverPreview(clientX: number, clientY: number): void {
+      updateCursor();
+
+      const rect = canvas.getBoundingClientRect();
+      const { scaleX, scaleY } = getCanvasScale();
+      const screenX = (clientX - rect.left) * scaleX;
+      const screenY = (clientY - rect.top) * scaleY;
+
+      const worldCoords = renderer.screenToWorld(screenX, screenY);
+      const tileSize = getTileSize();
+      const x = Math.floor((worldCoords.x + tileSize * 0.5) / tileSize);
+      const y = Math.floor((worldCoords.y + tileSize * 0.5) / tileSize);
+
+      renderer.hoverTile = { x, y };
+
+      if (engine.state.buildMode === "demolish") {
+        renderer.hoverSize = { width: 1, height: 1 };
+        renderer.hoverValid = false;
+        return;
+      }
+
+      const tileType = getPlannedTileType();
+      if (tileType === null) {
+        renderer.hoverTile = null;
+        return;
+      }
+
+      renderer.hoverSize = BUILDING_SIZES[tileType] || { width: 1, height: 1 };
+      renderer.hoverValid = computeHoverValidity(tileType, x, y);
     }
 
     // ポインターダウン処理（マウス用）
@@ -359,6 +631,7 @@ async function initializeGame(): Promise<void> {
     canvas.addEventListener("mousemove", (e) => {
       const coords = getClientCoordinates(e);
       handlePointerMove(coords.clientX, coords.clientY);
+      updateHoverPreview(coords.clientX, coords.clientY);
       e.preventDefault();
     });
 
@@ -368,6 +641,7 @@ async function initializeGame(): Promise<void> {
 
     canvas.addEventListener("mouseleave", () => {
       handlePointerUp();
+      renderer.hoverTile = null;
     });
 
     // タッチイベント（モバイル専用・全面改修）
@@ -393,6 +667,8 @@ async function initializeGame(): Promise<void> {
       "touchstart",
       (e) => {
         e.preventDefault();
+        // タッチ操作中はゴーストプレビューを表示しない
+        renderer.hoverTile = null;
 
         if (e.touches.length === 1) {
           // 1本指: 建設モード開始
@@ -424,6 +700,8 @@ async function initializeGame(): Promise<void> {
       "touchmove",
       (e) => {
         e.preventDefault();
+        // タッチ操作中はゴーストプレビューを表示しない
+        renderer.hoverTile = null;
 
         if (touchMode === "building" && e.touches.length === 1) {
           // 1本指ドラッグ: Bresenhamで連続建設
@@ -550,25 +828,52 @@ async function initializeGame(): Promise<void> {
     );
 
     // キーボード操作
+    // R/S/C/I/U/D=カテゴリ切替、Space=一時停止トグル、1/2/3=速度切替。
+    // モーダルの入力欄等にフォーカスがある時はショートカットを無効化する。
     document.addEventListener("keydown", (e) => {
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName;
+      const isTypingTarget =
+        target?.isContentEditable || tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
+      if (isTypingTarget) return;
+
       switch (e.key.toLowerCase()) {
         case "r":
-          engine.state.buildMode = "road";
+          uiManager.selectCategory("road");
+          updateCursor();
           break;
         case "s":
-          engine.state.buildMode = "residential";
+          uiManager.selectCategory("residential");
+          updateCursor();
           break;
         case "c":
-          engine.state.buildMode = "commercial";
+          uiManager.selectCategory("commercial");
+          updateCursor();
           break;
         case "i":
-          engine.state.buildMode = "industrial";
+          uiManager.selectCategory("industrial");
+          updateCursor();
           break;
         case "u":
-          engine.state.buildMode = "infrastructure";
+          uiManager.selectCategory("infrastructure");
+          updateCursor();
           break;
         case "d":
-          engine.state.buildMode = "demolish";
+          uiManager.selectCategory("demolish");
+          updateCursor();
+          break;
+        case " ":
+          e.preventDefault();
+          uiManager.setSpeed(engine.state.gameSpeed === 0 ? 1 : 0);
+          break;
+        case "1":
+          uiManager.setSpeed(0.5);
+          break;
+        case "2":
+          uiManager.setSpeed(1);
+          break;
+        case "3":
+          uiManager.setSpeed(2);
           break;
       }
     });
@@ -583,7 +888,7 @@ async function initializeGame(): Promise<void> {
     gameLoop();
   } catch (e) {
     console.error("❌ Initialization error:", e);
-    alert("ゲームの初期化に失敗しました。ブラウザのコンソールを確認してください。");
+    showToast("ゲームの初期化に失敗しました。ブラウザのコンソールを確認してください。", "error");
   }
 }
 

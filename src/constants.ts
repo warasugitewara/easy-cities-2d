@@ -1,5 +1,5 @@
 // ゲーム定数
-export const GAME_VERSION = "1.1.0";
+export const GAME_VERSION = "2.0.0";
 
 export type MapSize = "small" | "medium" | "large";
 
@@ -94,10 +94,13 @@ export const BUILDING_SIZES: Record<number, { width: number; height: number }> =
   [TileType.PARK]: { width: 2, height: 2 },
   [TileType.POLICE]: { width: 2, height: 2 },
   [TileType.FIRE_STATION]: { width: 2, height: 2 },
-  [TileType.HOSPITAL]: { width: 3, height: 3 },
-  [TileType.SCHOOL]: { width: 3, height: 3 },
-  [TileType.POWER_PLANT]: { width: 4, height: 4 },
-  [TileType.WATER_TREATMENT]: { width: 3, height: 3 },
+  [TileType.HOSPITAL]: { width: 2, height: 2 },
+  [TileType.SCHOOL]: { width: 2, height: 2 },
+  // POWER_PLANT/WATER_TREATMENT は 1x1（README仕様）。既定値と同じ {1,1} だが、
+  // demolish() の複数マス判定 `if (BUILDING_SIZES[tileType])` が存在有無で分岐するため、
+  // 削除せず明示的に残す（存在すれば単一マスの通常削除経路にも安全に乗る）。
+  [TileType.POWER_PLANT]: { width: 1, height: 1 },
+  [TileType.WATER_TREATMENT]: { width: 1, height: 1 },
 };
 
 // インフラごとの色定義
@@ -153,36 +156,42 @@ export const BUILD_COSTS: Record<string, number> = {
 };
 
 // 月額維持費
+// Step1リバランス: monthlyUpdate() は countBuildings() で算出した「建物単位」の棟数に
+// 各値を掛けて月1回計上する（多マス建物のタイル数分の水増し課金を解消）。
+// そのため、多マス建物（駅・公園・警察・消防・病院・学校・ランドマーク）の値は
+// タイル単位ではなく「1棟あたり月額」として以下に再チューニングした。
 export const MAINTENANCE_COSTS: Record<number, number> = {
   [TileType.ROAD]: 10,
-  [TileType.STATION]: 100,
-  [TileType.PARK]: 5,
-  [TileType.POLICE]: 300, // 200 → 300
-  [TileType.FIRE_STATION]: 280, // 180 → 280
-  [TileType.HOSPITAL]: 400, // 250 → 400
-  [TileType.SCHOOL]: 250, // 150 → 250
-  [TileType.POWER_PLANT]: 600, // 400 → 600
-  [TileType.WATER_TREATMENT]: 500, // 300 → 500
-  [TileType.LANDMARK_STADIUM]: 2000, // 1000 → 2000
-  [TileType.LANDMARK_AIRPORT]: 4000, // 2000 → 4000
+  [TileType.STATION]: 300, // 100 → 300（建物単位換算に伴い再チューニング）
+  [TileType.PARK]: 20, // 5 → 20（建物単位換算に伴い再チューニング）
+  [TileType.POLICE]: 800, // 300 → 800（建物単位換算に伴い再チューニング）
+  [TileType.FIRE_STATION]: 700, // 280 → 700（建物単位換算に伴い再チューニング）
+  [TileType.HOSPITAL]: 1000, // 400 → 1000（建物単位換算に伴い再チューニング）
+  [TileType.SCHOOL]: 600, // 250 → 600（建物単位換算に伴い再チューニング）
+  [TileType.POWER_PLANT]: 600,
+  [TileType.WATER_TREATMENT]: 500,
+  [TileType.LANDMARK_STADIUM]: 3000, // 2000 → 3000（建物単位換算に伴い再チューニング）
+  [TileType.LANDMARK_AIRPORT]: 6000, // 4000 → 6000（建物単位換算に伴い再チューニング）
 };
 
 // 月額税収
+// Step1リバランス: monthlyUpdate() は countBuildings() で算出した「建物単位」の棟数に
+// 各値を掛けて月1回計上する（多マス建物のタイル数分の水増し課税を解消）。
 export const TAX_REVENUE: Record<number, number> = {
-  [TileType.RESIDENTIAL_L1]: 20,
-  [TileType.RESIDENTIAL_L2]: 60,
-  [TileType.RESIDENTIAL_L3]: 150,
-  [TileType.RESIDENTIAL_L4]: 300,
-  [TileType.COMMERCIAL_L1]: 30,
-  [TileType.COMMERCIAL_L2]: 90,
-  [TileType.COMMERCIAL_L3]: 200,
-  [TileType.COMMERCIAL_L4]: 400,
-  [TileType.INDUSTRIAL_L1]: 25,
-  [TileType.INDUSTRIAL_L2]: 75,
-  [TileType.INDUSTRIAL_L3]: 180,
-  [TileType.INDUSTRIAL_L4]: 350,
-  [TileType.LANDMARK_STADIUM]: 100, // 5000 → 100（月額基本料）
-  [TileType.LANDMARK_AIRPORT]: 200, // 10000 → 200（月額基本料）
+  [TileType.RESIDENTIAL_L1]: 30, // 20 → 30
+  [TileType.RESIDENTIAL_L2]: 90, // 60 → 90
+  [TileType.RESIDENTIAL_L3]: 220, // 150 → 220
+  [TileType.RESIDENTIAL_L4]: 450, // 300 → 450
+  [TileType.COMMERCIAL_L1]: 45, // 30 → 45
+  [TileType.COMMERCIAL_L2]: 130, // 90 → 130
+  [TileType.COMMERCIAL_L3]: 300, // 200 → 300
+  [TileType.COMMERCIAL_L4]: 600, // 400 → 600
+  [TileType.INDUSTRIAL_L1]: 40, // 25 → 40
+  [TileType.INDUSTRIAL_L2]: 110, // 75 → 110
+  [TileType.INDUSTRIAL_L3]: 270, // 180 → 270
+  [TileType.INDUSTRIAL_L4]: 520, // 350 → 520
+  [TileType.LANDMARK_STADIUM]: 500, // 100 → 500（建物単位換算に伴い再チューニング）
+  [TileType.LANDMARK_AIRPORT]: 1000, // 200 → 1000（建物単位換算に伴い再チューニング）
 };
 
 // ==================== インフラ効果定数 ====================
@@ -197,7 +206,8 @@ export const INFRASTRUCTURE_EFFECTS = {
   fire_station: {
     rangeRadius: 30,
     safetyBoost: 5, // 年間安全度向上
-    fireSuppressionRate: 0.75, // 火災発生確率低下率（75%低下）
+    // fireSuppressionRate(0.75) は実装未参照かつ実際の消火成功率(DISASTER_BALANCE.fire.
+    // extinguishSuccessRate=0.9)と食い違っていたため Step2 で削除（実装が正）。
   },
   school: {
     rangeRadius: 25,
@@ -207,7 +217,8 @@ export const INFRASTRUCTURE_EFFECTS = {
   hospital: {
     rangeRadius: 25,
     medicalBoost: 4, // 年間医療度向上
-    diseaseReductionRate: 0.6, // 病気発生確率低下率（60%低下）
+    // diseaseReductionRate(0.6) は実装未参照かつ実際の治癒成功率(DISASTER_BALANCE.disease.
+    // healSuccessRate=0.7)と食い違っていたため Step2 で削除（実装が正）。
   },
   power_plant: {
     rangeRadius: 20,
@@ -219,8 +230,11 @@ export const INFRASTRUCTURE_EFFECTS = {
     diseaseMultiplier: 3, // 給水なし時の病気発生倍率
   },
   station: {
-    rangeRadius: 20,
-    growthBoost: 1.5, // 周辺成長速度倍率
+    // 実装（engine.ts の ensureBoostMap()）は ±4 のチェビシェフ距離（正方形範囲）で
+    // 判定しており、この rangeRadius:20 とは食い違っていたため、Step2で実装値(4)を正とし
+    // growthRadius として定義し直した（挙動は変更せず、実装値をそのまま定数化）。
+    growthRadius: 4, // 駅の成長ブースト範囲（チェビシェフ距離）
+    growthMultiplier: 1.5, // 周辺成長速度倍率
   },
   park: {
     rangeRadius: 15,
@@ -228,29 +242,76 @@ export const INFRASTRUCTURE_EFFECTS = {
   },
 };
 
+// ==================== 災害バランス定数 ====================
+// Step2リバランス: engine.ts の updateFires()/updateDiseases() に散在していた魔法数を
+// 現行の実装値のまま定数化したもの（挙動は不変）。searchRadius/spreadRadius は
+// チェビシェフ距離（正方形の判定範囲、±N のネスト for ループ）で計測している。
+export const DISASTER_BALANCE = {
+  fire: {
+    baseChance: 0.0002, // updateFires の発生率係数（現行値）
+    spreadChance: 0.01, // 隣接波及確率（現行値）
+    searchRadius: 15, // 消防署探索範囲（チェビシェフ、現行 ±15）
+    extinguishSuccessRate: 0.9, // 消火成功率（現行 rng()<0.9 を採用）
+    extinguishAmount: 5, // 消火時の減少量（現行 -5）
+    decayAmount: 1, // 自然減衰（現行 -1）
+    igniteAmount: 2, // 発生時の加算（現行 +2）
+    spreadAmount: 1, // 波及時の加算（現行 +1）
+    destroyThreshold: 10, // 建物破壊閾値（現行 >=10）
+  },
+  disease: {
+    baseChance: 0.002, // Step6再調整: 蔓延がタイル降格で永続化するため発生率を抑制（旧0.01）
+    spreadChance: 0.05, // Step6再調整（旧0.2）
+    spreadRadius: 2, // Step6再調整（旧3）
+    searchRadius: 10, // 病院探索範囲（チェビシェフ、現行 ±10）
+    healSuccessRate: 0.7, // 治癒成功率（現行 rng()<0.7 を採用）
+    healAmount: 3, // 治癒時の減少量（現行 -3）
+    decayAmount: 1, // 自然減衰（現行 -1）
+    igniteAmount: 5, // 発生時の加算（現行 +5）
+    spreadAmount: 1, // 波及時の加算（現行 +1）
+    outbreakThreshold: 10, // 蔓延トリガ閾値（>=でゾーンを1段階降格）
+    noWaterMultiplier: 3, // 給水なしタイルで発生確率×3（README「病気3倍」を発生率として実装）
+  },
+  slum: {
+    baseChance: 0.15, // Step6再調整: 旧0.01では毎月の減衰-0.5に負けスラムが実質発生しなかった
+    decayAmount: 0.5, // 回復条件を満たす月のみ適用
+    recoveryPollutionMax: 20, // 局所汚染がこれ未満かつ治安十分ならスラム回復
+    recoverySecurityMin: 50,
+    downgradeThreshold: 8, // slumMap がこれを超えると住宅を1段階降格
+  },
+  disasterDamageCost: 500, // 火災/病気による被害費（現行 -500）
+};
+
 // ランドマーク効果
+// Step3リバランス: 観光度/国際化度は「棟数→目標値→平滑追従」モデルに変更した
+// （CITY_LEVEL_MODEL 参照）。tourismPerBuilding/internationalPerBuilding は
+// 1棟あたりの目標値への寄与量（旧 tourismBoost/internationalBoost の年間加算値とは別物）。
+// commercialBonusMin/Max/rangeRadius は Step7で扱うため変更せず残置。
+// Step7リバランス: ランドマークの商業ボーナスを「絶対額テーブル」から「倍率方式」に変更。
+// 圏内の商業タイル税収を倍率で押し上げる（半径は #5 に合わせマップ非依存性のため縮小）。
 export const LANDMARK_EFFECTS = {
   stadium: {
-    rangeRadius: 40,
-    tourismBoost: 5, // 年間観光度向上
-    commercialBonusMin: 500, // L1商業地観光収入
-    commercialBonusMax: 3000, // L4商業地観光収入
+    tourismPerBuilding: 40, // 観光度目標値への1棟あたり寄与
+    bonusRadius: 20, // 商業収入倍率の効果半径（マンハッタン。旧40→20に縮小）
+    bonusMultiplier: 1.5, // 圏内の商業タイル税収を ×1.5
   },
   airport: {
-    rangeRadius: 50,
-    tourismBoost: 3, // 年間観光度向上（スタジアムより少ない）
-    internationalBoost: 5, // 年間国際化度向上
-    commercialBonusMin: 1000, // L1商業地国際取引収入
-    commercialBonusMax: 5000, // L4商業地国際取引収入
+    tourismPerBuilding: 25, // 観光度目標値への1棟あたり寄与（スタジアムより少ない）
+    internationalPerBuilding: 50, // 国際化度目標値への1棟あたり寄与
+    bonusRadius: 30, // 旧50→30に縮小
+    bonusMultiplier: 1.8, // 圏内の商業タイル税収を ×1.8
   },
+  bothMultiplier: 2.0, // スタジアム・空港の両圏内なら ×2.0（上限）
+  tourismRevenueSlope: 0.005, // 観光度/国際化度→商業税収ボーナスの傾き（合計で最大+100%）
 };
 
 // シナジー効果
+// Step3リバランス: ペアごとの重複加算はしない「ブール型」（1組でも成立すれば加算）に変更。
+// 値は target（カバー率→目標レベル）への加算量として使う。
 export const SYNERGY_EFFECTS = {
   police_school: {
     distanceThreshold: 15, // 15マス以内でシナジー発生
-    securityBoost: 10,
-    educationBoost: 10,
+    securityBoost: 5,
+    educationBoost: 5,
   },
   school_hospital: {
     distanceThreshold: 15,
@@ -259,38 +320,87 @@ export const SYNERGY_EFFECTS = {
   },
   station_school_police: {
     distanceThreshold: 20,
-    commercialGrowthBonus: 0.2, // 商業成長+20%
+    commercialGrowthMult: 1.2, // 商業高層化確率の乗数
   },
+};
+
+// ==================== 都市レベルモデル（効果カバー率×平滑追従） ====================
+// Step3リバランス: 治安/安全/教育/医療/観光/国際化の各レベルは、旧来の「効果範囲内で
+// 加算し続けて上限に張り付く」モデルから、「必要数に対するカバー率(ratio)から目標値(target)
+// を算出し、毎月 target に向かって smoothing の割合だけ近づく」モデルに変更した。
+export const CITY_LEVEL_MODEL = {
+  baseLevel: 20, // 施設0個時の到達目標
+  fullLevel: 80, // 必要数ちょうど(ratio=1)の到達目標
+  overProvisionMax: 90, // ratio>=overProvisionRatio での上限
+  overProvisionRatio: 1.25,
+  smoothing: 0.25, // 毎月の目標追従率
+  synergyCap: 100, // シナジー加算後の上限
 };
 
 // ==================== 人口スケーリング ====================
 
 // 人口に対するインフラ必要数
+// Step1リバランス: 維持費が建物単位で計上されるようになったのに合わせ、
+// 必要棟数（＝維持費負担）が増えすぎないよう populationPerUnit を引き上げた。
 export const INFRASTRUCTURE_REQUIREMENTS = {
   police: {
-    populationPerUnit: 1000, // 1,000人ごとに警察署1個必要
+    populationPerUnit: 2500, // 1000 → 2500（2,500人ごとに警察署1個必要）
     base: 1, // 最低1個必要
   },
   fire_station: {
-    populationPerUnit: 1000,
+    populationPerUnit: 2500, // 1000 → 2500
     base: 1,
   },
   school: {
-    populationPerUnit: 1500,
+    populationPerUnit: 3000, // 1500 → 3000
     base: 1,
   },
   hospital: {
-    populationPerUnit: 1500,
+    populationPerUnit: 3000, // 1500 → 3000
     base: 1,
   },
   power_plant: {
-    populationPerUnit: 2000,
+    populationPerUnit: 4000, // 2000 → 4000
     base: 1,
   },
   water_treatment: {
-    populationPerUnit: 2000,
+    populationPerUnit: 4000, // 2000 → 4000
     base: 1,
   },
+};
+
+// ==================== 需要モデル・成長バランス ====================
+// Step4リバランス: calculateDemands() をマップ面積非依存の「雇用バランスモデル」に
+// 全面書き換え。POPULATION_TABLE を「住宅=居住人口／商業・工業=雇用数」として読み、
+// 住宅人口のうち employmentRate の割合が働き手(workers)、商業+工業の人口合計が
+// 求人数(jobs)であるとみなし、workers と jobs の需給比から各需要を算出する。
+export const DEMAND_MODEL = {
+  employmentRate: 0.5, // 就業率（住宅人口のうち労働者の割合）
+  neutralDemand: 50, // 均衡時（workers=jobs）の需要
+  bootstrapDemand: 75, // 人口も雇用も0のときの初期需要（何もない状態から発展を促す）
+  growthMultSlope: 0.006, // 需要→成長倍率の傾き
+  growthMultMin: 0.7,
+  growthMultMax: 1.3,
+  spawnResidentialWeight: 2, // 新規スポーン抽選での住宅重み係数（住宅を優遇し無限ループ的な停滞を防ぐ）
+};
+
+// grow() の基礎成長率・波及/高層化の倍率を定数化（旧: engine.ts 内のマジックナンバー）。
+export const GROWTH_BALANCE = {
+  baseRate: 0.02, // 基礎成長率（旧 growthRate 初期値）
+  spilloverFactor: 0.2, // 波及建設の倍率（旧 0.2）
+  upgradeFactor: 0.4, // 高層化の倍率（旧 0.4）
+};
+
+// 快適度モデル（calculateComfort が唯一の算出元。散在していた comfort *= は廃止）
+export const COMFORT_MODEL = {
+  weights: { green: 0.25, transport: 0.2, density: 0.2, fund: 0.1, service: 0.25 },
+  parkCoverRadius: 10, // 公園カバー判定（チェビシェフ距離）
+  stationCoverRadius: 8, // 駅カバー判定（チェビシェフ距離）
+  densityComfortCap: 0.6, // 平均密度 u がこれ以下なら密度スコア100
+  densitySlope: 250, // u が cap を超えた分に対する減点勾配
+  maxResidentsPerHouseTile: 500, // 住宅L4の人口=密度uの基準
+  pollutionPenaltyMax: 0.3, // 全汚染で最大 -30%
+  slumPenaltyMax: 0.4, // 全スラムで最大 -40%
 };
 
 // パラメータの初期値
