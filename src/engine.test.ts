@@ -8,7 +8,7 @@
 import { describe, expect, test, beforeEach } from "vite-plus/test";
 import { GameEngine, type GameSettings } from "./engine";
 import { mulberry32 } from "./rng";
-import { TileType, POPULATION_TABLE, SYNERGY_EFFECTS } from "./constants";
+import { TileType, POPULATION_TABLE, SYNERGY_EFFECTS, INFRASTRUCTURE_EFFECTS } from "./constants";
 
 // テストは高速化のため small マップ（64グリッド）を使用する。
 function makeSettings(overrides: Partial<GameSettings> = {}): GameSettings {
@@ -603,6 +603,45 @@ describe("Step6: 病気/スラムの永続化", () => {
     engine.monthlyUpdate();
 
     expect(engine.state.map[5][5]).toBe(TileType.EMPTY);
+  });
+});
+
+describe("駅ブースト lookup table（boostMap）のキャッシュ整合性", () => {
+  // 焼失した駅の成長ブーストが boostMap に残り続けないことを回帰テストする。
+  // build()/demolish() は駅の設置/撤去時に boostMap を無効化するが、火災による
+  // 駅焼失でも同様に無効化されなければ、消えた駅のブーストが grow() に残る。
+  test("火災で焼失した駅は boostMap から除去される", () => {
+    const engine = new GameEngine(
+      makeSettings({ sandbox: true, disastersEnabled: true }),
+      mulberry32(1),
+    );
+    engine.state.paused = false;
+    engine.state.gameSpeed = 1;
+
+    // 中央の初期駅から十分離れた位置（成長半径外）に駅を追加設置する。
+    const sx = 5;
+    const sy = 5;
+    engine.state.map[sy][sx] = TileType.STATION;
+    const gridSize = engine.state.gridSize;
+    const idx = sy * gridSize + sx;
+    const { growthMultiplier } = INFRASTRUCTURE_EFFECTS.station;
+
+    // grow() を1回呼び、追加した駅を含めて boostMap を構築させる。
+    // boostMap は private な派生キャッシュのため、white-box 検証として型キャストで参照する。
+    engine.grow();
+    const boostBefore = (engine as unknown as { boostMap: Float32Array | null }).boostMap;
+    expect(boostBefore?.[idx]).toBe(growthMultiplier);
+
+    // 火災で駅を焼失させる。fireMap は通常 0-10 にクランプされるが、破壊は減衰後 >=10 で
+    // 判定されるため、破壊経路を決定論的に踏ませる目的で減衰しても閾値に届く値を直接注入する。
+    engine.state.fireMap[sy][sx] = 11;
+    engine.monthlyUpdate();
+    expect(engine.state.map[sy][sx]).toBe(TileType.EMPTY);
+
+    // 焼失後に grow() を呼ぶと boostMap が再構築され、駅位置のブーストは消えている。
+    engine.grow();
+    const boostAfter = (engine as unknown as { boostMap: Float32Array | null }).boostMap;
+    expect(boostAfter?.[idx]).toBe(1.0);
   });
 });
 

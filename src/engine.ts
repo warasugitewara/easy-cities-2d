@@ -1539,6 +1539,12 @@ export class GameEngine {
 
           // 火災が蔓延したら建物を破壊
           if (newFireMap[y][x] >= fb.destroyThreshold) {
+            // 駅が焼失する場合は駅ブーストの lookup table を無効化する（build/demolish と
+            // 同様。ここで invalidate しないと、消えた駅の成長ブーストが boostMap に
+            // 残り続けてしまう）。
+            if (this.state.map[y][x] === TileType.STATION) {
+              this.boostMap = null;
+            }
             this.state.map[y][x] = TileType.EMPTY;
             // Step2リバランス: その場での money 減算をやめ、月次台帳に積算する
             // （monthlyUpdate() の収支適用時に一括反映されるため決定論的・追跡可能になる）。
