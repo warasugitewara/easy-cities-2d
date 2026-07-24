@@ -1151,13 +1151,15 @@ export class UIManager {
     content.querySelectorAll(".slot-btn").forEach((btn) => {
       btn.addEventListener("click", (e) => {
         const slot = parseInt((e.target as HTMLElement).dataset.slot || "0");
-        const state = this.storage.loadGame(slot);
+        const state = this.storage.loadGame(slot, this.engine.state.gridSize);
         if (state) {
           this.engine.state = state;
+          // powerGrid/waterGridは保存されない派生値のため、ロード直後に再計算する。
+          this.engine.updateInfrastructure();
           this.updateDisplay();
           showToast(`スロット ${slot + 1} からロードしました`, "success");
         } else {
-          showToast(`スロット ${slot + 1} にセーブデータがありません`, "error");
+          showToast("セーブデータを読み込めませんでした", "error");
         }
         close();
       });
@@ -1214,7 +1216,7 @@ export class UIManager {
   }
 
   private exportGame(): void {
-    const data = JSON.stringify(this.engine.state, null, 2);
+    const data = this.storage.exportToJSON(this.engine.state);
     const blob = new Blob([data], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -1234,13 +1236,20 @@ export class UIManager {
 
       const reader = new FileReader();
       reader.onload = (event) => {
-        try {
-          const data = JSON.parse(event.target?.result as string);
-          this.engine.state = data;
+        const jsonString = event.target?.result;
+        if (typeof jsonString !== "string") {
+          showToast("セーブデータを読み込めませんでした", "error");
+          return;
+        }
+        const state = this.storage.importFromJSON(jsonString, this.engine.state.gridSize);
+        if (state) {
+          this.engine.state = state;
+          // powerGrid/waterGridは保存されない派生値のため、インポート直後に再計算する。
+          this.engine.updateInfrastructure();
           this.updateDisplay();
           showToast("ゲームをインポートしました", "success");
-        } catch {
-          showToast("ファイルの読み込みに失敗しました", "error");
+        } else {
+          showToast("セーブデータを読み込めませんでした", "error");
         }
       };
       reader.readAsText(file);
