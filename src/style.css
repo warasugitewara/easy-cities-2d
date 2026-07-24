@@ -89,6 +89,51 @@
   --z-toast: 1000;
 }
 
+/* ==========================================================================
+   ライトテーマ（data-theme="light" で色トークンのみ上書き。既定はダーク）
+   盤面Canvasはダークのまま＝「明るいUIクロム＋ダーク盤面」構成。
+   明背景でのコントラストAAを確保するためアクセント/資金/成否色は濃いめに調整。
+   ========================================================================== */
+:root[data-theme="light"] {
+  --bg-0: #eef2f8;
+  --bg-1: #e2e8f2;
+  --surface-1: rgba(255, 255, 255, 0.72);
+  --surface-1-opaque: #ffffff;
+  --surface-2: rgba(15, 23, 42, 0.05);
+  --surface-3: rgba(15, 23, 42, 0.09);
+
+  --border-1: rgba(15, 23, 42, 0.12);
+  --border-2: rgba(15, 23, 42, 0.22);
+  --border-inner-hi: rgba(255, 255, 255, 0.7);
+
+  --text-1: #1e293b;
+  --text-2: #52607a;
+  --text-3: #8a94a6;
+  --text-on-accent: #ffffff;
+
+  --accent: #0284c7;
+  --accent-strong: #0369a1;
+  --accent-soft: rgba(2, 132, 199, 0.12);
+  --gold: #b45309;
+  --success: #059669;
+  --danger: #dc2626;
+  --info: #0284c7;
+  --success-soft: rgba(5, 150, 105, 0.12);
+  --danger-soft: rgba(220, 38, 38, 0.12);
+
+  --cat-road: #64748b;
+  --cat-residential: #2563eb;
+  --cat-commercial: #16a34a;
+  --cat-industrial: #d97706;
+  --cat-infrastructure: #9333ea;
+  --cat-landmark: #db2777;
+  --cat-demolish: #dc2626;
+
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.1);
+  --shadow-md: 0 4px 16px rgba(15, 23, 42, 0.1), 0 1px 3px rgba(15, 23, 42, 0.08);
+  --shadow-lg: 0 12px 40px rgba(15, 23, 42, 0.18), 0 2px 8px rgba(15, 23, 42, 0.1);
+}
+
 /* .glass レシピ（全パネル共通） */
 .glass {
   background:
@@ -154,7 +199,7 @@ button:active {
 }
 
 body {
-  background: radial-gradient(ellipse at 50% 0%, #121a30 0%, #0b1020 60%);
+  background: radial-gradient(ellipse at 50% 0%, var(--bg-1) 0%, var(--bg-0) 60%);
   color: var(--text-1);
   font-family: var(--font-ui);
   overflow: hidden;

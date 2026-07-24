@@ -258,6 +258,7 @@ export class UIManager {
     menuTab.dataset.tab = "menu";
     menuTab.innerHTML = `
       <div class="mobile-menu-buttons">
+        <button id="btn-theme-toggle-mobile" class="mobile-menu-btn">🌙 テーマ</button>
         <button id="btn-settings" class="mobile-menu-btn">⚙️ 設定</button>
         <button id="btn-save" class="mobile-menu-btn">💾 セーブ</button>
         <button id="btn-load" class="mobile-menu-btn">📂 ロード</button>
@@ -453,6 +454,7 @@ export class UIManager {
         <button id="btn-fast" class="time-btn" aria-pressed="false" title="2倍速 (3)">2x</button>
       </div>
       <div class="hud-right">
+        <button id="btn-theme-toggle" class="hud-menu-btn" aria-label="テーマ切り替え" title="テーマ切り替え">🌙</button>
         <button id="btn-toggle-gui" class="hud-menu-btn" aria-label="メニュー">⚙</button>
       </div>
     `;
@@ -768,7 +770,37 @@ export class UIManager {
     }
   }
 
+  /** 現在の data-theme に合わせてテーマ切替ボタンの表示を更新する。 */
+  private applyThemeIcon(): void {
+    const isLight = document.documentElement.getAttribute("data-theme") === "light";
+    const btn = document.getElementById("btn-theme-toggle");
+    if (btn) btn.textContent = isLight ? "☀️" : "🌙";
+    const mbtn = document.getElementById("btn-theme-toggle-mobile");
+    if (mbtn) mbtn.textContent = isLight ? "☀️ ライト" : "🌙 ダーク";
+  }
+
+  /** ライト/ダークテーマを切り替え、localStorage に記憶する。 */
+  private toggleTheme(): void {
+    const next = document.documentElement.getAttribute("data-theme") === "light" ? "dark" : "light";
+    document.documentElement.setAttribute("data-theme", next);
+    try {
+      localStorage.setItem("easy-cities-2d-theme", next);
+    } catch {
+      /* localStorage 不可の環境でも切替自体は機能させる */
+    }
+    this.applyThemeIcon();
+  }
+
   private attachEventListeners(): void {
+    // テーマ切り替え（ダーク/ライト）
+    document
+      .getElementById("btn-theme-toggle")
+      ?.addEventListener("click", () => this.toggleTheme());
+    document
+      .getElementById("btn-theme-toggle-mobile")
+      ?.addEventListener("click", () => this.toggleTheme());
+    this.applyThemeIcon();
+
     // ⚙メニュー（controls-panel）表示/非表示トグル
     document
       .getElementById("btn-toggle-gui")

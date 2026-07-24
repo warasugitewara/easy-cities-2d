@@ -6,6 +6,17 @@ import { UIManager } from "./ui";
 import { setMapSize, getCanvasSize, getTileSize, GAME_VERSION } from "./constants";
 import { computeSteps, SIM_TICK_MS } from "./gameloop";
 
+// 保存済みテーマを最初に適用（描画前に設定してテーマのちらつきを防ぐ）。既定はダーク。
+(() => {
+  let saved: string | null = null;
+  try {
+    saved = localStorage.getItem("easy-cities-2d-theme");
+  } catch {
+    /* localStorage 不可でも既定テーマで動作させる */
+  }
+  document.documentElement.setAttribute("data-theme", saved === "light" ? "light" : "dark");
+})();
+
 // ページタイトルを動的に更新
 document.title = `Easy Cities 2D (ver.${GAME_VERSION})`;
 
