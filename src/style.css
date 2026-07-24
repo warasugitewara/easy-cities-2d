@@ -1420,6 +1420,75 @@ body {
   color: var(--danger);
 }
 
+/* 連続削除トグル（削除ツールのサブパネル/モバイルオプション内・全幅） */
+.drag-demolish-toggle {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--surface-2);
+  border: 1px solid var(--border-1);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  color: var(--text-1);
+  font-size: var(--fs-sm);
+  user-select: none;
+}
+
+/* ネイティブ checkbox は視覚的に隠すがキーボードフォーカス可能に保つ */
+.drag-demolish-checkbox {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.drag-demolish-track {
+  position: relative;
+  flex-shrink: 0;
+  width: 38px;
+  height: 22px;
+  border-radius: var(--r-full);
+  background: var(--surface-3);
+  border: 1px solid var(--border-2);
+  transition: background var(--t-fast) var(--ease);
+}
+
+.drag-demolish-track::before {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--text-2);
+  transition:
+    transform var(--t-fast) var(--ease),
+    background var(--t-fast) var(--ease);
+}
+
+.drag-demolish-checkbox:checked + .drag-demolish-track {
+  background: var(--danger-soft);
+  border-color: var(--danger);
+}
+
+.drag-demolish-checkbox:checked + .drag-demolish-track::before {
+  transform: translateX(16px);
+  background: var(--danger);
+}
+
+.drag-demolish-checkbox:focus-visible + .drag-demolish-track {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.drag-demolish-text {
+  color: var(--text-2);
+}
+
 .build-card-swatch {
   flex-shrink: 0;
   width: 12px;

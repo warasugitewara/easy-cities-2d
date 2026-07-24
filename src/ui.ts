@@ -45,6 +45,9 @@ export class UIManager {
   private currentTab: BuildingCategory = "road";
   private selectedInfrastructure: string = "station";
   private selectedLandmark: string = "stadium";
+  // 連続削除トグル（削除ツール選択時のみ切替可能）。ON の間、main.ts のドラッグ経路が
+  // 削除にも Bresenham 連続適用される（既定 OFF＝1マスずつで誤爆防止）。
+  public dragDemolish = false;
   private lastText = new Map<string, string>();
   // Step7 UI: 破産の猶予モーダルを多重表示しないための内部フラグ。
   // gameOver=true を検知した最初のフレームでのみ表示し、救済アクション（やり直す/
@@ -341,6 +344,8 @@ export class UIManager {
       this.createInfrastructureOptions(optionsDiv);
     } else if (category === "landmark") {
       this.createLandmarkOptions(optionsDiv);
+    } else if (category === "demolish") {
+      optionsDiv.appendChild(this.createDragDemolishToggle());
     }
   }
 
@@ -600,9 +605,51 @@ export class UIManager {
     } else if (category === "landmark") {
       this.createLandmarkOptions(subpanel);
       subpanel.classList.add("open");
+    } else if (category === "demolish") {
+      subpanel.appendChild(this.createDragDemolishToggle());
+      subpanel.classList.add("open");
     } else {
       subpanel.classList.remove("open");
     }
+  }
+
+  /** 連続削除トグル（削除ツール選択時に表示）。ON でドラッグによるまとめ削除を有効化する。
+   *  デスクトップのサブパネルとモバイルのオプション欄の両方で同じ要素を生成する。 */
+  private createDragDemolishToggle(): HTMLElement {
+    const label = document.createElement("label");
+    label.className = "drag-demolish-toggle";
+
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.className = "drag-demolish-checkbox";
+    checkbox.checked = this.dragDemolish;
+    checkbox.setAttribute("role", "switch");
+    checkbox.setAttribute("aria-checked", this.dragDemolish ? "true" : "false");
+    checkbox.addEventListener("change", () => {
+      this.dragDemolish = checkbox.checked;
+      checkbox.setAttribute("aria-checked", checkbox.checked ? "true" : "false");
+      // もう一方のレイアウト（デスクトップ⇔モバイル）のトグルも状態を合わせる
+      document.querySelectorAll(".drag-demolish-checkbox").forEach((el) => {
+        const other = el as HTMLInputElement;
+        if (other !== checkbox) {
+          other.checked = this.dragDemolish;
+          other.setAttribute("aria-checked", this.dragDemolish ? "true" : "false");
+        }
+      });
+    });
+
+    const track = document.createElement("span");
+    track.className = "drag-demolish-track";
+    track.setAttribute("aria-hidden", "true");
+
+    const text = document.createElement("span");
+    text.className = "drag-demolish-text";
+    text.textContent = "連続削除（ドラッグでまとめて削除）";
+
+    label.appendChild(checkbox);
+    label.appendChild(track);
+    label.appendChild(text);
+    return label;
   }
 
   private getDescriptionForCategory(category: BuildingCategory): string {
@@ -613,7 +660,7 @@ export class UIManager {
       industrial: "工業地を敷設します。雇用が増加しますが、汚染も増えます。",
       infrastructure: "インフラを建設します。駅、警察、病院など。",
       landmark: "ランドマークを建設します。観光収入が増加します。",
-      demolish: "クリックして建物を削除します。",
+      demolish: "クリック/タップで建物を削除します（連続削除ONでドラッグでもまとめて削除）。",
     };
     return descriptions[category] || "";
   }
