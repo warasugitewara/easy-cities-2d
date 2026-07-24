@@ -381,6 +381,18 @@ export const GROWTH_BALANCE = {
   upgradeFactor: 0.4, // 高層化の倍率（旧 0.4）
 };
 
+// 快適度モデル（calculateComfort が唯一の算出元。散在していた comfort *= は廃止）
+export const COMFORT_MODEL = {
+  weights: { green: 0.25, transport: 0.2, density: 0.2, fund: 0.1, service: 0.25 },
+  parkCoverRadius: 10, // 公園カバー判定（チェビシェフ距離）
+  stationCoverRadius: 8, // 駅カバー判定（チェビシェフ距離）
+  densityComfortCap: 0.6, // 平均密度 u がこれ以下なら密度スコア100
+  densitySlope: 250, // u が cap を超えた分に対する減点勾配
+  maxResidentsPerHouseTile: 500, // 住宅L4の人口=密度uの基準
+  pollutionPenaltyMax: 0.3, // 全汚染で最大 -30%
+  slumPenaltyMax: 0.4, // 全スラムで最大 -40%
+};
+
 // パラメータの初期値
 export const INITIAL_PARAMETERS = {
   securityLevel: 50,

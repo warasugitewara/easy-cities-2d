@@ -493,3 +493,57 @@ describe("Step3: 効果カバー率×平滑追従モデル（CITY_LEVEL_MODEL）
     );
   });
 });
+
+describe("Step5: calculateComfort() 純粋関数モデル", () => {
+  function seedResidential(engine: GameEngine, n: number): void {
+    engine.state.buildMode = "residential";
+    for (let i = 0; i < n; i++) {
+      engine.build(5 + i, 5);
+    }
+    engine.calculatePopulation();
+  }
+
+  test("公園を住宅の近くに置くと快適度（緑地カバー率）が上がる", () => {
+    const engine = new GameEngine(makeSettings({ sandbox: true }));
+    seedResidential(engine, 5);
+    const before = engine.calculateComfort();
+
+    engine.state.buildMode = "infrastructure";
+    engine.state.selectedInfrastructure = "park";
+    engine.build(5, 7); // 住宅（y=5）の近くに公園を配置
+    const after = engine.calculateComfort();
+
+    expect(after).toBeGreaterThan(before);
+  });
+
+  test("汚染度が高いほど快適度が下がる（pollutionMult）", () => {
+    const engine = new GameEngine(makeSettings({ sandbox: true }));
+    seedResidential(engine, 5);
+
+    engine.state.pollutionLevel = 0;
+    const clean = engine.calculateComfort();
+    engine.state.pollutionLevel = 100;
+    const polluted = engine.calculateComfort();
+
+    expect(polluted).toBeLessThan(clean);
+  });
+
+  test("サービス指標（治安/安全/教育/医療）が高いほど快適度が上がる", () => {
+    const engine = new GameEngine(makeSettings({ sandbox: true }));
+    seedResidential(engine, 5);
+
+    engine.state.securityLevel = 0;
+    engine.state.safetyLevel = 0;
+    engine.state.educationLevel = 0;
+    engine.state.medicalLevel = 0;
+    const low = engine.calculateComfort();
+
+    engine.state.securityLevel = 100;
+    engine.state.safetyLevel = 100;
+    engine.state.educationLevel = 100;
+    engine.state.medicalLevel = 100;
+    const high = engine.calculateComfort();
+
+    expect(high).toBeGreaterThan(low);
+  });
+});

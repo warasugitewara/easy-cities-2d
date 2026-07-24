@@ -17,6 +17,7 @@ import {
   CITY_LEVEL_MODEL,
   DEMAND_MODEL,
   GROWTH_BALANCE,
+  COMFORT_MODEL,
 } from "./constants";
 import type { RNG } from "./rng";
 import { defaultRng } from "./rng";
@@ -79,6 +80,7 @@ export class GameEngine {
   private gridSize: number;
   private maintenanceMultiplier: number = 1.0;
   private disasterRateMultiplier: number = 1.0;
+  private initialMoney: number = 250000; // 難易度別の初期資金。快適度の fundScore の基準に使う。
   // Step2リバランス: 火災/病気による被害費を月次で台帳化するための集計フィールド。
   // monthlyUpdate() の冒頭（updateDisasters() 呼出前）でリセットし、収支適用時に一括反映する。
   // GameState には含めない（セーブデータを汚染しない派生値のため）。
@@ -130,6 +132,7 @@ export class GameEngine {
     const config = difficultyConfig[difficulty];
     this.maintenanceMultiplier = config.maintenanceMultiplier;
     this.disasterRateMultiplier = config.disasterRateMultiplier;
+    this.initialMoney = config.initialMoney;
 
     this._state = {
       map: Array.from({ length: this.gridSize }, () => Array(this.gridSize).fill(TileType.EMPTY)),
@@ -1122,8 +1125,7 @@ export class GameEngine {
           }
         }
       }
-      // 人口流出（快適度低下）
-      this.state.comfort *= Math.max(0.5, 1 - deficit * 0.5);
+      // （旧・快適度への直接減算は calculateComfort の service/汚染乗算に一本化したため削除）
     }
 
     this.state.growthPenalty = growthPenalty;
@@ -1144,47 +1146,100 @@ export class GameEngine {
   }
 
   // 快適度計算
+  // 快適度を純粋関数として算出する（唯一の算出元）。
+  // monthlyUpdate 内で pollution/slum 計算の後に呼ばれ、緑地/交通/密度/資金/サービスの
+  // 重み付き合成に、汚染・スラムの乗算ペナルティを掛けて求める。
+  // （以前は updatePollution/updateSlums/calculatePenalties に comfort *= が散在していたが、
+  //  それらは本メソッドの再計算で毎回上書きされ全て無効だった。Step5でここに一本化した。）
   calculateComfort(): number {
-    let score = 0;
+    const {
+      weights,
+      parkCoverRadius,
+      stationCoverRadius,
+      densityComfortCap,
+      densitySlope,
+      maxResidentsPerHouseTile,
+      pollutionPenaltyMax,
+      slumPenaltyMax,
+    } = COMFORT_MODEL;
 
-    // 1. 緑地率
-    let parkCount = 0;
-    let totalTiles = 0;
+    // 公園・駅のカバー範囲（±radius チェビシェフ矩形）を bool グリッドにスタンプ
+    const parkCovered = this.stampCoverage(TileType.PARK, parkCoverRadius);
+    const stationCovered = this.stampCoverage(TileType.STATION, stationCoverRadius);
+
+    let zoneTiles = 0;
+    let houseTiles = 0;
+    let parkCoveredZones = 0;
+    let stationCoveredZones = 0;
     for (let y = 0; y < this.gridSize; y++) {
       for (let x = 0; x < this.gridSize; x++) {
-        if (this.state.map[y][x] !== TileType.EMPTY) totalTiles++;
-        if (this.state.map[y][x] === TileType.PARK) parkCount++;
+        const tile = this.state.map[y][x];
+        if (tile >= 1 && tile <= 24) {
+          zoneTiles++;
+          const idx = y * this.gridSize + x;
+          if (parkCovered[idx]) parkCoveredZones++;
+          if (stationCovered[idx]) stationCoveredZones++;
+          if (tile >= TileType.RESIDENTIAL_L1 && tile <= TileType.RESIDENTIAL_L4) houseTiles++;
+        }
       }
     }
-    const greenScore = totalTiles > 0 ? (parkCount / totalTiles) * 100 : 0;
 
-    // 2. 交通充実度（駅の数と分布）
-    let stationCount = 0;
-    for (let y = 0; y < this.gridSize; y++) {
-      for (let x = 0; x < this.gridSize; x++) {
-        if (this.state.map[y][x] === TileType.STATION) stationCount++;
-      }
-    }
-    const transportScore = Math.min(stationCount * 5, 100);
+    // 緑地（公園カバー率）・交通（駅カバー率）: ゾーンタイルが無ければ中立50
+    const greenScore = zoneTiles > 0 ? (parkCoveredZones / zoneTiles) * 100 : 50;
+    const transportScore = zoneTiles > 0 ? (stationCoveredZones / zoneTiles) * 100 : 50;
 
-    // 3. 人口密度スコア（過密を避ける）
-    const densityScore = Math.max(0, 100 - this.state.population / 50);
-
-    // 4. 資金状況反映
-    const fundScore = Math.min((this.state.money / 250000) * 100, 100);
-
-    // 5. 医療度による快適度調整
-    let medicalBonus = 0;
-    if (this.state.medicalLevel >= 70) {
-      medicalBonus = 3;
-    } else if (this.state.medicalLevel <= 30) {
-      medicalBonus = -5;
+    // 密度: 住宅の平均充足率 u（最適帯 <=cap は満点、過密のみ減点）。住宅無しは中立50
+    let densityScore = 50;
+    if (houseTiles > 0) {
+      const u = this.state.population / (maxResidentsPerHouseTile * houseTiles);
+      densityScore =
+        u <= densityComfortCap ? 100 : Math.max(0, 100 - (u - densityComfortCap) * densitySlope);
     }
 
-    // 総合スコア
-    score = (greenScore + transportScore + densityScore + fundScore) / 4 + medicalBonus;
-    this.state.comfort = Math.round(Math.max(0, Math.min(100, score)));
+    // 資金
+    const fundScore = Math.min(100, Math.max(0, (this.state.money / this.initialMoney) * 50));
+
+    // サービス（治安/安全/教育/医療の平均）
+    const serviceScore =
+      (this.state.securityLevel +
+        this.state.safetyLevel +
+        this.state.educationLevel +
+        this.state.medicalLevel) /
+      4;
+
+    const base =
+      greenScore * weights.green +
+      transportScore * weights.transport +
+      densityScore * weights.density +
+      fundScore * weights.fund +
+      serviceScore * weights.service;
+
+    const pollutionMult = 1 - pollutionPenaltyMax * (this.state.pollutionLevel / 100);
+    const slumMult = 1 - slumPenaltyMax * (this.state.slumRate / 100);
+
+    this.state.comfort = Math.round(Math.max(0, Math.min(100, base * pollutionMult * slumMult)));
     return this.state.comfort;
+  }
+
+  // 指定タイル種別の各タイルを中心に ±radius（チェビシェフ）の矩形を被覆済みとして
+  // マークした bool グリッド（フラット）を返す。快適度の公園/駅カバー率算出に使う。
+  private stampCoverage(type: TileType, radius: number): Uint8Array {
+    const covered = new Uint8Array(this.gridSize * this.gridSize);
+    for (let y = 0; y < this.gridSize; y++) {
+      for (let x = 0; x < this.gridSize; x++) {
+        if (this.state.map[y][x] !== type) continue;
+        const yMin = Math.max(0, y - radius);
+        const yMax = Math.min(this.gridSize - 1, y + radius);
+        const xMin = Math.max(0, x - radius);
+        const xMax = Math.min(this.gridSize - 1, x + radius);
+        for (let ny = yMin; ny <= yMax; ny++) {
+          for (let nx = xMin; nx <= xMax; nx++) {
+            covered[ny * this.gridSize + nx] = 1;
+          }
+        }
+      }
+    }
+    return covered;
   }
 
   // リセット
@@ -1195,6 +1250,7 @@ export class GameEngine {
       hard: 150000,
     };
     const initialMoney = difficultyConfig[this.state.settings.difficulty] ?? 250000;
+    this.initialMoney = initialMoney;
     this.state = {
       map: Array.from({ length: this.gridSize }, () => Array(this.gridSize).fill(TileType.EMPTY)),
       population: 0,
@@ -1353,13 +1409,8 @@ export class GameEngine {
     const pollutedCells = this.state.pollutionMap.flat().filter((p) => p > 0).length;
     this.state.pollutionLevel = Math.round((pollutedCells / totalCells) * 100);
 
-    // 汚染が高いと快適度低下（基準を緩和）
-    if (this.state.pollutionLevel > 50) {
-      this.state.comfort *= 0.98;
-    }
-    if (this.state.pollutionLevel > 80) {
-      this.state.comfort *= 0.95;
-    }
+    // 快適度への汚染ペナルティは calculateComfort() の pollutionMult に一本化した
+    // （pollutionLevel を算出するここでは comfort を直接いじらない）。
   }
 
   private updateSlums(): void {
@@ -1415,13 +1466,12 @@ export class GameEngine {
     const slummedCells = this.state.slumMap.flat().filter((s) => s > 0).length;
     this.state.slumRate = Math.round((slummedCells / (this.gridSize * this.gridSize)) * 100);
 
-    // スラム化が高いと快適度低下・人口流出
+    // 快適度へのスラムペナルティは calculateComfort() の slumMult に一本化した。
+    // 人口流出（population *=）は Step6 でタイル降格による永続化に置き換える予定のため現状維持。
     if (this.state.slumRate > 10) {
-      this.state.comfort *= 0.95;
       this.state.population *= 0.98;
     }
     if (this.state.slumRate > 20) {
-      this.state.comfort *= 0.9;
       this.state.population *= 0.95;
     }
   }
