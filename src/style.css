@@ -530,6 +530,19 @@ body {
   margin-top: var(--sp-4);
 }
 
+.modal-buttons-vertical {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  margin-top: var(--sp-4);
+}
+
+.modal-buttons-vertical .btn-primary,
+.modal-buttons-vertical .btn-secondary {
+  flex: none;
+  width: 100%;
+}
+
 .btn-primary,
 .btn-secondary {
   flex: 1;
@@ -1425,6 +1438,139 @@ body {
   font-size: var(--fs-xs);
   color: var(--gold);
   font-variant-numeric: tabular-nums;
+}
+
+/* ==========================================================================
+   月次収支パネル（左下折畳、§4-d。デスクトップのみ。モバイルはステータスタブ内に
+   同内容を .budget-panel-body 相当のマークアップで別途配置する）
+   ========================================================================== */
+.budget-panel {
+  position: fixed;
+  bottom: var(--sp-4);
+  left: var(--sp-4);
+  z-index: var(--z-hud);
+  width: 220px;
+  overflow: hidden;
+  /* #ui-container は pointer-events: none（inherit されるので明示的に auto に戻す。
+     .hud-bar/.build-toolbar 等の既存パネルと同じパターン）。 */
+  pointer-events: auto;
+}
+
+.budget-panel-header {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  width: 100%;
+  padding: var(--sp-2) var(--sp-3);
+  background: transparent;
+  border: none;
+  color: var(--text-1);
+  cursor: pointer;
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  text-align: left;
+}
+
+.budget-panel-header:hover {
+  background: var(--surface-3);
+}
+
+.budget-panel-title {
+  flex-shrink: 0;
+}
+
+.budget-panel-net {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.budget-panel-caret {
+  flex-shrink: 0;
+  color: var(--text-2);
+  transition: transform var(--t-fast) var(--ease);
+}
+
+.budget-panel.open .budget-panel-caret {
+  transform: rotate(180deg);
+}
+
+.budget-panel-body {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition:
+    grid-template-rows var(--t-med) var(--ease),
+    opacity var(--t-med) var(--ease);
+}
+
+.budget-panel.open .budget-panel-body {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+
+.budget-panel-body-inner {
+  min-height: 0;
+  overflow: hidden;
+  padding: 0 var(--sp-3) var(--sp-3);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.budget-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  padding: 3px 0;
+  font-size: var(--fs-sm);
+}
+
+.budget-row.hidden {
+  display: none;
+}
+
+.budget-row-net {
+  margin-top: 2px;
+  padding-top: var(--sp-2);
+  border-top: 1px solid var(--border-1);
+  font-weight: 700;
+  font-size: var(--fs-md);
+}
+
+.budget-label {
+  color: var(--text-2);
+}
+
+.budget-value {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+.budget-positive {
+  color: var(--success);
+}
+
+.budget-negative {
+  color: var(--danger);
+}
+
+.budget-neutral {
+  color: var(--text-2);
+}
+
+/* モバイル：ステータスタブ下部セクションに同内容を配置する */
+.mobile-budget-section {
+  margin-top: var(--sp-3);
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--border-1);
+}
+
+.mobile-budget-title {
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  color: var(--text-1);
+  margin-bottom: var(--sp-2);
 }
 
 /* ==========================================================================

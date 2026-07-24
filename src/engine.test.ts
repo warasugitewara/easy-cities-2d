@@ -260,6 +260,33 @@ describe("GameEngine.monthlyUpdate()", () => {
     expect(engine.state.money - before).toBeCloseTo(-249.6, 3);
     expect(engine.state.population).toBe(sumPopulationFromMap(engine.state.map));
   });
+
+  test("lastReport.net が money の増減と一致する（サンドボックス）", () => {
+    const engine = new GameEngine(makeSettings({ sandbox: true }));
+    engine.state.buildMode = "residential";
+    engine.build(1, 1);
+    engine.build(2, 2);
+    engine.build(3, 3);
+
+    const before = engine.state.money;
+    engine.monthlyUpdate();
+
+    expect(engine.state.lastReport.net).toBeCloseTo(engine.state.money - before, 6);
+    expect(engine.state.lastReport.maintenance).toBe(0);
+  });
+
+  test("lastReport.net が money の増減と一致する（非サンドボックス）", () => {
+    const engine = new GameEngine(makeSettings());
+    engine.state.buildMode = "residential";
+    engine.build(1, 1);
+    engine.build(2, 2);
+    engine.build(3, 3);
+
+    const before = engine.state.money;
+    engine.monthlyUpdate();
+
+    expect(engine.state.lastReport.net).toBeCloseTo(engine.state.money - before, 6);
+  });
 });
 
 describe("Step4: calculateDemands() 雇用バランスモデル", () => {

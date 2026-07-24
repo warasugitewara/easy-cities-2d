@@ -71,6 +71,10 @@ export interface GameState {
   // ペナルティシステム
   growthPenalty: number; // 成長速度補正係数（1.0 = 通常、0.5 = 50%低下）
   revenuePenalty: number; // 税収補正係数（1.0 = 通常）
+  // Step7 UI: 月次収支パネル表示用の派生値（表示専用・money計算には影響しない）
+  lastReport: { revenue: number; maintenance: number; disaster: number; net: number };
+  // Step7 UI: 破産の穏当化（alert+即reset をやめ、フラグ＋一時停止に。救済はUIが行う）
+  gameOver: boolean;
 }
 
 export class GameEngine {
@@ -168,6 +172,8 @@ export class GameEngine {
       showDemandMeters: false,
       growthPenalty: 1.0,
       revenuePenalty: 1.0,
+      lastReport: { revenue: 0, maintenance: 0, disaster: 0, net: 0 },
+      gameOver: false,
       settings: settings || {
         difficulty: "normal",
         mapSize: "medium",
@@ -718,12 +724,22 @@ export class GameEngine {
       this.state.money += revenue - this.disasterDamage;
     }
 
+    // Step7 UI: 収支パネル表示用の派生値を書き出す（表示専用・money計算には影響しない）
+    const appliedMaintenance = this.state.settings.sandbox ? 0 : maintenance; // 非sandboxでは *= multiplier 済み
+    this.state.lastReport = {
+      revenue,
+      maintenance: appliedMaintenance,
+      disaster: this.disasterDamage,
+      net: revenue - appliedMaintenance - this.disasterDamage,
+    };
+
     this.state.month++;
 
-    // 破産判定（サンドボックスモードでは破産しない）
-    if (!this.state.settings.sandbox && this.state.money < 0) {
-      alert("資金がなくなりました！ゲームオーバーです");
-      this.reset();
+    // 破産判定（サンドボックスモードでは破産しない）。
+    // Step7 UI: alert+即reset をやめ、フラグ＋一時停止に。救済（やり直す/ロード/サンドボックス続行）はUIが行う。
+    if (!this.state.settings.sandbox && !this.state.gameOver && this.state.money < 0) {
+      this.state.gameOver = true;
+      this.state.paused = true;
     }
 
     this.recordSample(this.monthlySamples, performance.now() - __monthlyStart);
@@ -1266,6 +1282,8 @@ export class GameEngine {
       showDemandMeters: false,
       growthPenalty: 1.0,
       revenuePenalty: 1.0,
+      lastReport: { revenue: 0, maintenance: 0, disaster: 0, net: 0 },
+      gameOver: false,
       settings: this.state.settings,
     };
     this.placeInitialStation();

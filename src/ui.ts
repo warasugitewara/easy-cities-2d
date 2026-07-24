@@ -46,6 +46,11 @@ export class UIManager {
   private selectedInfrastructure: string = "station";
   private selectedLandmark: string = "stadium";
   private lastText = new Map<string, string>();
+  // Step7 UI: 破産の猶予モーダルを多重表示しないための内部フラグ。
+  // gameOver=true を検知した最初のフレームでのみ表示し、救済アクション（やり直す/
+  // サンドボックスで続ける）実行時に false へ戻す。ロード成功時は state 差し替えにより
+  // gameOver が false になるため、次フレームの updateDisplay() で自然に再表示可能になる。
+  private bankruptShown = false;
 
   constructor(engine: GameEngine, storage: StorageManager) {
     this.engine = engine;
@@ -166,6 +171,25 @@ export class UIManager {
         </div>
         <div class="demand-meter-mobile">
           <span>🏭 <span id="demand-value-industrial-mobile">50</span></span>
+        </div>
+      </div>
+      <div class="mobile-budget-section">
+        <div class="mobile-budget-title">📊 収支</div>
+        <div class="budget-row">
+          <span class="budget-label">税収</span>
+          <span class="budget-value budget-positive" id="budget-revenue-mobile">+¥0</span>
+        </div>
+        <div class="budget-row">
+          <span class="budget-label">維持費</span>
+          <span class="budget-value budget-neutral" id="budget-maintenance-mobile">-¥0</span>
+        </div>
+        <div class="budget-row" id="budget-disaster-row-mobile">
+          <span class="budget-label">災害</span>
+          <span class="budget-value budget-negative" id="budget-disaster-mobile">-¥0</span>
+        </div>
+        <div class="budget-row budget-row-net">
+          <span class="budget-label">純益</span>
+          <span class="budget-value" id="budget-net-mobile">+¥0</span>
         </div>
       </div>
     `;
@@ -342,8 +366,54 @@ export class UIManager {
     // ビルドツールバー（下端中央、常設）
     this.createBuildMenu(container);
 
+    // 月次収支パネル（左下、折畳）
+    this.createBudgetPanel(container);
+
     // ⚙メニュー（右サイドのスライドインドロワー）
     this.createMenuDrawer(container);
+  }
+
+  /** 月次収支パネル（左下折畳、§4-d。デスクトップのみ）。ヘッダは常に今月純益のサマリーを
+   *  表示し、クリックで税収/維持費/災害/純益の内訳を展開する。数値は updateDisplay() 内の
+   *  updateBudgetPanel() が engine.state.lastReport から反映する。 */
+  private createBudgetPanel(container: HTMLElement): void {
+    const panel = document.createElement("div");
+    panel.id = "budget-panel";
+    panel.className = "budget-panel glass";
+    panel.innerHTML = `
+      <button id="budget-panel-toggle" class="budget-panel-header" aria-expanded="false" aria-controls="budget-panel-body">
+        <span class="budget-panel-title">📊 収支</span>
+        <span class="budget-panel-net" id="budget-net-summary">今月純益 +¥0</span>
+        <span class="budget-panel-caret" aria-hidden="true">▾</span>
+      </button>
+      <div id="budget-panel-body" class="budget-panel-body">
+        <div class="budget-panel-body-inner">
+          <div class="budget-row">
+            <span class="budget-label">税収</span>
+            <span class="budget-value budget-positive" id="budget-revenue">+¥0</span>
+          </div>
+          <div class="budget-row">
+            <span class="budget-label">維持費</span>
+            <span class="budget-value budget-neutral" id="budget-maintenance">-¥0</span>
+          </div>
+          <div class="budget-row" id="budget-disaster-row">
+            <span class="budget-label">災害</span>
+            <span class="budget-value budget-negative" id="budget-disaster">-¥0</span>
+          </div>
+          <div class="budget-row budget-row-net">
+            <span class="budget-label">純益</span>
+            <span class="budget-value" id="budget-net">+¥0</span>
+          </div>
+        </div>
+      </div>
+    `;
+    container.appendChild(panel);
+
+    const toggle = panel.querySelector<HTMLButtonElement>("#budget-panel-toggle");
+    toggle?.addEventListener("click", () => {
+      const open = panel.classList.toggle("open");
+      toggle.setAttribute("aria-expanded", String(open));
+    });
   }
 
   /** ⚙メニュー（設定/セーブ/ロード/エクスポート/インポート）を右サイドのスライドインドロワーとして構築する。
@@ -712,6 +782,63 @@ export class UIManager {
       supplyPill.classList.toggle("hidden", minSupply >= 100);
       supplyPill.classList.toggle("hud-pill-danger", minSupply < 50);
     }
+
+    // Step7 UI: 月次収支パネル（デスクトップ左下折畳＋モバイル・ステータスタブ）を反映
+    this.updateBudgetPanel();
+
+    // Step7 UI: 破産の穏当化。engine.state.gameOver=true を検知したフレームで一度だけ
+    // 猶予モーダルを表示する（多重表示は bankruptShown で防止）。gameOver が false の間は
+    // 常に bankruptShown をリセットしておく（例: ロードで gameOver=false の保存データに
+    // 差し替わった場合など、モーダル側のボタンハンドラを経由しない救済経路でも、次に
+    // 本当に破産した際に確実に再表示されるようにするため）。
+    if (!this.engine.state.gameOver) {
+      this.bankruptShown = false;
+    } else if (!this.bankruptShown) {
+      this.bankruptShown = true;
+      this.showBankruptModal();
+    }
+  }
+
+  /** engine.state.lastReport（税収/維持費/災害/純益）をデスクトップの収支パネルと
+   *  モバイルのステータスタブ内セクションの両方に反映する。 */
+  private updateBudgetPanel(): void {
+    const report = this.engine.state.lastReport;
+
+    this.setBudgetMagnitude("budget-revenue", report.revenue, "+");
+    this.setBudgetMagnitude("budget-revenue-mobile", report.revenue, "+");
+    this.setBudgetMagnitude("budget-maintenance", report.maintenance, "-");
+    this.setBudgetMagnitude("budget-maintenance-mobile", report.maintenance, "-");
+    this.setBudgetMagnitude("budget-disaster", report.disaster, "-");
+    this.setBudgetMagnitude("budget-disaster-mobile", report.disaster, "-");
+
+    this.setBudgetNet("budget-net", report.net);
+    this.setBudgetNet("budget-net-mobile", report.net);
+    this.setBudgetNet("budget-net-summary", report.net, "今月純益 ");
+
+    // 災害被害が0の月は行ごと非表示にする
+    const hideDisaster = report.disaster === 0;
+    document.getElementById("budget-disaster-row")?.classList.toggle("hidden", hideDisaster);
+    document.getElementById("budget-disaster-row-mobile")?.classList.toggle("hidden", hideDisaster);
+  }
+
+  /** 収支内訳1行分（税収/維持費/災害）を書き込む。値は常に非負の金額として渡し、
+   *  行の意味に応じた符号（+/-）を prefix で固定する。 */
+  private setBudgetMagnitude(id: string, amount: number, prefix: "+" | "-"): void {
+    const rounded = Math.max(0, Math.round(amount));
+    this.setText(id, `${prefix}¥${rounded.toLocaleString()}`);
+  }
+
+  /** 純益（符号付き）を書き込み、正負に応じて success/danger の色クラスを切り替える。 */
+  private setBudgetNet(id: string, amount: number, labelPrefix = ""): void {
+    const rounded = Math.round(amount);
+    const positive = rounded >= 0;
+    this.setText(id, `${labelPrefix}${positive ? "+" : "-"}¥${Math.abs(rounded).toLocaleString()}`);
+
+    const el = document.getElementById(id);
+    if (el) {
+      el.classList.toggle("budget-positive", positive);
+      el.classList.toggle("budget-negative", !positive);
+    }
   }
 
   /** 現在の data-theme に合わせてテーマ切替ボタンの表示を更新する。 */
@@ -859,10 +986,18 @@ export class UIManager {
 
   /** モーダル共通の a11y 挙動をセットアップする：
    *  - 開時に最初のフォーカス可能要素へフォーカス
-   *  - 背景（オーバーレイ）クリックで close()
-   *  - Escキーで close()
-   *  - Tabキーでモーダル内をループするフォーカストラップ */
-  private setupModalBehavior(modal: HTMLElement, content: HTMLElement, close: () => void): void {
+   *  - 背景（オーバーレイ）クリックで close()（dismissible=false の場合は無効）
+   *  - Escキーで close()（dismissible=false の場合は無効）
+   *  - Tabキーでモーダル内をループするフォーカストラップ
+   *  dismissible=false は、破産の猶予モーダル（§5-5）のように3択のいずれかを必ず
+   *  選ばせたい場合に使う（未指定時は従来通り true）。 */
+  private setupModalBehavior(
+    modal: HTMLElement,
+    content: HTMLElement,
+    close: () => void,
+    options: { dismissible?: boolean } = {},
+  ): void {
+    const dismissible = options.dismissible ?? true;
     modal.setAttribute("role", "dialog");
     modal.setAttribute("aria-modal", "true");
 
@@ -881,6 +1016,7 @@ export class UIManager {
 
     modal.addEventListener("keydown", (e: KeyboardEvent) => {
       if (e.key === "Escape") {
+        if (!dismissible) return;
         e.preventDefault();
         close();
         return;
@@ -902,6 +1038,7 @@ export class UIManager {
     });
 
     modal.addEventListener("click", (e) => {
+      if (!dismissible) return;
       if (e.target === modal) close();
     });
   }
@@ -1024,6 +1161,55 @@ export class UIManager {
         }
         close();
       });
+    });
+  }
+
+  /** 破産の猶予モーダル（§5-5）。engine.state.gameOver=true を検知した updateDisplay() の
+   *  フレームで一度だけ呼ばれる。3択で必ずどれかを選ばせるため、他モーダルと異なり
+   *  Esc/背景クリックでは閉じない（dismissible: false）。 */
+  private showBankruptModal(): void {
+    const modal = document.createElement("div");
+    modal.className = "modal";
+    modal.innerHTML = `
+      <div class="modal-content">
+        <h2 id="modal-title-bankrupt">💸 財政破綻</h2>
+        <p class="modal-lead">資金がマイナスになりました。都市の立て直し方法を選んでください。</p>
+        <div class="modal-buttons-vertical">
+          <button id="btn-bankrupt-sandbox" class="btn-primary">🎮 サンドボックスで続ける</button>
+          <button id="btn-bankrupt-load" class="btn-secondary">📂 セーブをロード</button>
+          <button id="btn-bankrupt-restart" class="btn-secondary">🔄 最初からやり直す</button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(modal);
+    const content = modal.querySelector<HTMLElement>(".modal-content");
+    if (!content) return;
+
+    const close = (): void => modal.remove();
+    this.setupModalBehavior(modal, content, close, { dismissible: false });
+
+    content.querySelector("#btn-bankrupt-restart")?.addEventListener("click", () => {
+      this.engine.reset();
+      this.bankruptShown = false;
+      close();
+      this.updateDisplay();
+      showToast("新しい都市を始めました", "info");
+    });
+
+    content.querySelector("#btn-bankrupt-load")?.addEventListener("click", () => {
+      close();
+      this.showLoadSlots();
+    });
+
+    content.querySelector("#btn-bankrupt-sandbox")?.addEventListener("click", () => {
+      this.engine.state.settings.sandbox = true;
+      this.engine.state.gameOver = false;
+      this.engine.state.paused = false;
+      this.bankruptShown = false;
+      close();
+      this.updateDisplay();
+      showToast("サンドボックスモードで続行します", "info");
     });
   }
 
