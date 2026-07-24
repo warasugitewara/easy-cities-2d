@@ -1,18 +1,36 @@
 import { GameEngine } from "./engine";
 import { StorageManager } from "./storage";
 import {
+  BUILD_COSTS,
   BUILDING_TOOLS,
   BuildingCategory,
   INFRASTRUCTURE_COLORS,
   LANDMARK_COLORS,
 } from "./constants";
 
+/** インフラ選択肢のアイコン/名称。コストは唯一の定義元である constants.BUILD_COSTS から引く。 */
+const INFRASTRUCTURE_META: { type: string; name: string; icon: string }[] = [
+  { type: "station", name: "駅", icon: "🚉" },
+  { type: "park", name: "公園", icon: "🌳" },
+  { type: "police", name: "警察署", icon: "🚓" },
+  { type: "fire_station", name: "消防署", icon: "🚒" },
+  { type: "hospital", name: "病院", icon: "🏥" },
+  { type: "school", name: "学校", icon: "🏫" },
+  { type: "power_plant", name: "発電所", icon: "⚡" },
+  { type: "water_treatment", name: "水処理施設", icon: "💧" },
+];
+
+/** ランドマーク選択肢のアイコン/名称。コストは BUILD_COSTS[`landmark_${type}`] から引く。 */
+const LANDMARK_META: { type: string; name: string; icon: string }[] = [
+  { type: "stadium", name: "スタジアム", icon: "🏟️" },
+  { type: "airport", name: "空港", icon: "✈️" },
+];
+
 export class UIManager {
   private engine: GameEngine;
   private storage: StorageManager;
   private currentSlot: number = 0;
   private currentTab: BuildingCategory = "road";
-  private guiVisible: boolean = false;
   private selectedInfrastructure: string = "station";
   private selectedLandmark: string = "stadium";
   private lastText = new Map<string, string>();
@@ -391,101 +409,12 @@ export class UIManager {
   }
 
   private setupDesktopUI(container: HTMLElement): void {
-    // ダッシュボード（画面左上に常時表示）
-    const dashboard = document.createElement("div");
-    dashboard.id = "dashboard";
-    dashboard.className = "dashboard-compact";
-    dashboard.innerHTML = `
-      <div class="stat-panel-compact">
-        <div class="stat-item-compact">
-          <span class="stat-label">👥</span>
-          <span class="stat-value" id="stat-population">0</span>
-        </div>
-        <div class="stat-item-compact">
-          <span class="stat-label">💰</span>
-          <span class="stat-value" id="stat-money">¥250K</span>
-        </div>
-        <div class="stat-item-compact">
-          <span class="stat-label">😊</span>
-          <span class="stat-value" id="stat-comfort">50</span>
-        </div>
-        <div class="stat-item-compact">
-          <span class="stat-label">📅</span>
-          <span class="stat-value" id="stat-month">0</span>
-        </div>
-        <div class="stat-item-compact">
-          <span class="stat-label">🔒</span>
-          <span class="stat-value" id="stat-security">50</span>
-        </div>
-        <div class="stat-item-compact">
-          <span class="stat-label">🛡️</span>
-          <span class="stat-value" id="stat-safety">50</span>
-        </div>
-        <div class="stat-item-compact">
-          <span class="stat-label">📚</span>
-          <span class="stat-value" id="stat-education">50</span>
-        </div>
-        <div class="stat-item-compact">
-          <span class="stat-label">⚕️</span>
-          <span class="stat-value" id="stat-medical">50</span>
-        </div>
-        <div class="stat-item-compact">
-          <span class="stat-label">🎭</span>
-          <span class="stat-value" id="stat-tourism">0</span>
-        </div>
-        <div class="stat-item-compact">
-          <span class="stat-label">✈️</span>
-          <span class="stat-value" id="stat-international">0</span>
-        </div>
-        <div class="stat-item-compact">
-          <span class="stat-label">📡</span>
-          <span class="stat-value" id="stat-power">0%</span>
-        </div>
-        <div class="stat-item-compact">
-          <span class="stat-label">💧</span>
-          <span class="stat-value" id="stat-water">0%</span>
-        </div>
-        <div class="stat-item-compact">
-          <span class="stat-label">🏘️</span>
-          <span class="stat-value" id="stat-residential-demand">50</span>
-        </div>
-        <div class="stat-item-compact">
-          <span class="stat-label">🏪</span>
-          <span class="stat-value" id="stat-commercial-demand">50</span>
-        </div>
-        <div class="stat-item-compact">
-          <span class="stat-label">🏭</span>
-          <span class="stat-value" id="stat-industrial-demand">50</span>
-        </div>
-      </div>
-    `;
-    container.appendChild(dashboard);
+    this.createHudBar(container);
 
-    // 時間制御パネル（画面上部中央に常時表示）
-    const timePanel = document.createElement("div");
-    timePanel.id = "time-panel";
-    timePanel.className = "time-panel";
-    timePanel.innerHTML = `
-      <button id="btn-pause" class="time-btn" title="ポーズ">⏸</button>
-      <button id="btn-slow" class="time-btn" title="遅い">⏪</button>
-      <button id="btn-normal" class="time-btn active" title="通常">▶</button>
-      <button id="btn-fast" class="time-btn" title="高速">⏩</button>
-    `;
-    container.appendChild(timePanel);
-
-    // トグルボタン（画面下部中央に常時表示）
-    const toggleContainer = document.createElement("div");
-    toggleContainer.id = "toggle-container";
-    toggleContainer.className = "toggle-container";
-    toggleContainer.innerHTML = `
-      <button id="btn-toggle-gui" class="btn-toggle-gui">🎛️</button>
-    `;
-    container.appendChild(toggleContainer);
-
-    // ビルドメニュー（オーバーレイ、最初は非表示）
+    // ビルドツールバー（下端中央、常設）
     this.createBuildMenu(container);
 
-    // コントロールパネル（オーバーレイ、最初は非表示）
+    // コントロールパネル（⚙メニュー、最初は非表示。Step4でドロワー化予定のため現状のまま残置）
     const controls = document.createElement("div");
     controls.id = "controls-panel";
     controls.className = "controls-panel-overlay hidden";
@@ -503,14 +432,98 @@ export class UIManager {
     container.appendChild(controls);
   }
 
-  private createBuildMenu(container: HTMLElement): void {
-    const menu = document.createElement("div");
-    menu.id = "build-menu";
-    menu.className = "build-menu-overlay hidden";
+  /** トップHUDバー（主要指標＋時間コントロール＋⚙メニュー導線）と、その下にスライドダウンする副次指標パネルを構築する。 */
+  private createHudBar(container: HTMLElement): void {
+    const bar = document.createElement("div");
+    bar.id = "dashboard";
+    bar.className = "hud-bar glass";
+    bar.innerHTML = `
+      <div class="hud-primary">
+        ${this.statChipHTML("stat-money", "💰", "資金", { primary: true, valueClass: "stat-gold" })}
+        ${this.statChipHTML("stat-population", "👥", "人口", { primary: true })}
+        ${this.statChipHTML("stat-month", "📅", "月", { primary: true })}
+        <span id="hud-pause-pill" class="hud-pill hud-pill-warn hidden">⏸ 一時停止中</span>
+        <span id="hud-supply-pill" class="hud-pill hud-pill-warn hidden" data-tip="電力または水道の供給率が不足しています">⚠ 電力/水道不足</span>
+        <button id="btn-detail-toggle" class="hud-detail-toggle" aria-expanded="false" aria-controls="hud-detail-panel">▸ 詳細</button>
+      </div>
+      <div class="hud-time" role="toolbar" aria-label="時間コントロール">
+        <button id="btn-pause" class="time-btn" aria-pressed="false" title="ポーズ (Space)">⏸</button>
+        <button id="btn-slow" class="time-btn" aria-pressed="false" title="0.5倍速 (1)">0.5x</button>
+        <button id="btn-normal" class="time-btn active" aria-pressed="true" title="通常速度 (2)">1x</button>
+        <button id="btn-fast" class="time-btn" aria-pressed="false" title="2倍速 (3)">2x</button>
+      </div>
+      <div class="hud-right">
+        <button id="btn-toggle-gui" class="hud-menu-btn" aria-label="メニュー">⚙</button>
+      </div>
+    `;
+    container.appendChild(bar);
 
-    // タブコンテナ
-    const tabContainer = document.createElement("div");
-    tabContainer.className = "tab-container-overlay";
+    const detail = document.createElement("div");
+    detail.id = "hud-detail-panel";
+    detail.className = "hud-detail-panel glass";
+    detail.innerHTML = `
+      <div class="hud-detail-inner">
+        ${this.statChipHTML("stat-comfort", "😊", "快適度", { bar: true })}
+        ${this.statChipHTML("stat-security", "🔒", "治安", { bar: true })}
+        ${this.statChipHTML("stat-safety", "🛡️", "安全", { bar: true })}
+        ${this.statChipHTML("stat-education", "📚", "教育", { bar: true })}
+        ${this.statChipHTML("stat-medical", "⚕️", "医療", { bar: true })}
+        ${this.statChipHTML("stat-tourism", "🎭", "観光", { bar: true })}
+        ${this.statChipHTML("stat-international", "✈️", "国際", { bar: true })}
+        ${this.statChipHTML("stat-power", "📡", "電力", { bar: true })}
+        ${this.statChipHTML("stat-water", "💧", "水道", { bar: true })}
+        ${this.statChipHTML("stat-residential-demand", "🏘️", "住宅需要", { bar: true })}
+        ${this.statChipHTML("stat-commercial-demand", "🏪", "商業需要", { bar: true })}
+        ${this.statChipHTML("stat-industrial-demand", "🏭", "工業需要", { bar: true })}
+      </div>
+    `;
+    container.appendChild(detail);
+
+    document.getElementById("btn-detail-toggle")?.addEventListener("click", () => {
+      const toggle = document.getElementById("btn-detail-toggle");
+      const open = detail.classList.toggle("open");
+      toggle?.setAttribute("aria-expanded", String(open));
+    });
+  }
+
+  /** stat chip 1個分の HTML を生成する。既存 ID (stat-*) をそのまま value 要素の ID として使う。 */
+  private statChipHTML(
+    id: string,
+    icon: string,
+    label: string,
+    opts: { primary?: boolean; bar?: boolean; valueClass?: string } = {},
+  ): string {
+    const chipClass = opts.primary ? "stat-chip stat-chip-primary" : "stat-chip";
+    const valueClass = opts.valueClass ? `stat-value ${opts.valueClass}` : "stat-value";
+    const bar = opts.bar
+      ? `<span class="stat-bar" id="${id}-bar"><span class="stat-bar-fill"></span></span>`
+      : "";
+    return `
+      <span class="${chipClass}" role="group" aria-label="${label}" tabindex="0" data-tip="${label}">
+        <span class="stat-icon" aria-hidden="true">${icon}</span>
+        <span class="stat-chip-body">
+          <span class="${valueClass}" id="${id}">0</span>
+          ${bar}
+        </span>
+      </span>`;
+  }
+
+  /** ビルドツールバー（7カテゴリ常設）とインフラ/ランドマーク用サブパネルを構築する。 */
+  private createBuildMenu(container: HTMLElement): void {
+    const wrapper = document.createElement("div");
+    wrapper.id = "build-toolbar-wrapper";
+    wrapper.className = "build-toolbar-wrapper";
+
+    const subpanel = document.createElement("div");
+    subpanel.id = "build-subpanel";
+    subpanel.className = "build-subpanel glass";
+    wrapper.appendChild(subpanel);
+
+    const toolbar = document.createElement("div");
+    toolbar.id = "build-toolbar";
+    toolbar.className = "build-toolbar glass";
+    toolbar.setAttribute("role", "toolbar");
+    toolbar.setAttribute("aria-label", "建設カテゴリ");
 
     const categories: BuildingCategory[] = [
       "road",
@@ -522,27 +535,23 @@ export class UIManager {
       "demolish",
     ];
 
-    // タブボタン
     categories.forEach((cat) => {
       const tool = BUILDING_TOOLS[cat];
-      const tab = document.createElement("button");
-      tab.className = `tab-button-overlay ${cat === this.currentTab ? "active" : ""}`;
-      tab.dataset.category = cat;
-      tab.innerHTML = `${tool.icon}`;
-      tab.title = tool.label;
-      tab.addEventListener("click", () => this.switchTab(cat));
-      tabContainer.appendChild(tab);
+      const btn = document.createElement("button");
+      btn.className = `build-cat-btn build-cat-${cat}${cat === this.currentTab ? " active" : ""}`;
+      btn.dataset.category = cat;
+      btn.title = tool.label;
+      btn.setAttribute("aria-pressed", cat === this.currentTab ? "true" : "false");
+      btn.innerHTML = `<span class="build-cat-icon" aria-hidden="true">${tool.icon}</span><span class="build-cat-label">${tool.label}</span>`;
+      btn.addEventListener("click", () => this.switchTab(cat));
+      toolbar.appendChild(btn);
     });
 
-    menu.appendChild(tabContainer);
+    wrapper.appendChild(toolbar);
+    container.appendChild(wrapper);
 
-    // コンテンツエリア
-    const contentArea = document.createElement("div");
-    contentArea.id = "build-content";
-    contentArea.className = "build-content-overlay";
-    menu.appendChild(contentArea);
-
-    container.appendChild(menu);
+    // 初期表示（インフラ/ランドマーク以外はサブパネル非表示）
+    this.updateBuildContent(this.currentTab);
   }
 
   private switchTab(category: BuildingCategory): void {
@@ -552,8 +561,11 @@ export class UIManager {
     this.engine.state.selectedLandmark = this.selectedLandmark;
 
     // タブ表示の更新
-    document.querySelectorAll(".tab-button-overlay").forEach((btn) => {
-      btn.classList.toggle("active", (btn as HTMLElement).dataset.category === category);
+    document.querySelectorAll(".build-cat-btn").forEach((btn) => {
+      const el = btn as HTMLElement;
+      const isActive = el.dataset.category === category;
+      el.classList.toggle("active", isActive);
+      el.setAttribute("aria-pressed", isActive ? "true" : "false");
     });
 
     // コンテンツ更新
@@ -561,28 +573,19 @@ export class UIManager {
   }
 
   private updateBuildContent(category: BuildingCategory): void {
-    const content = document.getElementById("build-content");
-    if (!content) return;
+    const subpanel = document.getElementById("build-subpanel");
+    if (!subpanel) return;
 
-    content.innerHTML = "";
+    subpanel.innerHTML = "";
 
-    const tool = BUILDING_TOOLS[category];
-
-    const infoDiv = document.createElement("div");
-    infoDiv.className = "build-info-overlay";
-    infoDiv.innerHTML = `
-      <div class="info-title">${tool.icon} ${tool.label}</div>
-      <div class="info-description">
-        ${this.getDescriptionForCategory(category)}
-      </div>
-    `;
-    content.appendChild(infoDiv);
-
-    // カテゴリ別オプション
     if (category === "infrastructure") {
-      this.createInfrastructureOptions(content);
+      this.createInfrastructureOptions(subpanel);
+      subpanel.classList.add("open");
     } else if (category === "landmark") {
-      this.createLandmarkOptions(content);
+      this.createLandmarkOptions(subpanel);
+      subpanel.classList.add("open");
+    } else {
+      subpanel.classList.remove("open");
     }
   }
 
@@ -600,95 +603,78 @@ export class UIManager {
   }
 
   private createInfrastructureOptions(container: HTMLElement): void {
-    const options = [
-      { type: "station", name: "駅", icon: "🚉", cost: 5000 },
-      { type: "park", name: "公園", icon: "🌳", cost: 1000 },
-      { type: "police", name: "警察署", icon: "🚓", cost: 8000 },
-      { type: "fire_station", name: "消防署", icon: "🚒", cost: 7000 },
-      { type: "hospital", name: "病院", icon: "🏥", cost: 10000 },
-      { type: "school", name: "学校", icon: "🎓", cost: 6000 },
-      { type: "power_plant", name: "発電所", icon: "⚡", cost: 15000 },
-      { type: "water_treatment", name: "水処理施設", icon: "💧", cost: 12000 },
-    ];
-
-    const optionsDiv = document.createElement("div");
-    optionsDiv.className = "infrastructure-options";
-
-    options.forEach((opt) => {
-      const btn = document.createElement("button");
-      btn.className = "infra-btn";
-
-      // 色サンプルを取得
-      const color = INFRASTRUCTURE_COLORS[opt.type] || "#999";
-
-      btn.innerHTML = `
-        <div style="display: flex; align-items: center; gap: 8px; width: 100%;">
-          <div style="width: 24px; height: 24px; background-color: ${color}; border: 1px solid #666; border-radius: 3px;"></div>
-          <div style="text-align: left; flex: 1;">
-            <div>${opt.icon} ${opt.name}</div>
-            <small>¥${opt.cost.toLocaleString()}</small>
-          </div>
-        </div>
-      `;
-
-      btn.addEventListener("click", () => {
-        this.selectedInfrastructure = opt.type;
-        this.engine.state.selectedInfrastructure = opt.type;
-        optionsDiv.querySelectorAll(".infra-btn").forEach((b) => b.classList.remove("active"));
-        btn.classList.add("active");
-        console.log("Selected infrastructure:", opt.type);
-      });
-
-      if (opt.type === this.selectedInfrastructure) {
-        btn.classList.add("active");
-      }
-      optionsDiv.appendChild(btn);
+    INFRASTRUCTURE_META.forEach(({ type, name, icon }) => {
+      const cost = BUILD_COSTS[type] ?? 0;
+      const color = INFRASTRUCTURE_COLORS[type] || "#999";
+      const card = this.createBuildCard(
+        type,
+        name,
+        icon,
+        color,
+        cost,
+        type === this.selectedInfrastructure,
+        () => {
+          this.selectedInfrastructure = type;
+          this.engine.state.selectedInfrastructure = type;
+          container.querySelectorAll(".build-card").forEach((b) => b.classList.remove("active"));
+        },
+      );
+      container.appendChild(card);
     });
-
-    container.appendChild(optionsDiv);
   }
 
   private createLandmarkOptions(container: HTMLElement): void {
-    const options = [
-      { type: "stadium", name: "スタジアム", icon: "🏟️", cost: 50000 },
-      { type: "airport", name: "空港", icon: "✈️", cost: 80000 },
-    ];
+    LANDMARK_META.forEach(({ type, name, icon }) => {
+      const cost = BUILD_COSTS[`landmark_${type}`] ?? 0;
+      const color = LANDMARK_COLORS[type] || "#999";
+      const card = this.createBuildCard(
+        type,
+        name,
+        icon,
+        color,
+        cost,
+        type === this.selectedLandmark,
+        () => {
+          this.selectedLandmark = type;
+          this.engine.state.selectedLandmark = type;
+          container.querySelectorAll(".build-card").forEach((b) => b.classList.remove("active"));
+        },
+      );
+      container.appendChild(card);
+    });
+  }
 
-    const optionsDiv = document.createElement("div");
-    optionsDiv.className = "landmark-options";
+  /** インフラ/ランドマークのサブパネルカードを1個生成する。資金不足時は視覚的に減衰させる。 */
+  private createBuildCard(
+    type: string,
+    name: string,
+    icon: string,
+    color: string,
+    cost: number,
+    active: boolean,
+    onSelect: () => void,
+  ): HTMLButtonElement {
+    const btn = document.createElement("button");
+    btn.className = `build-card${active ? " active" : ""}`;
+    btn.dataset.type = type;
 
-    options.forEach((opt) => {
-      const btn = document.createElement("button");
-      btn.className = "landmark-btn";
+    const affordable = this.engine.state.settings.sandbox || this.engine.state.money >= cost;
+    if (!affordable) btn.classList.add("unaffordable");
 
-      // 色サンプルを取得
-      const color = LANDMARK_COLORS[opt.type] || "#999";
+    btn.innerHTML = `
+      <span class="build-card-swatch" style="background-color: ${color};"></span>
+      <span class="build-card-body">
+        <span class="build-card-name">${icon} ${name}</span>
+        <span class="build-card-cost">¥${cost.toLocaleString()}</span>
+      </span>
+    `;
 
-      btn.innerHTML = `
-        <div style="display: flex; align-items: center; gap: 8px; width: 100%;">
-          <div style="width: 24px; height: 24px; background-color: ${color}; border: 1px solid #666; border-radius: 3px;"></div>
-          <div style="text-align: left; flex: 1;">
-            <div>${opt.icon} ${opt.name}</div>
-            <small>¥${opt.cost.toLocaleString()}</small>
-          </div>
-        </div>
-      `;
-
-      btn.addEventListener("click", () => {
-        this.selectedLandmark = opt.type;
-        this.engine.state.selectedLandmark = opt.type;
-        optionsDiv.querySelectorAll(".landmark-btn").forEach((b) => b.classList.remove("active"));
-        btn.classList.add("active");
-        console.log("Selected landmark:", opt.type);
-      });
-
-      if (opt.type === this.selectedLandmark) {
-        btn.classList.add("active");
-      }
-      optionsDiv.appendChild(btn);
+    btn.addEventListener("click", () => {
+      onSelect();
+      btn.classList.add("active");
     });
 
-    container.appendChild(optionsDiv);
+    return btn;
   }
 
   /** 要素が存在する場合のみ textContent を更新する（レイアウトにより一部要素が無くても例外を投げない）。
@@ -698,6 +684,24 @@ export class UIManager {
     const el = document.getElementById(id);
     if (el) el.textContent = value;
     this.lastText.set(id, value);
+  }
+
+  /** `${id}-bar` 要素内のミニバー（高さ3px）の幅と色を 0-100 の値に応じて更新する（存在しなければ何もしない）。
+   *  前回書き込んだ値と同一なら DOM 書き込みをスキップする。 */
+  private setBar(id: string, value: number): void {
+    const key = `bar:${id}`;
+    const rounded = Math.round(value).toString();
+    if (this.lastText.get(key) === rounded) return;
+    this.lastText.set(key, rounded);
+
+    const fill = document.querySelector<HTMLElement>(`#${id}-bar .stat-bar-fill`);
+    if (!fill) return;
+
+    const pct = Math.max(0, Math.min(100, Math.round(value)));
+    fill.style.width = `${pct}%`;
+    fill.classList.toggle("bar-success", pct >= 60);
+    fill.classList.toggle("bar-mid", pct >= 30 && pct < 60);
+    fill.classList.toggle("bar-danger", pct < 30);
   }
 
   updateDisplay(): void {
@@ -714,17 +718,26 @@ export class UIManager {
     }
 
     this.setText("stat-comfort", Math.round(this.engine.state.comfort).toString());
+    this.setBar("stat-comfort", this.engine.state.comfort);
     this.setText("stat-month", this.engine.state.month.toString());
 
     // 新パラメータ表示
     this.setText("stat-security", Math.round(this.engine.state.securityLevel).toString());
+    this.setBar("stat-security", this.engine.state.securityLevel);
     this.setText("stat-safety", Math.round(this.engine.state.safetyLevel).toString());
+    this.setBar("stat-safety", this.engine.state.safetyLevel);
     this.setText("stat-education", Math.round(this.engine.state.educationLevel).toString());
+    this.setBar("stat-education", this.engine.state.educationLevel);
     this.setText("stat-medical", Math.round(this.engine.state.medicalLevel).toString());
+    this.setBar("stat-medical", this.engine.state.medicalLevel);
     this.setText("stat-tourism", Math.round(this.engine.state.tourismLevel).toString());
+    this.setBar("stat-tourism", this.engine.state.tourismLevel);
     this.setText("stat-international", Math.round(this.engine.state.internationalLevel).toString());
+    this.setBar("stat-international", this.engine.state.internationalLevel);
     this.setText("stat-power", Math.round(this.engine.state.powerSupplyRate).toString() + "%");
+    this.setBar("stat-power", this.engine.state.powerSupplyRate);
     this.setText("stat-water", Math.round(this.engine.state.waterSupplyRate).toString() + "%");
+    this.setBar("stat-water", this.engine.state.waterSupplyRate);
 
     // 需要値をダッシュボードに表示
     const residentialDemand = Math.round(this.engine.state.residentialDemand);
@@ -732,19 +745,37 @@ export class UIManager {
     const industrialDemand = Math.round(this.engine.state.industrialDemand);
 
     this.setText("stat-residential-demand", residentialDemand.toString());
+    this.setBar("stat-residential-demand", residentialDemand);
     this.setText("stat-commercial-demand", commercialDemand.toString());
+    this.setBar("stat-commercial-demand", commercialDemand);
     this.setText("stat-industrial-demand", industrialDemand.toString());
+    this.setBar("stat-industrial-demand", industrialDemand);
 
     // モバイル版の需要値表示（存在する場合のみ）
     this.setText("demand-value-residential-mobile", residentialDemand.toString());
     this.setText("demand-value-commercial-mobile", commercialDemand.toString());
     this.setText("demand-value-industrial-mobile", industrialDemand.toString());
+
+    // 電力/水道が100%未満の場合はトップバーに警告バッジを昇格表示（50%未満はdanger）
+    const supplyPill = document.getElementById("hud-supply-pill");
+    if (supplyPill) {
+      const minSupply = Math.min(
+        this.engine.state.powerSupplyRate,
+        this.engine.state.waterSupplyRate,
+      );
+      supplyPill.classList.toggle("hidden", minSupply >= 100);
+      supplyPill.classList.toggle("hud-pill-danger", minSupply < 50);
+    }
   }
 
   private attachEventListeners(): void {
-    // GUI表示/非表示トグル
-    document.getElementById("btn-toggle-gui")?.addEventListener("click", () => this.toggleGUI());
-    document.getElementById("btn-close-gui")?.addEventListener("click", () => this.toggleGUI());
+    // ⚙メニュー（controls-panel）表示/非表示トグル
+    document
+      .getElementById("btn-toggle-gui")
+      ?.addEventListener("click", () => this.toggleControlsPanel());
+    document
+      .getElementById("btn-close-gui")
+      ?.addEventListener("click", () => this.toggleControlsPanel());
 
     // 時間制御ボタン
     document.getElementById("btn-pause")?.addEventListener("click", () => this.setGameSpeed(0));
@@ -761,10 +792,8 @@ export class UIManager {
     document.getElementById("btn-export")?.addEventListener("click", () => this.exportGame());
     document.getElementById("btn-import")?.addEventListener("click", () => this.importGame());
 
-    // UI パネルのドラッグ機能
-    this.makePanelDraggable("dashboard");
-    this.makePanelDraggable("time-panel");
-    this.makePanelDraggable("build-menu");
+    // UI パネルのドラッグ機能（HUDバー/ビルドツールバーは常設固定のためドラッグ対象から除外。
+    // controls-panel の扱いはStep4でドロワー化予定のため現状のまま維持）
     this.makePanelDraggable("controls-panel");
     this.makeSimpleDraggable("demand-meter-container");
   }
@@ -776,6 +805,7 @@ export class UIManager {
     // デスクトップ用ボタンのアクティブ状態を更新
     document.querySelectorAll(".time-btn").forEach((btn) => {
       btn.classList.remove("active");
+      btn.setAttribute("aria-pressed", "false");
     });
 
     // モバイル用ボタンのアクティブ状態を更新
@@ -783,15 +813,24 @@ export class UIManager {
       btn.classList.remove("active");
     });
 
+    const activate = (id: string) => {
+      const btn = document.getElementById(id);
+      btn?.classList.add("active");
+      btn?.setAttribute("aria-pressed", "true");
+    };
+
     if (speed === 0) {
-      document.getElementById("btn-pause")?.classList.add("active");
+      activate("btn-pause");
     } else if (speed === 0.5) {
-      document.getElementById("btn-slow")?.classList.add("active");
+      activate("btn-slow");
     } else if (speed === 1) {
-      document.getElementById("btn-normal")?.classList.add("active");
+      activate("btn-normal");
     } else if (speed === 2) {
-      document.getElementById("btn-fast")?.classList.add("active");
+      activate("btn-fast");
     }
+
+    // ポーズ中はトップバー左に警告ピルを表示
+    document.getElementById("hud-pause-pill")?.classList.toggle("hidden", speed !== 0);
   }
 
   private makePanelDraggable(panelId: string): void {
@@ -920,18 +959,11 @@ export class UIManager {
     });
   }
 
-  private toggleGUI(): void {
-    this.guiVisible = !this.guiVisible;
-    const menu = document.getElementById("build-menu");
-    const controls = document.getElementById("controls-panel");
-
-    if (this.guiVisible) {
-      menu?.classList.remove("hidden");
-      controls?.classList.remove("hidden");
-    } else {
-      menu?.classList.add("hidden");
-      controls?.classList.add("hidden");
-    }
+  /** ⚙メニュー（controls-panel：設定/セーブ/ロード等）の表示を切り替える。
+   *  ビルドツールバーは常設化されたため、このトグルの対象は controls-panel のみ
+   *  （Step4でドロワー化するまでの暫定導線）。 */
+  private toggleControlsPanel(): void {
+    document.getElementById("controls-panel")?.classList.toggle("hidden");
   }
 
   private showSettings(): void {

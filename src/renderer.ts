@@ -117,7 +117,7 @@ export class Renderer {
     }
 
     // グリッド線（可視範囲をまとめて1パスで描画）
-    this.ctx.strokeStyle = "#1a1a1a";
+    this.ctx.strokeStyle = "#1B2336";
     this.ctx.lineWidth = 0.5;
     this.ctx.beginPath();
     for (let x = startX; x <= endX; x++) {
@@ -152,7 +152,7 @@ export class Renderer {
   private getTileColor(tile: number): string {
     switch (tile) {
       case TileType.EMPTY:
-        return "#0a0a0a";
+        return "#0D1322"; // 空き地（UIの紺背景と調和）
       case TileType.ROAD:
         return "#444444"; // より濃いグレー（視認性向上）
       case TileType.STATION:
@@ -204,7 +204,7 @@ export class Renderer {
       case TileType.LANDMARK_AIRPORT:
         return "#9932cc"; // 暗い紫（空港）
       default:
-        return "#0a0a0a";
+        return "#0D1322";
     }
   }
 }

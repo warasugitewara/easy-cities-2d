@@ -1,3 +1,152 @@
+/* ==========================================================================
+   デザイントークン ("Midnight Blueprint")
+   ========================================================================== */
+:root {
+  /* 背景 */
+  --bg-0: #0b1020;
+  --bg-1: #0f1626;
+  --surface-1: rgba(16, 23, 40, 0.72);
+  --surface-1-opaque: #131b30;
+  --surface-2: rgba(255, 255, 255, 0.05);
+  --surface-3: rgba(255, 255, 255, 0.09);
+
+  /* 枠 */
+  --border-1: rgba(148, 163, 184, 0.14);
+  --border-2: rgba(148, 163, 184, 0.28);
+  --border-inner-hi: rgba(255, 255, 255, 0.06);
+
+  /* 文字 */
+  --text-1: #e6eaf2;
+  --text-2: #9aa5b8;
+  --text-3: #667089;
+  --text-on-accent: #0b1020;
+
+  /* アクセント */
+  --accent: #38bdf8;
+  --accent-strong: #0ea5e9;
+  --accent-soft: rgba(56, 189, 248, 0.14);
+  --gold: #fbbf24;
+  --success: #34d399;
+  --danger: #f87171;
+  --info: #38bdf8;
+  --success-soft: rgba(52, 211, 153, 0.14);
+  --danger-soft: rgba(248, 113, 113, 0.14);
+
+  /* カテゴリ */
+  --cat-road: #94a3b8;
+  --cat-residential: #60a5fa;
+  --cat-commercial: #4ade80;
+  --cat-industrial: #fbbf24;
+  --cat-infrastructure: #c084fc;
+  --cat-landmark: #f472b6;
+  --cat-demolish: #f87171;
+
+  /* フォント */
+  --font-ui:
+    system-ui, -apple-system, "Segoe UI", Roboto, "Hiragino Kaku Gothic ProN", "Hiragino Sans",
+    "Noto Sans JP", Meiryo, sans-serif;
+
+  /* 文字サイズ */
+  --fs-xs: 11px;
+  --fs-sm: 12px;
+  --fs-md: 13px;
+  --fs-lg: 15px;
+  --fs-xl: 18px;
+  --fs-2xl: 22px;
+
+  /* 余白 (4px基調) */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+
+  /* 角丸 */
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 16px;
+  --r-full: 999px;
+
+  /* 影（グロー禁止・無彩色下方向） */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.35), 0 1px 3px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.35);
+
+  /* blur */
+  --blur-panel: 14px;
+  --blur-modal: 20px;
+
+  /* 遷移 */
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+  --t-fast: 120ms;
+  --t-med: 200ms;
+
+  /* z-index */
+  --z-hud: 100;
+  --z-panel: 200;
+  --z-modal: 900;
+  --z-toast: 1000;
+}
+
+/* .glass レシピ（全パネル共通） */
+.glass {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0) 40%), var(--surface-1);
+  border: 1px solid var(--border-1);
+  box-shadow:
+    inset 0 1px 0 var(--border-inner-hi),
+    var(--shadow-md);
+  border-radius: var(--r-md);
+  backdrop-filter: blur(var(--blur-panel)) saturate(1.2);
+  -webkit-backdrop-filter: blur(var(--blur-panel)) saturate(1.2);
+}
+
+@supports not (backdrop-filter: blur(1px)) {
+  .glass {
+    background: var(--surface-1-opaque);
+  }
+}
+
+/* ボタン基底: hover=surface-3 / press=scale(0.97) / translateY系の移動は使わない */
+button {
+  font-family: inherit;
+  transition:
+    background var(--t-fast) var(--ease),
+    box-shadow var(--t-fast) var(--ease),
+    transform var(--t-fast) var(--ease),
+    color var(--t-fast) var(--ease),
+    border-color var(--t-fast) var(--ease),
+    opacity var(--t-fast) var(--ease);
+}
+
+button:hover {
+  background: var(--surface-3);
+}
+
+button:active {
+  transform: scale(0.97);
+}
+
+:focus {
+  outline: none;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 1ms !important;
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+
 * {
   margin: 0;
   padding: 0;
@@ -5,35 +154,34 @@
 }
 
 body {
-  background: linear-gradient(135deg, #1a1a1a 0%, #0d0d0d 100%);
-  color: #e0e0e0;
-  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  background: radial-gradient(ellipse at 50% 0%, #121a30 0%, #0b1020 60%);
+  color: var(--text-1);
+  font-family: var(--font-ui);
   overflow: hidden;
   height: 100vh;
 }
 
 #app {
-  display: flex;
   height: 100vh;
-  gap: 20px;
-  padding: 20px;
+  position: relative;
 }
 
 #gameContainer {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  flex: 1;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
 }
 
 #gameCanvas {
-  border: 3px solid #00bfff;
+  width: min(100vh - 32px, 100vw - 32px);
+  height: min(100vh - 32px, 100vw - 32px);
+  border: 1px solid var(--border-2);
   background: #000;
-  box-shadow: 0 0 20px rgba(0, 191, 255, 0.3);
+  box-shadow: var(--shadow-lg);
   image-rendering: pixelated;
   image-rendering: crisp-edges;
-  max-width: 1024px;
-  max-height: 1024px;
   touch-action: none; /* タッチイベントをブラウザに横取りさせない */
 }
 
@@ -285,44 +433,6 @@ body {
   padding: 6px;
   border-radius: 3px;
   border: 1px solid #00aa77;
-}
-
-.infrastructure-options,
-.landmark-options {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 6px;
-}
-
-.infra-btn,
-.landmark-btn {
-  padding: 10px;
-  background: linear-gradient(135deg, #1a4a3a, #0a3a2a);
-  color: #e0e0e0;
-  border: 1px solid #00aa77;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 12px;
-  font-weight: bold;
-  text-align: left;
-  transition: all 0.2s;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-}
-
-.infra-btn:hover,
-.landmark-btn:hover {
-  background: linear-gradient(135deg, #2a6a5a, #1a5a4a);
-  box-shadow: 0 0 10px rgba(0, 170, 119, 0.5);
-}
-
-.infra-btn.active,
-.landmark-btn.active {
-  background: linear-gradient(135deg, #00dd88, #00aa66);
-  color: #000;
-  box-shadow: 0 0 15px rgba(0, 221, 136, 0.7);
 }
 
 /* コントロールパネル */
@@ -853,60 +963,11 @@ body {
 
 /* ===== デスクトップ UI（1025px以上） ===== */
 @media (min-width: 1025px) {
-  /* モバイルUIを非表示 */
+  /* モバイルUIを非表示（#app/#gameContainer/#gameCanvas/#ui-containerの
+     デスクトップレイアウトはベーススタイルが担当するため、ここでは再定義しない） */
   .mobile-panel {
     display: none !important;
   }
-
-  /* デスクトップUIのレイアウト */
-  #app {
-    display: flex;
-    flex-direction: row;
-    height: 100vh;
-    gap: 20px;
-    padding: 20px;
-  }
-
-  #gameContainer {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    flex: 1;
-  }
-
-  #gameCanvas {
-    border: 3px solid #00bfff;
-    max-width: 1024px;
-    max-height: 1024px;
-  }
-
-  #ui-container {
-    position: relative;
-    pointer-events: none;
-    width: 100%;
-    height: 100%;
-  }
-
-  .dashboard-compact,
-  .time-panel,
-  .toggle-container {
-    display: block !important;
-  }
-}
-
-/* アニメーション */
-@keyframes glow {
-  0%,
-  100% {
-    box-shadow: 0 0 10px rgba(0, 191, 255, 0.3);
-  }
-  50% {
-    box-shadow: 0 0 20px rgba(0, 191, 255, 0.6);
-  }
-}
-
-#gameCanvas {
-  animation: glow 2s ease-in-out infinite;
 }
 
 /* ===== オーバーレイUI スタイル ===== */
@@ -917,202 +978,444 @@ body {
   height: 100%;
 }
 
-/* ダッシュボード（右上に常時表示）*/
-.dashboard-compact {
+/* ==========================================================================
+   トップHUDバー（画面上端全幅・常時表示）
+   ========================================================================== */
+.hud-bar {
   position: fixed;
-  top: 20px;
-  right: 20px;
-  background: rgba(0, 0, 0, 0.8);
-  border: 2px solid #00bfff;
-  border-radius: 8px;
-  padding: 12px;
-  pointer-events: auto;
-  box-shadow: 0 0 15px rgba(0, 191, 255, 0.3);
-  z-index: 101;
-  cursor: grab;
-  user-select: none;
-}
-
-.stat-panel-compact {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 8px;
-}
-
-.stat-item-compact {
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 48px;
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 4px;
-  padding: 8px;
-  background: rgba(0, 191, 255, 0.1);
-  border: 1px solid #00bfff;
-  border-radius: 4px;
-}
-
-.stat-label {
-  font-size: 14px;
-  color: #00bfff;
-}
-
-.stat-value {
-  font-size: 16px;
-  font-weight: bold;
-  color: #00ff7f;
-}
-
-/* 時間制御パネル（画面上部中央に常時表示）*/
-.time-panel {
-  position: fixed;
-  top: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: rgba(0, 0, 0, 0.8);
-  border: 2px solid #00ff7f;
-  border-radius: 8px;
-  padding: 8px;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  padding: 0 var(--sp-4);
   pointer-events: auto;
+  z-index: var(--z-hud);
+  border-radius: 0;
+  border-top: none;
+  border-left: none;
+  border-right: none;
+}
+
+.hud-primary {
   display: flex;
-  gap: 6px;
-  box-shadow: 0 0 15px rgba(0, 255, 127, 0.3);
-  z-index: 101;
-  cursor: grab;
-  user-select: none;
+  align-items: center;
+  gap: var(--sp-3);
+  min-width: 0;
 }
 
-.time-btn {
-  padding: 8px 12px;
-  background: linear-gradient(135deg, #1a3a1a, #0a2a0a);
-  color: #e0e0e0;
-  border: 1px solid #00ff7f;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 16px;
-  font-weight: bold;
-  transition: all 0.2s;
+.hud-time {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  background: var(--surface-2);
+  border-radius: var(--r-full);
 }
 
-.time-btn:hover {
-  background: linear-gradient(135deg, #2a5a2a, #1a3a1a);
-  box-shadow: 0 0 8px rgba(0, 255, 127, 0.3);
+.hud-right {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
 }
 
-.time-btn.active {
-  background: linear-gradient(135deg, #00ff7f, #00cc66);
-  color: #000;
-  box-shadow: 0 0 12px rgba(0, 255, 127, 0.7);
-}
-
-/* トグルボタン（画面下部中央に常時表示）*/
-.toggle-container {
-  position: absolute;
-  bottom: 30px;
-  left: 50%;
-  transform: translateX(-50%);
-  pointer-events: auto;
-  z-index: 101;
-}
-
-.btn-toggle-gui {
-  padding: 16px 20px;
-  background: linear-gradient(135deg, #00bfff, #0099cc);
-  color: #000;
+.hud-detail-toggle {
+  background: transparent;
   border: none;
-  border-radius: 50%;
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+  padding: 4px var(--sp-2);
+  border-radius: var(--r-sm);
   cursor: pointer;
-  font-size: 24px;
-  font-weight: bold;
-  box-shadow: 0 0 20px rgba(0, 191, 255, 0.6);
-  transition: all 0.2s;
-  width: 56px;
-  height: 56px;
+}
+
+.hud-detail-toggle[aria-expanded="true"] {
+  color: var(--accent);
+}
+
+.hud-menu-btn {
+  width: 32px;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
+  background: var(--surface-2);
+  border: 1px solid var(--border-1);
+  border-radius: var(--r-sm);
+  color: var(--text-1);
+  font-size: var(--fs-lg);
+  cursor: pointer;
 }
 
-.btn-toggle-gui:hover {
-  transform: scale(1.1);
-  box-shadow: 0 0 30px rgba(0, 191, 255, 0.9);
+.hud-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px var(--sp-2);
+  border-radius: var(--r-full);
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  white-space: nowrap;
 }
 
-/* ビルドメニュー（オーバーレイ、表示/非表示）*/
-.build-menu-overlay {
-  position: fixed;
-  bottom: 100px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: rgba(0, 0, 0, 0.9);
-  border: 2px solid #00bfff;
-  border-radius: 8px;
-  padding: 15px;
-  pointer-events: auto;
-  width: auto;
-  min-width: 300px;
-  max-width: 600px;
-  max-height: 400px;
-  overflow-y: auto;
-  box-shadow: 0 0 20px rgba(0, 191, 255, 0.4);
-  z-index: 102;
-  cursor: grab;
-  user-select: none;
+.hud-pill-warn {
+  background: var(--danger-soft);
+  color: var(--danger);
 }
 
-.build-menu-overlay.hidden {
+.hud-pill-danger {
+  background: var(--danger-soft);
+  color: var(--danger);
+  box-shadow: inset 0 0 0 1px var(--danger);
+}
+
+.hidden {
   display: none !important;
 }
 
-.tab-container-overlay {
-  display: flex;
+/* stat chip（トップHUDバー・詳細パネル共通） */
+.stat-chip {
+  display: inline-flex;
+  align-items: center;
   gap: 6px;
-  margin-bottom: 12px;
-  flex-wrap: wrap;
+  padding: 4px var(--sp-2);
+  background: var(--surface-2);
+  border-radius: var(--r-sm);
+  position: relative;
 }
 
-.tab-button-overlay {
-  padding: 10px 14px;
-  background: linear-gradient(135deg, #1a3a3a, #0a2a2a);
-  color: #e0e0e0;
-  border: 1px solid #333;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 16px;
-  font-weight: bold;
-  transition: all 0.2s;
+.stat-chip-primary {
+  padding: 2px var(--sp-2);
 }
 
-.tab-button-overlay:hover {
-  background: linear-gradient(135deg, #2a5a5a, #1a3a3a);
-  box-shadow: 0 0 8px rgba(0, 191, 255, 0.3);
+.stat-icon {
+  font-size: var(--fs-md);
+  line-height: 1;
 }
 
-.tab-button-overlay.active {
-  background: linear-gradient(135deg, #00bfff, #0099cc);
-  color: #000;
-  box-shadow: 0 0 12px rgba(0, 191, 255, 0.7);
-}
-
-.build-content-overlay {
-  padding: 10px;
-}
-
-.build-info-overlay {
+.stat-chip-body {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-bottom: 10px;
+  gap: 2px;
+  min-width: 0;
 }
 
-.info-title {
-  font-size: 14px;
-  font-weight: bold;
-  color: #00bfff;
+.stat-chip .stat-value {
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  color: var(--text-1);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
 }
 
-.info-description {
-  font-size: 12px;
-  color: #b0b0b0;
-  line-height: 1.4;
+.stat-chip-primary .stat-value {
+  font-size: var(--fs-xl);
+}
+
+.stat-gold {
+  color: var(--gold) !important;
+}
+
+.stat-bar {
+  display: block;
+  width: 100%;
+  min-width: 34px;
+  height: 3px;
+  border-radius: var(--r-full);
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.stat-bar-fill {
+  display: block;
+  height: 100%;
+  width: 0%;
+  border-radius: var(--r-full);
+  background: var(--text-2);
+  transition: width var(--t-med) var(--ease);
+}
+
+.stat-bar-fill.bar-success {
+  background: var(--success);
+}
+
+.stat-bar-fill.bar-mid {
+  background: var(--text-2);
+}
+
+.stat-bar-fill.bar-danger {
+  background: var(--danger);
+}
+
+/* data-tip ツールチップ */
+[data-tip] {
+  position: relative;
+}
+
+[data-tip]:hover::after,
+[data-tip]:focus-visible::after {
+  content: attr(data-tip);
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0) 40%),
+    var(--surface-1-opaque);
+  border: 1px solid var(--border-1);
+  border-radius: var(--r-sm);
+  padding: 4px var(--sp-2);
+  font-size: var(--fs-sm);
+  color: var(--text-1);
+  white-space: nowrap;
+  z-index: var(--z-toast);
+  pointer-events: none;
+  transition-delay: 300ms;
+}
+
+/* 副次指標パネル（トップHUDバー直下、スライドダウン） */
+.hud-detail-panel {
+  position: fixed;
+  top: 48px;
+  left: 0;
+  right: 0;
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transform: translateY(-4px);
+  transition:
+    grid-template-rows var(--t-med) var(--ease),
+    opacity var(--t-med) var(--ease),
+    transform var(--t-med) var(--ease);
+  pointer-events: none;
+  z-index: var(--z-hud);
+  border-radius: 0;
+  border-top: none;
+  border-left: none;
+  border-right: none;
+}
+
+.hud-detail-panel.open {
+  grid-template-rows: 1fr;
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.hud-detail-inner {
+  min-height: 0;
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-4);
+}
+
+/* 時間コントロール（ピル型セグメント） */
+.time-btn {
+  padding: 5px var(--sp-3);
+  background: transparent;
+  color: var(--text-2);
+  border: none;
+  border-radius: var(--r-full);
+  cursor: pointer;
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.time-btn:hover {
+  background: var(--surface-3);
+  color: var(--text-1);
+}
+
+.time-btn.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+/* ==========================================================================
+   ビルドツールバー（下端中央・常設ピル）
+   ========================================================================== */
+.build-toolbar-wrapper {
+  position: fixed;
+  bottom: var(--sp-5);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-2);
+  pointer-events: none;
+  z-index: var(--z-hud);
+}
+
+.build-toolbar {
+  display: flex;
+  gap: var(--sp-1);
+  padding: var(--sp-1);
+  pointer-events: auto;
+  border-radius: var(--r-lg);
+}
+
+.build-cat-btn {
+  position: relative;
+  width: 56px;
+  height: 56px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  background: transparent;
+  border: none;
+  border-radius: var(--r-md);
+  color: var(--text-1);
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.build-cat-btn::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 10px;
+  right: 10px;
+  height: 3px;
+  border-radius: 0 0 2px 2px;
+  background: var(--cat-color, var(--cat-road));
+  transition: height var(--t-fast) var(--ease);
+}
+
+.build-cat-btn.active::before {
+  height: 4px;
+}
+
+.build-cat-btn.active {
+  background: var(--accent-soft);
+}
+
+.build-cat-demolish.active {
+  background: var(--danger-soft);
+}
+
+.build-cat-icon {
+  font-size: var(--fs-xl);
+  line-height: 1;
+}
+
+.build-cat-label {
+  font-size: var(--fs-xs);
+  color: var(--text-2);
+  line-height: 1;
+}
+
+.build-cat-road {
+  --cat-color: var(--cat-road);
+}
+
+.build-cat-residential {
+  --cat-color: var(--cat-residential);
+}
+
+.build-cat-commercial {
+  --cat-color: var(--cat-commercial);
+}
+
+.build-cat-industrial {
+  --cat-color: var(--cat-industrial);
+}
+
+.build-cat-infrastructure {
+  --cat-color: var(--cat-infrastructure);
+}
+
+.build-cat-landmark {
+  --cat-color: var(--cat-landmark);
+}
+
+.build-cat-demolish {
+  --cat-color: var(--cat-demolish);
+}
+
+/* サブパネル（インフラ/ランドマーク選択時、ツールバー直上にpop） */
+.build-subpanel {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(180px, 1fr));
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  pointer-events: auto;
+  max-height: 320px;
+  overflow-y: auto;
+  opacity: 0;
+  transform: translateY(8px);
+  visibility: hidden;
+  transition:
+    opacity var(--t-med) var(--ease),
+    transform var(--t-med) var(--ease);
+}
+
+.build-subpanel.open {
+  opacity: 1;
+  transform: translateY(0);
+  visibility: visible;
+}
+
+.build-card {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2);
+  background: var(--surface-2);
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  color: var(--text-1);
+  cursor: pointer;
+  text-align: left;
+}
+
+.build-card.active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+
+.build-card.unaffordable {
+  opacity: 0.45;
+}
+
+.build-card.unaffordable .build-card-cost {
+  color: var(--danger);
+}
+
+.build-card-swatch {
+  flex-shrink: 0;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+}
+
+.build-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.build-card-name {
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.build-card-cost {
+  font-size: var(--fs-xs);
+  color: var(--gold);
+  font-variant-numeric: tabular-nums;
 }
 
 /* コントロールパネル（オーバーレイ、表示/非表示）*/

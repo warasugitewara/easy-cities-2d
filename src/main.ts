@@ -8,10 +8,6 @@ import { computeSteps, SIM_TICK_MS } from "./gameloop";
 
 // ページタイトルを動的に更新
 document.title = `Easy Cities 2D (ver.${GAME_VERSION})`;
-const titleElement = document.getElementById("app-title");
-if (titleElement) {
-  titleElement.textContent = `Easy Cities 2D (ver.${GAME_VERSION})`;
-}
 
 console.log(`🎮 Easy Cities 2D (ver.${GAME_VERSION}) - Initializing...`);
 
