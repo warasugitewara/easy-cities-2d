@@ -110,7 +110,7 @@ export class UIManager {
     statStrip.innerHTML = `
       ${this.statChipHTML("stat-money", "💰", "資金", { primary: true, valueClass: "stat-gold" })}
       ${this.statChipHTML("stat-population", "👥", "人口", { primary: true })}
-      ${this.statChipHTML("stat-month", "📅", "月", { primary: true })}
+      ${this.statChipHTML("stat-month", "📅", "年", { primary: true })}
     `;
     mobilePanel.appendChild(statStrip);
 
@@ -458,7 +458,7 @@ export class UIManager {
       <div class="hud-primary">
         ${this.statChipHTML("stat-money", "💰", "資金", { primary: true, valueClass: "stat-gold" })}
         ${this.statChipHTML("stat-population", "👥", "人口", { primary: true })}
-        ${this.statChipHTML("stat-month", "📅", "月", { primary: true })}
+        ${this.statChipHTML("stat-month", "📅", "年", { primary: true })}
         <span id="hud-pause-pill" class="hud-pill hud-pill-warn hidden">⏸ 一時停止中</span>
         <span id="hud-supply-pill" class="hud-pill hud-pill-warn hidden" data-tip="電力または水道の供給率が不足しています">⚠ 電力/水道不足</span>
         <button id="btn-detail-toggle" class="hud-detail-toggle" aria-expanded="false" aria-controls="hud-detail-panel" aria-label="詳細指標の表示切り替え">▸ 詳細</button>
@@ -724,18 +724,21 @@ export class UIManager {
     const population = this.engine.state.population;
     const money = this.engine.state.money;
 
-    this.setText("stat-population", (population / 1000).toFixed(1) + "K");
+    this.setText("stat-population", this.formatCompact(population));
 
     // サンドボックスモードの場合は∞表記、通常モードは金額表示
     if (this.engine.state.settings.sandbox) {
       this.setText("stat-money", "∞");
     } else {
-      this.setText("stat-money", `¥${(money / 1000).toFixed(0)}K`);
+      this.setText("stat-money", this.formatMoney(money));
     }
 
     this.setText("stat-comfort", Math.round(this.engine.state.comfort).toString());
     this.setBar("stat-comfort", this.engine.state.comfort);
-    this.setText("stat-month", this.engine.state.month.toString());
+    // 経過時間は「年」で表示する（月次更新は毎秒3回程度進むため、生の月番号だと
+    // 猛烈な速度で増えて意味をなさない。12ヶ月=1年に丸めて可読にする）。
+    const year = Math.floor(this.engine.state.month / 12) + 1;
+    this.setText("stat-month", `${year}年`);
 
     // 新パラメータ表示
     this.setText("stat-security", Math.round(this.engine.state.securityLevel).toString());
@@ -821,18 +824,43 @@ export class UIManager {
     document.getElementById("budget-disaster-row-mobile")?.classList.toggle("hidden", hideDisaster);
   }
 
+  /** 数値を K/M/B/T の短縮表記にする（桁が無限に伸びてトップバー/収支欄からはみ出すのを防ぐ）。
+   *  1000未満はそのまま整数、以降は3桁ごとに単位を繰り上げ、スケール後の絶対値が
+   *  100未満のときのみ小数第1位まで表示する（例: 1234→"1.2K", 12345678→"12.3M"）。 */
+  private formatCompact(n: number): string {
+    if (Math.abs(n) < 1000) return Math.round(n).toString();
+    const units = ["K", "M", "B", "T"];
+    let value = n;
+    let idx = -1;
+    while (idx < units.length - 1) {
+      value /= 1000;
+      idx++;
+      // 表示桁で丸めた結果が1000未満に収まる単位で確定する。丸め上げで
+      // 999.99→"1000K" のような桁あふれが起きる場合は一段上の単位へ繰り上げる。
+      const digits = Math.abs(value) < 100 ? 1 : 0;
+      if (Math.abs(Number(value.toFixed(digits))) < 1000) break;
+    }
+    const digits = Math.abs(value) < 100 ? 1 : 0;
+    return value.toFixed(digits).replace(/\.0$/, "") + units[idx];
+  }
+
+  /** 金額を ¥ + 短縮表記で返す。 */
+  private formatMoney(n: number): string {
+    return `¥${this.formatCompact(n)}`;
+  }
+
   /** 収支内訳1行分（税収/維持費/災害）を書き込む。値は常に非負の金額として渡し、
    *  行の意味に応じた符号（+/-）を prefix で固定する。 */
   private setBudgetMagnitude(id: string, amount: number, prefix: "+" | "-"): void {
     const rounded = Math.max(0, Math.round(amount));
-    this.setText(id, `${prefix}¥${rounded.toLocaleString()}`);
+    this.setText(id, `${prefix}${this.formatMoney(rounded)}`);
   }
 
   /** 純益（符号付き）を書き込み、正負に応じて success/danger の色クラスを切り替える。 */
   private setBudgetNet(id: string, amount: number, labelPrefix = ""): void {
     const rounded = Math.round(amount);
     const positive = rounded >= 0;
-    this.setText(id, `${labelPrefix}${positive ? "+" : "-"}¥${Math.abs(rounded).toLocaleString()}`);
+    this.setText(id, `${labelPrefix}${positive ? "+" : "-"}${this.formatMoney(Math.abs(rounded))}`);
 
     const el = document.getElementById(id);
     if (el) {

@@ -15,10 +15,10 @@
   --border-2: rgba(148, 163, 184, 0.28);
   --border-inner-hi: rgba(255, 255, 255, 0.06);
 
-  /* 文字 */
+  /* 文字（薄すぎ回避のためコントラスト強化） */
   --text-1: #e6eaf2;
-  --text-2: #9aa5b8;
-  --text-3: #667089;
+  --text-2: #bcc6d8;
+  --text-3: #8894ad;
   --text-on-accent: #0b1020;
 
   /* アクセント */
@@ -107,8 +107,8 @@
   --border-inner-hi: rgba(255, 255, 255, 0.7);
 
   --text-1: #1e293b;
-  --text-2: #52607a;
-  --text-3: #8a94a6;
+  --text-2: #3a4763;
+  --text-3: #64708a;
   --text-on-accent: #ffffff;
 
   --accent: #0284c7;
@@ -664,7 +664,14 @@ body {
 
 .mobile-stat-strip .stat-chip {
   flex: 1;
+  min-width: 0;
   justify-content: center;
+  overflow: hidden;
+}
+
+/* 狭い画面でも主要値がはみ出さないよう、モバイル帯では主要値をやや小さめに */
+.mobile-stat-strip .stat-chip-primary .stat-value {
+  font-size: var(--fs-lg);
 }
 
 /* タブバー（アイコン＋ラベル縦積み、44px以上のタッチターゲット） */
@@ -1126,11 +1133,12 @@ body {
 }
 
 .stat-chip .stat-value {
-  font-size: var(--fs-sm);
+  font-size: var(--fs-md);
   font-weight: 700;
   color: var(--text-1);
   font-variant-numeric: tabular-nums;
   line-height: 1.1;
+  white-space: nowrap;
 }
 
 .stat-chip-primary .stat-value {
